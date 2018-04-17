@@ -1,5 +1,7 @@
 # kontakt-scripting-framework
-Collection of Kontakt scripts.
+Collection of Kontakt script libraries.
+
+Please read the license file.
 
 To use these scripts you must be using the SublimeKSP plugin inside Sublime Text 3 or later. The plugin can be found here - https://github.com/nojanath/SublimeKSP
 
