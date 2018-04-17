@@ -1,0 +1,114 @@
+{---------------------------------------------------------------------
+Title: Helpers
+File: helpers.txt
+Author: David Healey
+First Written: August 07 2016
+----------------------------------------------------------------------}
+
+macro disableAutoReleaseTriggers()
+	SET_CONDITION(NO_SYS_SCRIPT_RLS_TRIG) //Disable Kontakt Release Triggers
+end macro
+
+macro allowGroupForEvent(event, group)
+    set_event_par_arr(event, $EVENT_PAR_ALLOW_GROUP, 1, group)
+end macro
+
+macro disallowGroupForEvent(event, group)
+    set_event_par_arr(event, $EVENT_PAR_ALLOW_GROUP, 0, group)
+end macro
+
+{/**
+* Returns the number of keys that are currently held
+*/}
+taskfunc getNumHeldKeys() -> return
+
+    declare $i
+    declare $heldKeys := 0
+
+    for $i := 0 to 127 {Each key}
+        if (KEY_DOWN[$i] = 1) {This key is down}
+            inc($heldKeys)
+        end if
+    end for
+
+    return := $heldKeys
+
+end taskfunc
+
+{/**
+* This function should be called in onNote. If two notes are played within the given 
+* threshold time then it counts as a chord and the function returns 1
+/*}
+function isChord(threshold) -> return
+
+	declare global $chordDetectorTime
+
+	if ($KSP_TIMER - $chordDetectorTime < threshold)
+		return := 1
+	else 
+		return := 0
+	end if
+
+	$chordDetectorTime := $KSP_TIMER
+
+end function
+
+function midiNumberToNoteName(n) -> return
+	declare !note_letters[12] := ('C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B') //Note name strings
+
+    return := !note_letters[n mod 12] & ((n/12)-2) //Return the note name
+end function
+
+//Morphs between the values of x, y, and z. Morph is controlled by given morph value (0-1000)
+taskfunc morphXyz(morph, x, y, z) -> return
+
+    if (morph <= 500) 
+       return := (((500 - morph) * x) + (morph * y)) / 500 
+    end if 
+
+    if (morph > 500) 
+       return := (((1000 - morph) * y) + ((morph - 500) * z)) / 500 
+    end if 
+
+end taskfunc
+
+//Morphs between the values of x and y. Morph is controlled by given morph value (0-1000)
+function morphXy(morph, x, y) -> return
+    return := (((1000 - morph) * x) + (morph * y)) / 1000 
+end function
+
+{/**
+* THIS FUNCTION RELIES ON BIG BOB'S MATH LIBRARY - SO LOAD THAT LIBRARY THEN UNCOMMENT THIS FUNCTION TO USE IT
+*
+* Crossfades the volume of two notes.
+*
+* @param    type        The crossfade shape to use (0:equal power, 1:Sshape1, 2:Sshape2, 3:Sshape3)
+* @param    mv          The curve morph value: 0 - 1000
+* @param    value       The value at which to crossfade: 0 - 1000 - If using a CC then must be passed after formula: xfv := Ang90*CC/127
+* @param    note_ids    Two element array containing the IDs of notes to crossfade
+*/}
+{function volumeCrossfade(type, mv, value, note_ids)
+
+    declare val[2]
+    declare $i
+
+    if (value <= 1000)
+        select (type)
+            case 0 //Equal power
+                EP_XFade(value, mv, val[1], val[0])
+            case 1 //S shape 1
+                S1_XFade(value, mv, val[1], val[0])
+            case 2 //S shape 2
+                S2_XFade(value, mv, val[1], val[0])
+            case 3 //S shape 3
+                S3_XFade(value, mv, val[1], val[0])
+        end select    
+
+        for $i := 0 to num_elements(val)-1
+            val[$i] := VR_to_mdb(val[$i]) //Convert the XFade EP value to a mdB value
+            change_vol(note_ids[$i], val[$i], 0)
+        end for
+
+    end if
+
+end function}

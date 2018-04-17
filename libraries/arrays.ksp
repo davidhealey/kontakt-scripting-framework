@@ -1,0 +1,238 @@
+{---------------------------------------------------------------------
+Title: Arrays
+File: arrays.txt
+Author: David Healey
+First Written: June 17 2012
+----------------------------------------------------------------------}
+
+{/**
+* Creates a psuedo 2D pgs key
+*/}
+macro array.2D_pgs(#name#, d1, d2)
+
+    pgs_create_key(_#name#_2d, d1*d2)
+
+    family #name#
+        declare const SIZE_D1 := d1
+        declare const SIZE_D2 := d2
+    end family
+
+    property #name#
+      
+        function get(x, y) -> result
+            result := pgs_get_key_val(_#name#_2d, y * d1 + x)
+        end function
+
+        function set(x, y, value)
+            pgs_set_key_val(_#name#_2d, y * d1 + x, value)
+        end function
+
+    end property
+
+end macro
+
+{/**
+* Deprecated, use latest sublime KSP plugin which includes support for multi-dimensional arrays
+*
+* Creates a psuedo 2D array using the property command.
+*
+* @param    Name   Name of the 2D array
+* @param    c      Number of columns
+* @param    r      Number of rows
+*/}
+macro array.2D_array(#name#, d1, d2, default, persistent)
+
+    declare #name#_array_data[d1*d2] := (default) {Fill the array with default value}
+
+    if (persistent = 1)
+        make_persistent(#name#_array_data)
+        read_persistent_var(#name#_array_data)
+    end if
+
+    family #name#
+        declare const X := d1
+        declare const Y := d2
+    end family
+
+    property #name#
+      
+      function get(x, y) -> result
+        result := #name#_array_data[y * d1 + x]
+      end function
+
+      function set(x, y, value)
+        #name#_array_data[y * d1 + x] := value
+      end function
+
+    end property
+
+end macro
+
+{/**
+* Deprecated, use latest sublime KSP plugin which includes support for multi-dimensional arrays
+*
+* Creates a psuedo 3D array using the property command.
+*
+* @param    Name   Name of the 2D array
+* @param    d1      Number of rows
+* @param    d2      Number of columns
+* @param    d3      Number of layers
+*/}
+macro array.3D_array(#name#, d1, d2, d3, default, persistent)
+
+    declare #name#_array_data[d1*d2*d3] := (default) {Fill the array with default value}
+
+    if (persistent = 1)
+        make_persistent(#name#_array_data)
+        read_persistent_var(#name#_array_data)
+    end if
+
+    family #name#
+        declare const X := d1
+        declare const Y := d2
+        declare const Z := d3
+    end family
+
+    property #name#
+        
+        function get(x, y, z) -> result
+            result := #name#_array_data[d2 * d3 * x + d3 * y + z]
+        end function
+
+        function set(x, y, z, value)
+            #name#_array_data[d2 * d3 * x + d3 * y + z] := value
+        end function
+    end property
+
+end macro
+
+{/** 
+* Takes two arrays and copies the values of the first to the second. Works best if both arrays are the same size but if
+* not the size of the smallest will be used.
+*/}
+function array.copy(a1, a2)
+
+    declare $i
+    declare $size
+
+    //Check how many elements are to be copied - if the two arrays are different sizes the smallest is used
+    if num_elements(a1) < num_elements(a2)
+        $size := num_elements(a1)-1
+    else
+        $size := num_elements(a2)-1
+    end if
+
+    for $i := 0 to $size
+        a2[$i] := a1[$i]
+    end for
+
+end function
+
+//Normalises the values of an array upto the given max value
+function array.normalise(a, max)
+
+    declare $i
+    declare $found_max
+
+    //Look for the highest value in the array
+    $found_max := a[0]
+    for $i := 1 to num_elements(a) - 1
+        if abs(a[$i]) > $found_max
+            $found_max := abs(a[$i])
+        end if
+    end for
+
+    //Normalise the array
+    for $i := 0 to num_elements(a)-1
+        a[$i] := a[$i] * max / $found_max
+    end for
+
+end function
+
+{/**
+* For debugging purposes, message out the contents of an array and wait the given delay time between elements
+* If wanting to use this during on init you will need to defer it to the pgs callback and trigger the callback because 
+* wait() is not allowed in on init
+*/}
+function array.message(a, delay)
+
+    declare $i
+
+    for $i := 0 to num_elements(a)-1
+        message('Element ' & $i & ': ' & a[$i])
+        wait(delay*1000)
+    end for
+
+end function
+
+//Search a PGS key for a value and if found return its index
+function array.search_pgs(key, elements, value) -> return
+
+	declare $i 
+    $return := -1
+
+    $i := 0
+    while (return = -1 and $i < elements)
+
+        if (pgs_get_key_val(key, $i) = value) {If the value has been found at the PGS index}
+            return := $i
+        end if
+
+        inc($i)
+    end while
+
+end function
+
+//Fills an array with a given value
+function array.fill(a, value)
+
+    declare i
+
+    for i := 0 to num_elements(a) - 1
+        a[i] := value
+    end for
+
+end function
+
+//Inverts the values of an array
+function array.reverse(a)
+
+    declare $i
+    declare temp
+
+    for $i := 0 to num_elements(a)/2
+        temp := a[$i]
+        a[$i] := a[num_elements(a)-1-$i]
+        a[num_elements(a)-1-$i] := temp
+    end for
+
+end function
+
+//Replaces all instances of a value (old) in an array with a new value
+function array.replace_value(a, old, new)
+
+	declare $i 
+
+	for $i := 0 to num_elements(a)-1 
+		if (a[$i] = old)
+			a[$i] := new
+		end if
+	end for
+
+end function
+
+macro array.search_pgs(key, numElements, value, return)
+
+    $return := -1
+
+    $i := 0
+    while (return = -1 and $i < numElements)
+
+        if (pgs_get_key_val(key, $i) = value) //If the value has been found at the PGS index
+            return := $i
+        end if
+
+        inc($i)
+    end while
+
+end macro

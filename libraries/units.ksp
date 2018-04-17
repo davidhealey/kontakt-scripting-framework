@@ -1,0 +1,123 @@
+{---------------------------------------------------------------------
+Title: Units Library
+File: units.txt
+Author: David Healey
+First Written: August 07 2016
+----------------------------------------------------------------------}
+
+//Maps a given value in a given range of values to that of another range of values
+taskfunc units.rescale(value, oldmin, oldmax, newmin, newmax) -> return
+    
+    declare local old_range
+    declare local new_range
+
+    old_range := oldmax - oldmin
+
+    if (old_range = 0)
+        return := newmin
+    else
+        new_range := newmax - newmin
+
+        return := (((value - oldmin) * new_range) / old_range) + newmin        
+    end if
+
+end taskfunc
+
+//Returns 1 when the passed number (n) is even
+taskfunc units.isEven(n) -> return 
+    if (n .and. 1 = 0)
+        return := 1
+    else 
+        return := 0
+    end if
+end taskfunc
+
+// Returns the hosts current BPM
+taskfunc units.hostBpm -> return
+    return := (60000000 + DURATION_QUARTER / 2) / DURATION_QUARTER
+end taskfunc
+
+//Hz to Microseconds
+function units.hzToMicroseconds(hz) -> return
+    return := abs((1000 / hz) * 1000)
+end function
+
+//Cycles to seconds. Rate = Frequency in Hz
+function units.cyclesToSeconds(cycles, rate) -> return
+    return := cycles / rate
+end function
+
+//Seconds to cycles based on the number of seconds and the rate(Hz)
+function units.secondsToCycles(seconds, rate) -> return
+    return := seconds * rate
+end function
+
+//Seconds to milliseconds
+function units.secondsToMs(seconds) -> return
+    return := seconds * 1000
+end function
+
+//Seconds to microseconds
+function units.secondsToMicroseconds(seconds) -> return
+    return := (seconds * 1000) * 1000
+end function
+
+//Milliseconds to seconds
+function units.msToSeconds(ms) -> return
+    return := ms / 1000
+end function
+
+//Converts Milliseconds (Ms) to Microseconds (Us) and returns the return
+function units.msToMicroseconds(ms) -> return
+    return := ms * 1000
+end function
+
+//Convert Microseconds to seconds
+function units.microsecondsToSeconds(microseconds) -> return
+    return := (microseconds / 1000) / 1000
+end function
+
+//Converts Microseconds (Us) to Milliseconds (Ms) and returns the return
+function units.microsecondsToMs(microseconds) -> return
+    return := microseconds / 1000
+end function
+
+//BPM to milliseconds
+taskfunc units.bpmToMs(bpm) -> return
+    return := 60 / bpm * 100
+end taskfunc
+
+//Milliseconds to BPM
+function units.msToBpm(ms) -> return
+    return := 60 / ms * 1000
+end function
+
+//Convert decibel to millidecibel
+function units.dbToMdb(db) -> return
+    return := db * 1000
+end function
+
+//Convert millidecibel to decibel
+function units.mdbToDb(mdb) -> return
+    return := mdb / 1000
+end function
+
+//Convert semitones to millicents
+function units.semitonesToMillicents(semitones) -> return
+    return := semitones * 100000
+end function
+
+//Convert semitones to Cents
+function units.semitonesToCents(semitones) -> return
+    return := semitones * 100
+end function
+
+//Convert cents to millicents
+function units.centsToMillicents(cents) -> return
+    return := cents * 1000
+end function
+
+//Convert cents to millicents
+function units.millicentsToCents(millicents) -> return
+    return := millicents / 1000
+end function

@@ -1,0 +1,609 @@
+{ ---------------------------------------------------------------------
+Title: GUI Library
+File: ui.ksp
+Author: David Healey
+First Written: June 17, 2012
+----------------------------------------------------------------------}
+
+macro hideInstrumentIcon()
+    INST_ICON_ID -> HIDE := HIDE_WHOLE_CONTROL
+end macro
+
+macro setWallpaper()
+    INST_WALLPAPER_ID -> PICTURE := wallpaper
+end macro
+
+{/**
+* Button
+*
+* @param    name        Control name - will be auto prefixed
+* @param    image       Control's image
+* @param    x           The X position of the control
+* @param    y           The Y position of the control
+* @param    width       Control's width
+* @param    height      Control's height
+*/}
+macro ui.button(#name#, #image#, x, y, width, height)
+
+    declare read ui_button btn_#name#
+    btn_#name# -> PICTURE := #image#
+    btn_#name# -> POS_X := x
+    btn_#name# -> POS_Y := y
+
+    if width > 0
+        btn_#name# -> WIDTH := width
+    end if
+
+    if height > 0
+        btn_#name# -> HEIGHT := height
+    end if
+
+end macro
+
+{/**
+* Creates a ui control callback for the given control and one action to perform when the callback is triggered
+*
+* @param    control     The GUI control to apply the action to
+* @param    action      The action to link to the control
+*/}
+macro ui.controlAction(#control#, #action#)
+    on ui_control(#control#)
+        #action#
+    end on
+end macro
+
+
+{/**
+* Creates a ui control callback for the given control and one action to perform when the callback is triggered
+*
+* @param    control     The GUI control to apply the action to
+* @param    action      The action to link to the control
+*/}
+macro ui.controlDoubleAction(#control#, #action1#, #action2#)
+    on ui_control(#control#)
+        #action1#
+        #action2#
+    end on
+end macro
+
+macro ui.fileSelector(#name#, x, y, basepath, filepath, filetype, col_width, col_height)
+
+    declare ui_file_selector $file_#name#
+    $file_#name# -> POS_X := x 
+    $file_#name# -> POS_Y := y
+    $file_#name# -> BASEPATH := basepath
+    $file_#name# -> FILEPATH := filepath
+    $file_#name# -> FILE_TYPE := filetype
+    $file_#name# -> COLUMN_WIDTH := col_width
+    $file_#name# -> COLUMN_HEIGHT := col_height
+    
+end macro
+
+{/**
+* Hide or show a number of controls passed as an array of GUI IDs
+*
+* @param    array       The array containing the GUI IDs of the controls to be displayed or hidden
+* @param    mode        Determines what action the function will perform. 0 = hide controls, 1 = show controls
+*/}
+function ui.changeUIArrayVisibility(array, mode)
+
+    declare $i
+
+    for $i := 0 to num_elements(array)-1
+        if (mode = 0)
+            array[$i] -> HIDE := $HIDE_WHOLE_CONTROL
+        else 
+            array[$i] -> HIDE := $HIDE_PART_NOTHING
+        end if
+    end for
+
+end function
+
+{/**
+* Knob
+*
+* @param    name        Control name - will be auto prefixed
+* @param    image       Control image - KNOBS CANT HAVE IMAGES, REMOVE THIS
+* @param    x           The X position of the control
+* @param    y           The Y position of the control
+* @param    text        Control's text
+* @param    default     Control's default value
+* @param    min         Control's minimum value
+* @param    max         Control's maximum value
+* @param    ratio       Knob ratio
+* @param    unit        Kontakt knob unit constant
+*/}
+macro ui.knob(#name#, #text#, x, y, default, min, max, ratio, unit)
+
+    declare read ui_knob knb_#name#(min, max, ratio)
+    knb_#name# -> TEXT := #text#
+    knb_#name# -> POS_X := x
+    knb_#name# -> POS_Y := y
+    knb_#name# -> DEFAULT := default
+    knb_#name# -> UNIT := unit
+    
+end macro
+
+{/**
+* Label
+*
+* @param    name        Control name - will be auto prefixed
+* @param    text        Control's text
+* @param    image       Control's background image
+* @param    x           The X position of the control
+* @param    y           The Y position of the control
+* @param    width       Control's width - default is 100px
+* @param    height      Control's height - default is 20px
+* @param    font        Control's text font - a Kontakt font number
+* @param    alignment   Controls text alignment
+* @param    background  If set to 0 then the control's background will be hidden - this hides the label's image if one is set
+*/}
+macro ui.label(#name#, #text#, #image#, x, y, width, height, font, alignment, hide)
+
+    {Create label and set parameters}
+    declare read ui_label lbl_#name#(6, 6)
+    lbl_#name# -> TEXT := #text#
+    lbl_#name# -> PICTURE := #image#
+    lbl_#name# -> POS_X := x
+    lbl_#name# -> POS_Y := y
+    lbl_#name# -> WIDTH := width
+    lbl_#name# -> HEIGHT := height
+    lbl_#name# -> FONT_TYPE := font
+    lbl_#name# -> TEXT_ALIGNMENT := alignment
+    lbl_#name# -> HIDE := hide
+
+
+end macro
+
+macro ui.level_meter(#name#, group, slot, channel, bus, bg, on, off, overload, peak, vertical)
+
+    declare ui_level_meter $lvl_#name#
+    attach_level_meter(get_ui_id($lvl_#name#), group, slot, channel, bus)
+    $lvl_#name# -> BG_COLOR := bg
+    $lvl_#name# -> ON_COLOR := on
+    $lvl_#name# -> OFF_COLOR := off
+    $lvl_#name# -> OVERLOAD_COLOR := overload
+    $lvl_#name# -> PEAK_COLOR := peak
+    $lvl_#name# -> VERTICAL := vertical
+    
+end macro
+
+{/**
+* Menu
+*
+* @param    name        Control name - will be auto prefixed
+* @param    image       Control image
+* @param    x           The X position of the control
+* @param    y           The Y position of the control
+* @param    width       Width of the control.
+* @param    height      Height of the control.
+* @param    font        Control's text font - a Kontakt font number
+* @param    alignment   Controls text alignment
+*/}
+macro ui.menu(#name#, #image#, x, y, width, height, font, alignment)
+
+    declare read ui_menu mnu_#name#
+    mnu_#name# -> PICTURE := #image#
+    mnu_#name# -> POS_X := x
+    mnu_#name# -> POS_Y := y
+    mnu_#name# -> FONT_TYPE := font
+    mnu_#name# -> TEXT_ALIGNMENT := alignment
+
+    if width > -1
+        mnu_#name# -> WIDTH := width
+    end if
+
+    if height > -1
+        mnu_#name# -> HEIGHT := height
+    end if
+    
+end macro
+
+{/**
+* Adds CC numbers to a menu as menu items
+*
+* @param    menu        Control name of the menu to add items to, including mnu_ prefix
+* @param    min         Minimum CC number to represent 0 - 127
+* @param    max         Maximum CC number to represent 0 - 127
+*/}
+function ui.menuItemsCC(menu, min, max)
+
+    declare $i
+
+    for $i := min to max
+        add_menu_item(menu,'CC: ' & $i, $i){Add cc items to menu}
+    end for
+
+end function
+
+function ui.menuItemsNoteNames(menu, min, max)
+
+    declare $i
+    declare !note_letters[12] := ('C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B') //Note name strings
+    declare @note_name 
+
+    for $i := min to max
+        @note_name := !note_letters[i mod 12] & ((i/12)-2) //Get the note name
+        add_menu_item(menu, @note_name, $i)
+    end for
+
+end function
+
+{/**
+* Takes a menu and adds items to it for each of the available Kontakt output channels
+*
+* @param    menu        Control name of the menu to add items to
+* @param    default     Menu item number to be set as default
+*/}
+function ui.menuItemsOutputs(menu)
+
+    declare $i
+    
+    for $i := 0 to NUM_OUTPUT_CHANNELS-1
+        add_menu_item(menu, output_channel_name($i), $i)
+    end for
+
+end function
+
+//This looks messy, not sure if it works... have fun! 
+//Tip: I think you have to use the function below this one too
+macro ui.multistateButton(#name#, #image#, #overlay#, states, x, y, width, height)
+
+    //Control's family
+    family mbtn_#name#
+        declare const STATES := states
+    end family
+
+    //Data variable, keeps track of the switches current state
+    declare read $mbtn_#name#_state
+
+    //A label which displays the button image
+    declare read ui_label $mbtn_lbl_#name#(1, 1)
+    $mbtn_lbl_#name# -> TEXT := ""
+    $mbtn_lbl_#name# -> PICTURE := #image#
+    $mbtn_lbl_#name# -> PICTURE_STATE := $mbtn_#name#_state
+    $mbtn_lbl_#name# -> POS_X := x
+    $mbtn_lbl_#name# -> POS_Y := y
+
+    //Create switch and set its parameters
+    declare ui_switch $mbtn_#name#
+    make_persistent($mbtn_#name#)
+    read_persistent_var($mbtn_#name#)
+    $mbtn_#name# -> TEXT := ""
+    $mbtn_#name# -> PICTURE := #overlay#
+    $mbtn_#name# -> POS_X := x
+    $mbtn_#name# -> POS_Y := y
+
+    if (width > -1)
+        $mbtn_#name# -> WIDTH := width
+    end if
+
+    if (height > -1)
+        $mbtn_#name# -> HEIGHT := height
+    end if
+
+    //Label width and height is the same as the button's
+    $mbtn_lbl_#name# -> WIDTH := $mbtn_#name# -> WIDTH
+    $mbtn_lbl_#name# -> HEIGHT := $mbtn_#name# -> HEIGHT
+
+    //Property
+    property mbtn_#name#_value
+      
+      function get() -> result
+        result := $mbtn_#name#_state
+      end function
+
+      function set(value)
+        $mbtn_#name#_state := value
+        $mbtn_lbl_#name# -> PICTURE_STATE := $mbtn_#name#_state
+        $mbtn_#name# := 0
+      end function
+
+    end property
+
+end macro
+
+macro ui.multistateControlAction(#control#)
+    #control#_value := (#control#_value + 1) mod #control#.STATES
+end macro
+
+macro ui.multistateSwitch(#name#, #image#, #overlay#, states, x, y, width, height)
+
+    //Control's family
+    family mswi_#name#
+        declare const STATES := states
+    end family
+
+    //Data variable, keeps track of the switches current state
+    declare read $mswi_#name#_state
+
+    //A label which displays the button image
+    declare read ui_label $mswi_lbl_#name#(1, 1)
+    $mswi_lbl_#name# -> TEXT := ""
+    $mswi_lbl_#name# -> PICTURE := #image#
+    $mswi_lbl_#name# -> PICTURE_STATE := $mswi_#name#_state
+    $mswi_lbl_#name# -> POS_X := x
+    $mswi_lbl_#name# -> POS_Y := y
+
+    //Create switch and set its parameters
+    declare ui_switch $mswi_#name#
+    make_persistent($mswi_#name#)
+    read_persistent_var($mswi_#name#)
+    $mswi_#name# -> TEXT := ""
+    $mswi_#name# -> PICTURE := #overlay#
+    $mswi_#name# -> POS_X := x
+    $mswi_#name# -> POS_Y := y
+
+    if (width > -1)
+        $mswi_#name# -> WIDTH := width
+    end if
+
+    if (height > -1)
+        $mswi_#name# -> HEIGHT := height
+    end if
+
+    //Label width and height is the same as the button's
+    $mswi_lbl_#name# -> WIDTH := $mswi_#name# -> WIDTH
+    $mswi_lbl_#name# -> HEIGHT := $mswi_#name# -> HEIGHT
+
+    //Property
+    property mswi_#name#_value
+      
+      function get() -> result
+        result := $mswi_#name#_state
+      end function
+
+      function set(value)
+        $mswi_#name#_state := value
+        $mswi_lbl_#name# -> PICTURE_STATE := $mswi_#name#_state
+        $mswi_#name# := 0
+      end function
+
+    end property
+
+end macro
+
+{/**
+* Sets the text, font, and text alignment of a GUI control.
+* If you only need to set one of the parameters then don't use this function use the direct KSP command or shorthand.
+*
+* @param    control     The name of the GUI control
+* @param    text        The text to set the control
+* @param    font        KSP font number
+* @param    alignment   Either use constants LEFT, CENTRE, RIGHT or numbers 0, 1, 2
+*/}
+function ui.setControlText(control, text, font, alignment)
+    control -> TEXT := text
+    control -> FONT_TYPE := font
+    control -> TEXT_ALIGNMENT := alignment
+end function
+
+//Offset the position of a group of controls (ids must be store in the passed array)
+function ui.shiftUIArray(array, x, y)
+
+    declare $i 
+
+    for $i := 0 to num_elements(array)-1 
+        array[$i] -> POS_X := array[$i] -> POS_X + x
+        array[$i] -> POS_Y := array[$i] -> POS_Y + y
+    end for
+
+end function
+
+{/**
+* Slider
+*
+* @param    name        Control name - will be auto prefixed
+* @param    image       Control's image
+* @param    x           The X position of the control
+* @param    y           The Y position of the control
+* @param    min         Control's minimum value
+* @param    max         Control's maximum value
+* @param    default     Control's default value
+* @param    vertical    0 = horizontal control (standard slider), 1 = vertical control (for vertical slider or knob style control)
+*/}
+macro ui.slider(#name#, #image#, x, y, min, max, default, vertical)
+
+    declare read ui_slider sli_#name#(min,max)
+        sli_#name# -> PICTURE := #image#
+        sli_#name# -> POS_X := x
+        sli_#name# -> POS_Y := y
+        sli_#name# -> DEFAULT := default
+
+    if vertical = 1 {Change the slider mouse orientation}
+        sli_#name# -> MOUSE_BEHAVIOUR := -2500
+    else if vertical = 2 //High precision orientation - slider can be moved in smaller increments but cursor will drift much farther from the slider
+        sli_#name# -> MOUSE_BEHAVIOUR := -250
+    end if
+    
+end macro
+
+{/**
+* Switch
+*
+* @param    name        Control name - will be auto prefixed
+* @param    image       Control image
+* @param    x           The X position of the control
+* @param    y           The Y position of the control
+* @param    width       Control's width
+* @param    height      Control's height
+*/}
+macro ui.switch(#name#, #text#, #image#, x, y, width, height)
+
+    declare read ui_switch swi_#name#
+    swi_#name# -> PICTURE := #image#
+    swi_#name# -> TEXT := #text#
+    swi_#name# -> POS_X := x
+    swi_#name# -> POS_Y := y
+
+    if width > 0
+        swi_#name# -> WIDTH := width
+    end if
+
+    if height > 0
+        swi_#name# -> HEIGHT := height
+    end if
+
+end macro
+
+macro ui.textEdit(#name#, #text#, x, y, width, height, font, alignment)
+
+    declare read ui_text_edit @txt_#name#
+    @txt_#name# -> TEXT := #text#
+    @txt_#name# -> POS_X := x
+    @txt_#name# -> POS_Y := y
+    @txt_#name# -> WIDTH := width
+    @txt_#name# -> HEIGHT := height
+    @txt_#name# -> FONT_TYPE := font
+    @txt_#name# -> TEXT_ALIGNMENT := alignment
+    
+    if width > 0
+        @txt_#name# -> WIDTH := width
+    end if
+
+    if height > 0
+        @txt_#name# -> HEIGHT := height
+    end if
+    
+end macro
+
+{/**
+* Table
+*
+* @param    name        Control name - will be auto prefixed
+* @param    x           The X position of the control
+* @param    y           The Y position of the control
+* @param    width       Control's width
+* @param    height      Control's height
+* @param    columns     Number of columns to display
+* @param    range       The table range. If negative value is used a bipolar table is created
+* @param    bar         The colour of the steps bar - Kontakt hex number with 9 at the beginning and h at the end
+* @param    bar         The colour of the middle line - Kontakt hex number with 9 at the beginning and h at the end
+*/}
+macro ui.table(#name#, x, y, width, height, columns, range, bar, zero_line)
+    
+    declare pers ui_table %tbl_#name#[columns](width, height, range)
+    move_control_px(%tbl_#name#, x, y) {pos_x, pos_y don't work}
+
+    %tbl_#name# -> BAR_COLOR := bar
+    %tbl_#name# -> ZER_LINE_COLOR := zero_line
+
+    if width > 0
+        %tbl_#name# -> WIDTH := width
+    end if
+
+    if height > 0
+        %tbl_#name# -> HEIGHT := height
+    end if
+
+end macro
+
+{/**
+* If switch_1 is on switch_2 will be turned off. Parameters should be ui control IDs
+*
+* @param    switch_1    ID of switch or button to check
+* @param    switch_2    ID of switch or button to turn off if switch_1 is on
+*/}
+taskfunc ui.toggleTwoSwitches(switch_id1, switch_id2)
+
+    if (switch_id1 -> VALUE = 1)
+        switch_id2 -> VALUE := 0
+    end if
+
+end taskfunc
+
+{/**
+* Value Edit Box
+*
+* @param    name        Control name - will be auto prefixed
+* @param    x           The X position of the control
+* @param    y           The Y position of the control
+* @param    font        Control's text font - a Kontakt font number
+* @param    alignment   Controls text alignment
+* @param    default     Control's default value - SHOULD BE ELIMINTATED FROM NEXT VERSION
+* @param    min         Control's minimum value
+* @param    max         Control's maximum value
+* @param    ratio       Kontakt control value ratio
+* @param    arrows      If set to FALSE then value edit arrows will not be displayed
+* @param    background  If set to FALSE then the value edit's background will be hidden
+* 
+*/}
+macro ui.valueEdit(#name#, #text#, x, y, width, font, min, max, ratio, arrows, background)
+
+    declare read ui_value_edit val_#name# (min, max, ratio)
+    val_#name# -> TEXT := #text#
+    val_#name# -> POS_X := x
+    val_#name# -> POS_Y := y
+    val_#name# -> WIDTH := width
+    val_#name# -> FONT_TYPE := font
+    val_#name# -> SHOW_ARROWS := arrows
+
+    if background < 1
+        val_#name# -> HIDE := HIDE_PART_BG
+    end if
+
+end macro
+
+{/**
+* Waveform
+*
+* @param    name        Control name - will be auto prefixed
+* @param    x           The X position of the control
+* @param    y           The Y position of the control
+* @param    width       Control's width
+* @param    height      Control's height
+*/}
+macro ui.waveform(#name#, x, y, width, height)
+
+    declare ui_waveform wav_#name#(5, 5)
+    wav_#name# -> HEIGHT := height
+    wav_#name# -> WIDTH  := width
+    move_control_px(wav_#name#, x, y) {pos_x, pos_y don't work}
+    
+    
+end macro
+
+{/**
+* Places two knobs at the given XY position that are used in conjunction with the control_knobs_action function to dynamically position
+* a GUI control and provide visual feedback of the control's position.
+*
+* @param    x       The X position of the x control knob, the y knob will be positioned +100 of this value.
+* @param    y       The Y position of the x and y knobs.
+*/}
+macro ui.xyKnobs(x, y)
+
+    declare read ui_knob knb_control_x(0, 620, 1)
+        knb_control_x -> POS_X := x
+        knb_control_x -> POS_Y := y
+        knb_control_x -> UNIT := KNOB_UNIT_NONE
+        knb_control_x -> TEXT := 'X'
+
+    declare read ui_knob knb_control_y(0, 620, 1)
+        knb_control_y -> POS_X := x+100
+        knb_control_y -> POS_Y := y
+        knb_control_y -> UNIT := KNOB_UNIT_NONE
+        knb_control_y -> TEXT := 'Y'
+
+end macro
+
+{/**
+* Control action callbacks for control knobs to dynamically position GUI controls.
+*
+* @param    control      The name of the GUI control to dynamically position.
+/*}
+macro ui.xyKnobsAction(control)
+
+    on ui_control(knb_control_x)
+        control -> POS_X := knb_control_x
+    end on
+
+    on ui_control(knb_control_y)
+        control -> POS_Y := knb_control_y
+    end on
+
+end macro
+
+//Quick reminder of the UI control Z-Index
+macro ui.zOrder()
+    message("menu - button - switch - slider - table - knob - value edit - label")
+end macro

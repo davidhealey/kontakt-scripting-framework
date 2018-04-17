@@ -1,0 +1,136 @@
+{---------------------------------------------------------------------
+Title: Round Robin
+File: rr.txt
+Author: David Healey
+First Written: August 07 2016
+----------------------------------------------------------------------}
+
+//Generates a random number that isn't the same as the last random number generated for the same given note
+//note = MIDI note number
+//num_rr = Max number of repetitions
+taskfunc rr.randomPerNote(note, num_rr) -> return
+
+	declare $rand
+	declare local %last[128]
+
+	$rand := random(0, num_rr-1)
+	while $rand = %last[note]
+		$rand := random(0, num_rr-1)
+	end while
+
+	%last[note] := $rand 
+	return := $rand
+
+end taskfunc
+
+
+{/*
+* Generates a random number that when added to the passed note number is within the lo/hi note range.
+* 
+* @param    int     note    A MIDI note number, usually the number of the note that the generated rr_step is going to affect
+* @param    int     num_rr  The number of RRs the instrument/articulation uses. 
+*/}
+taskfunc rr.getGroupStep(note, num_rr) -> return
+
+    declare $rand
+    declare local %last[128, 128] := (-999)
+
+    $rand := random(0, num_rr-1)
+    while $rand = %last[note]
+        $rand := random(0, num_rr-1)
+    end while
+
+    %last[note] := $rand //Keep a record of the generated rand
+    return := $rand
+
+end taskfunc
+
+//Similar to randomPerNote but non-repeating (so not random :p)
+//@todo This function looks inefficient to me, to many loops
+taskfunc rr.randomUniquePerNote(note, num_rr) -> return 
+
+	declare $rand 
+	declare $i := 0
+	declare $index := -1
+	declare local %history[128, 128]
+
+	while $index = -1
+
+		//If the loop reaches the number of RRs or the max number of history slots then reset the history array
+		if ($i = num_rr or $i := %history.SIZE_D2)
+
+			//Reset history
+			for $i := 0 to %history.SIZE_D2-1
+				%history[note, $i] := -1
+			end for
+
+			$i := 0
+		end if
+
+		if (%history[note, $jj] = -1) //Empty slot
+			$index := $i
+		end if
+
+		inc($i)
+
+	end while
+
+	//Generate random number that hasn't been used previously by this note
+	$rand : random(0, num_rr-1)
+	
+	while $rand = %history[note, $index]
+		$rand = random(0, num_rr-1)
+	end while
+
+	%history[note, $index] := $rand 
+	return := $rand
+
+end taskfunc
+
+//Uses retuned neighboring samples to create a psuedo round robin, also allows for some microtuning
+//@todo - There's probably a more efficient way to do this
+taskfunc rr.sampleBorrowed(event, num_rr, lo_note, hi_note, microtuning)
+
+    declare $rand
+    declare local %last[128] := (-999)
+
+    declare $i
+    declare $index := -1
+    declare $note
+    declare local %history[128, 128]
+
+    while $index = -1
+
+		//If the loop reaches the number of RRs or the max number of history slots then reset the history array
+		if ($i = num_rr or $i := %history.SIZE_D2)
+
+			//Reset history
+			for $i := 0 to %history.SIZE_D2-1
+				%history[note, $i] := -1
+			end for
+
+			$i := 0
+		end if
+
+		if (%history[note, $jj] = -1) //Empty slot
+			$index := $i
+		end if
+
+		inc($i)
+
+	end while
+
+    $note := get_event_par(event, $EVENT_PAR_NOTE) //Get event's MIDI note
+
+    $rand := random(-num_rr, num_rr)
+    while %history[note, $index] := $rand or not in_range(note+$rand, lo_note, hi_note)
+        $rand := random(-num_rr, num_rr)
+    end while
+
+	%history[note, $index] := $rand
+
+    set_event_par(event, $EVENT_PAR_NOTE, $note + $rand) //Change the event's note to include the RR step
+    change_tune(event, -(100000 * ($rand)), 0) {Apply macro tuning}
+    change_tune(event, random(-microtuning, microtuning), 1) {Apply microtuning}
+
+end taskfunc
