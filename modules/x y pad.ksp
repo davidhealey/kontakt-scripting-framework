@@ -1,0 +1,44 @@
+on init 
+
+	declare $i
+	declare $ii
+
+	set_ui_height_px(250)
+
+	declare %table_values[127] {Backup array}
+
+	declare ui_label lbl_bg(1, 1)
+	lbl_bg -> WIDTH := 175
+	lbl_bg -> HEIGHT := 160
+	move_control_px(lbl_bg, 100, 0)
+	lbl_bg -> TEXT := ""
+
+    declare ui_table tbl_grid[127](2, 2, 127)
+    tbl_grid -> WIDTH := 200
+    tbl_grid -> HEIGHT := 160
+    move_control_px(tbl_grid, 100, 0)
+
+    set_control_par(get_ui_id(tbl_grid), CONTROL_PAR_BAR_COLOR, 0)
+
+	set_control_par(get_ui_id(tbl_grid), $CONTROL_PAR_BAR_COLOR, 96c7371h)
+ 	set_control_par(get_ui_id(tbl_grid), $CONTROL_PAR_HIDE, $HIDE_PART_BG) 
+
+    message("")
+end on
+
+
+on ui_control(tbl_grid)
+
+	{Output X and Y based on values that have changed, store table values in backup array and clear table}
+	for $i := 0 to 126
+
+		{Check if this columns value is the same as the saved value}
+		if (tbl_grid[$i] # table_values[$i])
+			message('X=' & $i & ' : Y=' & table_values[$i])
+		end if
+
+		table_values[$i] := tbl_grid[$i] {Save column value in backup array}
+		tbl_grid[$i] := 0 {Clear grid column}
+	end for
+
+end on

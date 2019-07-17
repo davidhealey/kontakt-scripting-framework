@@ -1,0 +1,112 @@
+on init 
+
+	declare $i
+	declare @noteName
+	declare lastNote
+
+	declare read ui_menu mnu_lowKey
+	mnu_lowKey -> POS_X := 0
+	mnu_lowKey -> POS_Y := 0
+
+	declare read ui_menu mnu_highKey
+	mnu_highKey -> POS_X := 100
+	mnu_highKey -> POS_Y := 0
+
+	declare read ui_menu mnu_trigger1
+	mnu_trigger1 -> POS_X := 200
+	mnu_trigger1 -> POS_Y := 0
+
+	declare read ui_menu mnu_trigger2
+	mnu_trigger2 -> POS_X := 300
+	mnu_trigger2 -> POS_Y := 0
+
+	for i := 0 to 127
+		noteName := getNoteName(i)
+		add_menu_item(mnu_lowKey, noteName, i)
+		add_menu_item(mnu_highKey, noteName, i)
+		add_menu_item(mnu_trigger1, noteName, i)
+		add_menu_item(mnu_trigger2, noteName, i)		
+	end for
+
+	for i := 0 to 127 
+		set_key_color(i, KEY_COLOR_WHITE)
+		if (in_range(i, mnu_lowKey, mnu_highKey))
+			set_key_color(i, KEY_COLOR_BLUE)
+		end if
+	end for
+
+	set_key_color(mnu_trigger1, KEY_COLOR_YELLOW)
+	set_key_color(mnu_trigger2, KEY_COLOR_YELLOW)
+
+end on
+
+on note 
+
+	if ($EVENT_NOTE = mnu_trigger1 or EVENT_NOTE = mnu_trigger2)
+
+		for i := mnu_lowKey to mnu_highKey
+			if (%KEY_DOWN[i] = 1 and i # lastNote) //Last note is not played here
+				play_note(i, EVENT_VELOCITY, 0, -1)
+			end if
+		end for
+
+		//Play last note if it's in playable range
+		if (in_range(lastNote, mnu_lowKey, mnu_highKey))
+			play_note(lastNote, EVENT_VELOCITY, 0, -1)
+		end if
+	else 
+		lastNote := EVENT_NOTE
+	end if
+
+
+end on
+
+function getNoteName(note_num) -> return
+
+    declare !notes[12] {Note name strings}
+        !notes[0] := "C"
+        !notes[1] := "C#"
+        !notes[2] := "D"
+        !notes[3] := "D#"
+        !notes[4] := "E"
+        !notes[5] := "F"
+        !notes[6] := "F#"
+        !notes[7] := "G"
+        !notes[8] := "G#"
+        !notes[9] := "A"
+        !notes[10] := "A#"
+        !notes[11] := "B"   
+
+        return := !notes[note_num mod 12] & ((note_num/12)-2)
+
+end function
+
+on ui_control(mnu_lowKey)
+
+	for i := 0 to 127
+		set_key_color(i, KEY_COLOR_WHITE)
+		if (in_range(i, mnu_lowKey, mnu_highKey))
+			set_key_color(i, KEY_COLOR_BLUE)
+		end if
+	end for
+
+end on
+
+on ui_control(mnu_highKey)
+
+	for i := 0 to 127
+		set_key_color(i, KEY_COLOR_WHITE)
+		if (in_range(i, mnu_lowKey, mnu_highKey))
+			set_key_color(i, KEY_COLOR_BLUE)
+		end if
+	end for
+
+end on
+
+on ui_control(mnu_trigger1)
+	set_key_color(mnu_trigger1, KEY_COLOR_YELLOW)
+end on
+
+on ui_control(mnu_trigger2)
+	set_key_color(mnu_trigger2, KEY_COLOR_YELLOW)
+end on

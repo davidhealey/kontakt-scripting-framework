@@ -1,0 +1,203 @@
+{ ---------------------------------------------------------------------
+Title: Keyboard Colour Changer
+File: keyboar colour changer.ksp
+Author: David Healey
+First Written: July 29 2016
+Current Version: 1.0
+Last Modified: July 29 2016
+----------------------------------------------------------------------}
+
+{*******************************************************************************
+* INCLUDES *
+*******************************************************************************}
+import '..\_Kontakt Development Framework v2.0\libraries\kontakt.ksp'
+import '..\_Kontakt Development Framework v2.0\libraries\ui.ksp'
+import '..\_Kontakt Development Framework v2.0\libraries\units.ksp'
+
+on init
+
+	set_script_title("David Healey's Key Colourer v1")
+	set_ui_height_px(150)
+	tcm.init(50)
+	ul.init()
+	kl.lock_script(150+68, 1)
+
+	//VARIABLES
+	declare $i
+	declare $j
+	declare @note_name
+	declare pers $scroll
+	declare $pgs_init := 0
+
+	//CONSTANTS
+	declare const $KEY_COLOUR_DEFAULT := 19
+	define NUM_ROWS := 15
+	declare NUM_TO_SHOW := 5
+
+	//ARRAYS
+	declare %k4_colours[7] := (KEY_COLOR_NONE, KEY_COLOR_WHITE, KEY_COLOR_GREEN, KEY_COLOR_RED, KEY_COLOR_CYAN, KEY_COLOR_BLUE, KEY_COLOR_BLACK)
+
+	//GUI
+	declare %ui_lo[NUM_ROWS] //Menu for setting low note of range
+	declare %ui_hi[NUM_ROWS] //Menu for setting hi note of range
+	declare %ui_k4[NUM_ROWS] //Menus for K4 version
+	declare %ui_row[NUM_ROWS] //Holds IDs of row number labels
+	iterate_macro(control_row) := 0 to NUM_ROWS-1
+
+	ui.button(up, "", 520, 12, -1, -1, "SCROLL UP")
+	ui.button(dn, "", 520, 12+25*(NUM_TO_SHOW-1), -1, -1, "SCROLL DOWN")
+
+	message("")	
+
+end on
+
+on pgs_changed 
+
+	if (pgs_init = 0)
+		pgs_init := 1
+		hide_all_rows()
+		scroll_list()
+		set_key_colours()
+	end if
+
+end on
+
+taskfunc scroll_list()
+
+	declare $i 
+
+	for $i := $scroll to $scroll + $NUM_TO_SHOW-1
+
+		if ($i < NUM_ROWS)
+
+			%ui_k4[%i] -> HIDE := HIDE_PART_NOTHING
+
+			%ui_lo[$i] -> HIDE := HIDE_PART_NOTHING
+			%ui_hi[$i] -> HIDE := HIDE_PART_NOTHING
+			%ui_row[$i] -> HIDE := HIDE_PART_NOTHING
+			%ui_row[$i] -> HIDE := HIDE_PART_BG
+			%ui_k4[$i] -> POS_Y := 12+25*($i - $scroll)
+			%ui_lo[$i] -> POS_Y := 12+25*($i - $scroll)
+			%ui_hi[$i] -> POS_Y := 12+25*($i - $scroll)
+			%ui_row[$i] -> POS_Y := 12+25*($i - $scroll)
+		end if
+
+	end for
+
+end taskfunc
+
+taskfunc hide_all_rows()
+
+	declare $i
+
+	for $i := 0 to NUM_ROWS-1
+		%ui_k4[$i] -> HIDE := HIDE_WHOLE_CONTROL  
+		%ui_lo[$i] -> HIDE := HIDE_WHOLE_CONTROL 
+		%ui_hi[$i] -> HIDE := HIDE_WHOLE_CONTROL 
+		%ui_row[$i] -> HIDE := HIDE_WHOLE_CONTROL
+	end for
+
+end taskfunc
+
+taskfunc set_key_colours()
+
+	declare $i 
+	declare $j
+
+	//Reset all keys
+	for $i := 0 to 127 
+		set_key_color($i, KEY_COLOR_NONE)
+	end for
+
+	//Assign key colours based on user settings
+	for $i := 0 to num_elements(%ui_lo)-1 //Each row
+
+		if (in_range(%ui_lo[$i] -> VALUE, 0, 127) and in_range(%ui_hi[$i] -> VALUE, 0, 127)) //Valid note range has been set for this row
+		
+			for $j := %ui_lo[$i] -> VALUE to %ui_hi[$i] -> VALUE
+				set_key_color($j, %k4_colours[%ui_k4[$i] -> VALUE])
+			end for
+
+		end if
+
+	end for
+
+end taskfunc
+
+macro control_row(#n#)
+
+
+	ui.label(row#n#, "", 70, 12+25*#n#, 25, -1, #n#+1, 12, 0, 0)
+	ui.menu(lo#n#, "", 100, 12+25*#n#, -1, -1, -1, 0)
+	ui.menu(hi#n#, "", 200, 12+25*#n#, -1, -1, -1, 0)
+	ui.menu(k4#n#, "", 300, 12+25*#n#, 110, -1, -1, 0)
+
+	%ui_row[#n#] := get_ui_id(lbl_row#n#)
+	%ui_lo[#n#] := get_ui_id(mnu_lo#n#)
+	%ui_hi[#n#] := get_ui_id(mnu_hi#n#)
+	%ui_k4[#n#] := get_ui_id(mnu_k4#n#)
+
+	for $i := 0 to 127 
+		@note_name := ul.note_name($i)
+		add_menu_item(mnu_lo#n#, "Low Key: " & @note_name, $i)
+		add_menu_item(mnu_hi#n#, "High Key: " & @note_name, $i)
+	end for
+	add_menu_item(mnu_lo#n#, "-DISABLED-", -1)
+	add_menu_item(mnu_hi#n#, "-DISABLED-", -1)
+
+	//Add key colour constants for K4
+	add_menu_item(mnu_k4#n#, "NONE (DEFAULT)", KEY_COLOR_NONE)
+	add_menu_item(mnu_k4#n#, "WHITE", KEY_COLOR_WHITE)
+	add_menu_item(mnu_k4#n#, "GREEN", KEY_COLOR_GREEN)
+	add_menu_item(mnu_k4#n#, "RED", KEY_COLOR_RED)
+	add_menu_item(mnu_k4#n#, "CYAN", KEY_COLOR_CYAN)
+	add_menu_item(mnu_k4#n#, "BLUE", KEY_COLOR_BLUE)
+	add_menu_item(mnu_k4#n#, "BLACK", KEY_COLOR_BLACK)
+
+end macro
+
+iterate_macro(row_action) := 0 to NUM_ROWS-1
+macro row_action(#n#)
+
+	on ui_control(mnu_k4#n#)
+		set_key_colours()
+	end on
+
+	on ui_control(mnu_lo#n#)
+		set_key_colours()
+	end on
+	
+	on ui_control(mnu_hi#n#)
+		set_key_colours()
+	end on
+
+end macro
+
+on ui_control(btn_up)
+
+	if ($scroll > 0)
+		dec($scroll)
+		if (scroll < 0)
+			scroll := 0
+		end if
+		hide_all_rows()
+		scroll_list()
+	end if
+
+	btn_up := 0
+end on
+
+on ui_control(btn_dn)
+
+	if ($scroll < NUM_ROWS-1 - (NUM_TO_SHOW-1))
+		inc($scroll)
+		if (scroll > NUM_ROWS - (NUM_TO_SHOW-1))
+			scroll := NUM_ROWS - (NUM_TO_SHOW-1)
+		end if
+		hide_all_rows()
+		scroll_list()
+	end if
+
+	btn_dn := 0
+
+end on

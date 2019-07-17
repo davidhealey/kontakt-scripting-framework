@@ -1,0 +1,35 @@
+on init 
+
+	declare %assigned[128] := (-1)
+	declare $mono := 0
+	declare $channel := 0
+end on
+
+
+on midi_in 
+
+	if ($MIDI_COMMAND = $MIDI_COMMAND_NOTE_ON and $MIDI_BYTE_2 > 0) {Note on}
+		on_note_on()
+	else if ($MIDI_COMMAND = $MIDI_COMMAND_NOTE_OFF or $MIDI_BYTE_2 = 0) {Note off}
+		on_note_off()
+	end if
+
+end on
+
+function on_note_on()
+	
+	if ($mono # 0) {There is already a note held}
+		$channel := ($channel + 1 mod 16)
+		set_event_par($EVENT_ID, $EVENT_PAR_MIDI_CHANNEL, $channel) {Change MIDI channel}
+		%assigned[$MIDI_BYTE_1] := 1
+	else 
+		$mono := 1
+	end if
+
+end function
+
+function on_note_off()
+
+	%assigned[$MIDI_BYTE_1] := 0
+
+end function

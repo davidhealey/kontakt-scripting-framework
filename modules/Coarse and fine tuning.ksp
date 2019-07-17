@@ -1,0 +1,50 @@
+//Demo script - Coarse >> fine tuning knobs
+on init 
+
+	declare $i
+	declare $octave
+	declare $semi
+	declare $cent
+
+	declare ui_knob $knb_oct(-2, 2, 1) {Octave tuning}
+	$knb_oct -> TEXT := "OCTAVE"
+	set_control_par(get_ui_id($knb_oct), $CONTROL_PAR_DEFAULT_VALUE, 0)
+	$knb_oct := 0
+
+	declare ui_knob $knb_semi(-12, 12, 1) {Semi tone tuning}
+	$knb_semi -> TEXT := "SEMI"
+	set_control_par(get_ui_id($knb_semi), $CONTROL_PAR_DEFAULT_VALUE, 0)
+	$knb_semi := 0
+
+	declare ui_knob $knb_cent(-100, 100, 1) {Cent tuning}
+	$knb_cent -> TEXT := "CENT"
+	set_control_par(get_ui_id($knb_cent), $CONTROL_PAR_DEFAULT_VALUE, 0)
+	$knb_cent := 0
+
+end on
+
+function set_tune
+
+	$octave := 500000+(($knb_oct-3)*12*13888) {Octave tuning value}
+	$semi := 500000+($knb_semi*13888) {Semi tone tuning value}
+	$cent := 139 * $knb_cent {Fine tuning}
+
+	$i := 0
+	while ($i < $NUM_GROUPS)
+		set_engine_par($ENGINE_PAR_TUNE, $octave + $semi + $cent, $i, 0, -1)
+		inc($i)
+	end while
+
+end function
+
+on ui_control($knb_oct)
+	call set_tune
+end on
+
+on ui_control($knb_semi)
+	call set_tune
+end on
+
+on ui_control($knb_cent)
+	call set_tune
+end on
