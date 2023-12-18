@@ -1,0 +1,616 @@
+{************************** SIPS Module **************************
+Module: SLS-Support V2, SXM-SLS
+Author: R.D.Villwock aka 'Big Bob'
+First Written: September 18, 2006
+Current Version: 2.05
+Last Modified: June 18, 2008
+******************************************************************
+------------------------------------------------------------------
+  The following routines have the same or similar name as their
+  counterparts in the SVS-Support module. These routines perform
+  the same (or nearly the same) function but may have some diff-
+  erences in implementation that is specific to the Legato script
+------------------------------------------------------------------}
+{ ------------------ Data Constructor Functions ---------------- }
+function on_init_MBtns    { Build MIDI CC buttons and MIDI Knobs }
+  declare const PASize := 10  { Persistent array size, never make any smaller }
+  declare const mXTime := 0   { CC Btn & Knob reference indicess }
+  declare const mBTime := 1
+  declare const mBend  := 2   { Min Legato Bend }
+  declare const mMode  := 3
+  declare const mPTime := 4   { Portamento Time }
+  declare const mPBend := 5   { Portamento Bender }
+  declare const mLast := 5    { Highest MIDI button/knob index }
+  family MBtn   { MIDI CC assignment button system }
+    declare ui_button XTime   { Assignment buttons }
+    declare ui_button BTime
+    declare ui_button Bend
+    declare ui_button Mode
+    declare ui_button PTime
+    declare ui_button PBend
+    declare Actv   { Flag set when a button menu is active }
+                       { Indexed Constants }
+    declare SCMenu[mLast+1] := (1,1,1,0,1,1) { 1 = Can Use special MCs, 0 = CCs only }                        
+    declare Knob[mLast+1] := (1,1,1,0,1,0)   { 1 = Uses MIDI Knob, 0 = No Knob }
+    declare !Cap[mLast+1]   { Button prefix captions }    
+                       { Indexed Variables }
+    declare CC[PASize]     { Assigned CC number, -1 = NoCC (unassigned) }
+    declare CCV[PASize]    { Last value of assigned CC, normalized 0..127 }
+    declare State[PASize]  { Current button state }
+    declare x[mLast+1]     { Button/Menu Panel position }
+    declare y[mLast+1]
+  end family
+  move_control(MBtn.XTime,0,0) { Initially Hide all MBtns }
+  move_control(MBtn.BTime,0,0)
+  move_control(MBtn.Bend,0,0)
+  move_control(MBtn.Mode,0,0)
+  move_control(MBtn.PTime,0,0)
+  move_control(MBtn.PBend,0,0)
+  family MKnob  { MIDI 'Knobs', controlled with associated CC }
+    declare ui_knob XTime (0,MaxXTime,1)  { MIDI Knob, index = mXTime }
+    declare ui_knob BTime (0,MaxBTime,1)  { MIDI Knob, index = mBTime }
+    declare ui_knob Bend  (0,MaxBend,1)   { MIDI Knob, index = mBend }
+    declare ui_knob PTime (0,MaxPTime,1)  { MIDI Knob, index = mPTime }
+    declare DKmin[mLast+1] := (0,0,0,xxx,0,xxx) { Default MIDI range limits }
+    declare DKmax[mLast+1] := (MaxXTime,MaxBTime,MaxBend,xxx,MaxPTime,xxx)
+    declare Kmin[PASize]   { Current MIDI range }
+    declare Kmax[PASize]                         
+  end family 
+  move_control(MKnob.XTime,0,0) { Initially Hide all MKnobs }
+  move_control(MKnob.BTime,0,0)
+  move_control(MKnob.Bend,0,0)
+  move_control(MKnob.PTime,0,0)    
+  MBtn.Cap[mXTime] := 'XTime '  { Initialize button prefix captions }
+  MBtn.Cap[mBTime] := 'BTime '
+  MBtn.Cap[mBend]  := 'LBend '
+  MBtn.Cap[mMode]  := 'Mode '
+  MBtn.Cap[mPTime] := 'PTime '
+  MBtn.Cap[mPBend] := 'PBend '
+  set_text(MKnob.XTime,' XTime')          { Name the XTime Knob and }  
+  set_knob_unit(MKnob.XTime,KNOB_UNIT_MS) {  set unit display to ms }
+  set_text(MKnob.BTime,' BTime')          { Name the BTime Knob and }
+  set_knob_unit(MKnob.BTime,KNOB_UNIT_MS) {  set unit display to ms }
+  set_text(MKnob.Bend,'MinBend')          { Name the semitone Bend knob }
+  set_text(MKnob.PTime,' PTime')          { Name the PTime Knob and }
+  set_knob_unit(MKnob.PTime,KNOB_UNIT_MS) {  set unit display to ms }   
+  InzParms    { Initialize to prior-version or default settings }
+end function { on_init_MBtns }
+
+{---------------- Support routines for MIDI Btns/Knobs ----------------}
+function HideMenu(bx)
+  move_btn(bx,MBtn.x[bx],MBtn.y[bx])
+  move_control(MCMenu,0,0)  
+end function { HideMenu }
+
+function InzParms
+  declare bx
+  { Convert from prior version or use 'fresh' install defaults }  
+  for bx := 0 to mLast
+    MBtn.CC[bx] := NoCC                { Default to CCs unassigned }
+    MKnob.Kmin[bx] := MKnob.DKmin[bx]  { Set default MIDI knob ranges }
+    MKnob.Kmax[bx] := MKnob.DKmax[bx]      
+  end for
+  MBtn.CCV[mPBend] := 127              { Default Bender to max (glider mode) }
+  MKnob.XTime := MainParms[uXTime]     { Default to Inst_0 knob values }
+  MKnob.BTime := MainParms[uBTime]
+  MKnob.Bend  := MainParms[uBend]
+  MKnob.PTime := MainParms[uPTime]
+  if in_range(Version[vPFC],V2UP,V200) { Could be newer so leave defaults } 
+    _read_persistent_var(MBtn.CC)      { If updating from V200 or V2UP }
+    _read_persistent_var(MBtn.CCV)
+    _read_persistent_var(MKnob.XTime)
+    _read_persistent_var(MKnob.BTime)
+    _read_persistent_var(MKnob.Bend)
+    _read_persistent_var(MKnob.PTime)
+    _read_persistent_var(MKnob.Kmin)
+    _read_persistent_var(MKnob.Kmax)
+  end if
+  for bx := 0 to mLast
+    UpdateBtn(bx)   { Display prior version or default CC assignment } 
+  end for
+end function { InzParms }
+
+function move_btn(bx,x,y)  { Move button bx to position x,y }
+  select bx
+    case mXTime
+      move_control(MBtn.XTime,x,y)
+    case mBTime
+      move_control(MBtn.BTime,x,y)
+    case mBend
+      move_control(MBtn.Bend,x,y)
+    case mMode
+      move_control(MBtn.Mode,x,y)
+    case mPBend
+      move_control(MBtn.PBend,x,y)
+    case mPTime
+      move_control(MBtn.PTime,x,y)
+  end select  
+end function { move_btn }
+
+function SetBtn(bx,val) { 'bx' = button index, 'val' = button value }
+  select bx
+    case mBend
+      MBtn.Bend := val
+    case mBTime
+      MBtn.BTime := val
+    case mMode
+      MBtn.Mode := val
+    case mPBend
+      MBtn.PBend := val
+    case mPTime
+      MBtn.PTime := val
+    case mXTime
+      MBtn.XTime := val
+  end select
+end function { SetBtn }
+
+function SetBtnText(bx,txt)  { 'bx' = btn index, 'txt' = btn text }
+  select bx
+  case mXTime
+    set_text(MBtn.XTime,txt)
+  case mBTime
+    set_text(MBtn.BTime,txt)
+  case mBend
+    set_text(MBtn.Bend,txt)
+  case mMode
+    set_text(MBtn.Mode,txt)
+  case mPTime
+    set_text(MBtn.PTime,txt)
+  case mPBend
+    set_text(MBtn.PBend,txt)
+  end select
+end function { SetBtnText }
+
+function SetMKnob(bx,val)  { Set knob indexed with 'bx' to 'val' }
+  select bx
+    case mXTime
+      MKnob.XTime := val
+    case mBTime
+      MKnob.BTime := val
+    case mBend
+      MKnob.Bend := val
+    case mPTime
+      MKnob.PTime := val
+  end select
+end function { SetMKnob }
+
+function ShowMenu(bx)
+  move_btn(bx,0,0)
+  move_control(MCMenu,MBtn.x[bx],MBtn.y[bx])   
+end function { ShowMenu }
+{--------------- End Support routines MIDI Btns/Knobs ----------------}
+
+function on_init_Mode
+  declare ui_menu SLSMode   { Legato/Solo/Disable SLS mode menu }
+    add_menu_item (SLSMode,'  Portamento',Port_Mode)
+    add_menu_item (SLSMode,' Legato Mode',Legato_Mode)
+    add_menu_item (SLSMode,'  Solo Mode',Solo_Mode)
+    add_menu_item (SLSMode,' - SLS OFF -',SLS_Off)
+  declare LastMode   { Remembers last state of SLSMode menu }
+  declare Leg_Mode   { Legacy Name for SLSMode prior to V150 }
+  SLSMode := MainParms[uSLSMode]    { 'Fresh install default }
+end function { on_init_Mode }
+
+function on_init_Set_UIX
+{ These index constants are used for two main purposes. As 'Offsets' and 
+  'Handles'. 'Offsets' are used to access Preset parameters and thus are
+  assigned to those controls and parms that will be saved with presets.
+  Since MaxParms = 25, the 'Offset' range is from 0..24. 'Handles' on the
+  other hand, are used by callers of SetXY to specify a specific control to
+  position or hide. Most Preset parms are also panel controls but those that
+  aren't are excluded from SetXY. Thus, the indices for all preset parms are
+  'Offsets' but only some of these are also 'Handles'. Conversely, the indices
+  for all panel controls are 'Handles' but only some are also 'Offsets'. To
+  help with this distinction, real panel controls are prefixed by a lower-case
+  'u' or 't' whereas Preset parm 'offsets' that do not refer to a control are
+  prefixed by a lower-case 'p'. }
+  declare const uXTime    := 0  { Offsets for Key Parameters }
+  declare const uAtkFade  := 1
+  declare const uNodeVol  := 2  
+  declare const uBTime    := 3
+  declare const uSlope    := 4
+  declare const uBend     := 5
+  declare const uRlsFade  := 6
+  declare const uRlsMode  := 7
+  declare const pLOfst    := 8
+  declare const uOfstMode := 9
+  declare const uPTime    := 10
+  declare const pPOfst    := 11
+  declare const uSLSMode  := 12
+                      { Offsets for extended parms }
+  declare const uXTmCC    := 13
+  declare const pXTmRng1  := 14 
+  declare const pXTmRng2  := 15
+  declare const uBTmCC    := 16
+  declare const pBTmRng1  := 17
+  declare const pBTmRng2  := 18
+  declare const uBndCC    := 19
+  declare const pBndRng1  := 20
+  declare const pBndRng2  := 21
+  declare const uPTmCC    := 22
+  declare const pPTmRng1  := 23
+  declare const pPTmRng2  := 24
+  declare const uPBndCC   := 25
+  declare const uModeCC   := 26  
+  declare const UP_Empty := uAtkFade { User preset empty when zero }
+  { Preset offsets from 29..50 are available for future expansion }
+  declare const uPreset   := 51  { Panel controls not in presets }
+  declare const uOfstKnob := 52  { Common Offset Knob for Legato & Portamento }
+  declare const tNameDsp  := 53  { Panel Labels (tags) }
+  declare const tAbout    := 54
+  declare const tPortCap1 := 55
+  declare const tXFCap    := 56
+  declare const tBndCap   := 57
+  declare const tIRBox    := 58
+  declare const tIRCap    := 59
+  declare const uAlpha    := 60  { Rename Panel Controls }
+  declare const uBackSp   := 61
+  declare const uEntChr   := 62
+  declare const uLoCase   := 63
+  declare const uErase    := 64
+  declare const uCancel   := 65
+  declare const MaxControl := uCancel  { Highest Control Index }
+  declare const xxx        := -1       { Unused panel anchor position }
+end function { on_init_Set_UIX }
+
+function on_init_Std_PanelMap { Control Layout for the Standard SLS Panel }
+  declare StdPanel_Map[36] := ( ...
+     uXTime,    tXFCap,       xxx,    tBndCap, tPortCap1,    tIRCap, ...
+        xxx,  uAtkFade,  uNodeVol,     uSlope,    uPTime,    tIRBox, ...
+     uXTmCC,       xxx,       xxx,        xxx,       xxx,       xxx, ...
+     uBTime,  uRlsFade, uOfstKnob,      uBend,    uPTmCC,   uPreset, ...
+        xxx,       xxx,       xxx,        xxx,    tAbout,  uSLSMode, ...
+     uBTmCC,  uRlsMode, uOfstMode,     uBndCC,   uPBndCC,   uModeCC)   
+end function { on_init_Std_PanelMap }
+
+{ ---------------- SLS Version of Other Common Routines --------------- }
+function AssignCC(bx)
+  { Note used by the SLS }
+end function { AssignCC }
+
+function DeAssignCC(bx) { Special handling of certain CC de-assignments }
+  if bx = mPBend { Set PBend to max when no CC is assigned } 
+    MBtn.CCV[mPBend] := 127      
+  end if
+end function { DeAssignCC }
+
+function Do_Preset
+{ Process Preset Menu commands and indices }
+  declare upx
+  
+  MsgFlag := false          { Assume no info messages }
+  upx := Preset - User0     { User Preset Index, (if Preset >= User0) }
+  if Preset < 0
+    Command := Preset       { This is a 'command' index }
+    ImpActv := false        { Reset for next import }
+  else   { This is a preset index }
+    if Preset < User0       { It's a Built_In preset }
+      Command := No_Cmd     { Cancel any pending commands }
+    else { User Preset }
+      if Command = Save_As  { User preset selected with Save As pending }
+        Save_Preset(upx)    { Save current parms to the specified User Preset }
+        Command := No_Cmd   { Cancel the Save_As command }      
+        exit                { We're done }
+      else if Command = Import
+        Command := No_Cmd   { Cancel Import }
+      end if
+    end if
+    if upx >= 0 and UserParms[upx*MaxParms + UP_Empty] = 0
+      Preset := No_Cmd
+      StatMsg := 'Preset Empty'
+      MsgFlag := true
+    else  { Selected preset is not empty }
+      Recall_Preset(Preset)
+      if Command = Export
+        Do_Export(upx)      { Send Preset upx to Importing script }
+      end if
+    end if
+    if Command = Rename     { If rename is still active (User was selected) }
+      Update_Name(upx)      { Update selected user preset name }
+      Command := No_Cmd     { Cancel rename command }
+    else if Command = Export
+      Preset := Export      { Continue to display 'Export' }
+    end if
+  end if
+  if MsgFlag = true
+    BlinkStatMsg(5)
+  end if
+  Do_Edit   { Check for Rename command }
+end function { Do_Preset }
+
+function Load_KeyParms  { Load Parms from PresetBfr }
+  LoadParm(MKnob.XTime,uXTime)
+  LoadParm(AtkFade,uAtkFade)
+  LoadParm(NodeVol,uNodeVol)
+  LoadParm(MKnob.BTime,uBTime)
+  LoadParm(Slope,uSlope)
+  LoadParm(MKnob.Bend,uBend)
+  LoadParm(RlsFade,uRlsFade)
+  LoadParm(RlsMode,uRlsMode)
+  LoadParm(LOfst,pLOfst)
+  LoadParm(OfstMode,uOfstMode)
+  LoadParm(MKnob.PTime,uPTime)
+  LoadParm(POfst,pPOfst)
+  LoadParm(SLSMode,uSLSMode)  
+end function { Load_KeyParms }
+
+function Load_XParms  { Load Extra Parms from PresetBfr }
+  LoadParm(MBtn.CC[mXTime],uXTmCC)
+  LoadParm(MKnob.Kmin[mXTime],pXTmRng1)
+  LoadParm(MKnob.Kmax[mXTime],pXTmRng2)
+  LoadParm(MBtn.CC[mBTime],uBTmCC)
+  LoadParm(MKnob.Kmin[mBTime],pBTmRng1)
+  LoadParm(MKnob.Kmax[mBTime],pBTmRng2)
+  LoadParm(MBtn.CC[mBend],uBndCC)
+  LoadParm(MKnob.Kmin[mBend],pBndRng1)
+  LoadParm(MKnob.Kmax[mBend],pBndRng2)
+  LoadParm(MBtn.CC[mPTime],uPTmCC)
+  LoadParm(MKnob.Kmin[mPTime],pPTmRng1)
+  LoadParm(MKnob.Kmax[mPTime],pPTmRng2)
+  LoadParm(MBtn.CC[mPBend],uPBndCC)
+  LoadParm(MBtn.CC[mMode],uModeCC)
+end function { Load_XParms }
+
+function NewMode_   { Check SLSMode for possible change }
+  declare LegNote 
+  
+  if SLSMode # LastMode      { SLSMode has changed }
+    if LastMode = Port_Mode  { Leaving Port_Mode }
+    { First assume the new mode will be legato or solo by converting }
+    { the last portamento pitch to the nearest note in legato mode   }
+    { then make that note the np.New note and retire the other note  }
+      if pp.state > 1           { If neutral or active }
+        LegNote := (pp.pitch + 500)/Semi { Closest note to current pitch }
+        if np.note[pp.Lo] < LegNote { Point Lo index to the desired note }
+          pp.Lo := 1 - pp.Lo        { Point Lo index to former Hi note }
+        end if     { Lo now points to note to use for Legato mode }
+        np.parent[1 - np.New] := NoID  { Retire old parent if it hasn't happened yet }
+        note_off(np.child[1 - pp.Lo])  { Retire unchosen child note }
+        np.child[1 - pp.Lo] := NoID
+        if np.New # pp.Lo  { Associate former New parent with Lo indexed note }
+          np.parent[pp.Lo] := np.parent[np.New] { Copy former New parent to Lo }
+          np.New := pp.Lo  { Point New index to Lo note }
+        end if
+        change_vol(np.child[np.New],-np.0db[np.New],1)
+        np.0db[np.New] := 0            { Restore initial volume }
+        change_tune(np.child[np.New],-np.0tune[np.New],1)
+        np.0tune[np.New] := 0          { Restore center tuning }
+        np.vel[np.New] := pp.vel       { Make legato velocity same as port vel }      
+      end if    
+      pp.state := 0   { Legato mode transition completed, turn off port mode }
+    end if
+    if SLSMode = Port_Mode
+      if np.parent[np.New] = NoID   { Between phrases }
+        pp.state := 1   { Put in Standby to wait for first note }  
+      else { Phrase already active from Legato or Solo mode }
+        StopFade  { Terminate any crossfade }
+        InzPort   { Make current note the first portamento note }
+      end if 
+    end if
+    LastMode := SLSMode    { Update LastMode }
+  end if  { SLSMode changed } 
+end function { NewMode_ }
+
+function Recall_Preset(menu_index)
+{ Retrieves Preset Parameters from either MainParms or UserParms }
+  declare p0      { Offset to 1st parm of preset }
+  declare px      { PresetBfr index }
+
+  MBtn.Actv := 0  { Terminate any in-process CC assignment }
+  wait(3000)      { Allow time for button menu to close }
+  if menu_index < User0 { Get parms for Built-In Preset }
+    p0 := menu_index*KeyParms
+    for px := 0 to KeyParms - 1  
+      PresetBfr[px] := MainParms[p0 + px]
+    end for
+  else            { Get parms for User Preset }
+    p0 := (menu_index - User0)*MaxParms
+    for px := 0 to MaxParms - 1
+      PresetBfr[px] := UserParms[p0 + px]
+    end for
+  end if
+  Load_KeyParms   { Recall Key Parms from buffer }
+  if menu_index >= User0 { User Preset being recalled }
+    Load_XParms          { Recall extra User parms }
+  end if
+  Call(UpdatePanel,none,none)
+  for px := 0 to mLast   { Restore BtnMenus for CC assignment }
+    UpdateBtn(px)
+  end for
+end function { Recall_Preset }
+
+function Reformat(oldpfc)
+   { Since this script is V200, 'oldpfc' can only be }
+   {  V2UP or V200 and no reformatting is required   }
+   NOP
+end function { Reformat }
+
+function Save_Preset(upx)
+  declare p0
+  { Save current panel parameter set in UserParms array at upx }  
+  p0 := upx*MaxParms
+  UserParms[p0 + uXTime]    := MKnob.XTime
+  UserParms[p0 + uAtkFade]  := AtkFade
+  UserParms[p0 + uNodeVol]  := NodeVol
+  UserParms[p0 + uBTime]    := MKnob.BTime
+  UserParms[p0 + uSlope]    := Slope
+  UserParms[p0 + uBend]     := MKnob.Bend 
+  UserParms[p0 + uRlsFade]  := RlsFade
+  UserParms[p0 + uRlsMode]  := RlsMode
+  UserParms[p0 + pLOfst]    := LOfst
+  UserParms[p0 + uOfstMode] := OfstMode
+  UserParms[p0 + uPTime]    := MKnob.PTime
+  UserParms[p0 + pPOfst]    := POfst
+  UserParms[p0 + uSLSMode]  := SLSMode
+  UserParms[p0 + uXTmCC]    := MBtn.CC[mXTime]  
+  UserParms[p0 + pXTmRng1]  := MKnob.Kmin[mXTime]
+  UserParms[p0 + pXTmRng2]  := MKnob.Kmax[mXTime]
+  UserParms[p0 + uBTmCC]    := MBtn.CC[mBTime]
+  UserParms[p0 + pBTmRng1]  := MKnob.Kmin[mBTime]
+  UserParms[p0 + pBTmRng2]  := MKnob.Kmax[mBTime]
+  UserParms[p0 + uBndCC]    := MBtn.CC[mBend]
+  UserParms[p0 + pBndRng1]  := MKnob.Kmin[mBend]
+  UserParms[p0 + pBndRng2]  := MKnob.Kmax[mBend]
+  UserParms[p0 + uPTmCC]    := MBtn.CC[mPTime]
+  UserParms[p0 + pPTmRng1]  := MKnob.Kmin[mPTime]
+  UserParms[p0 + pPTmRng2]  := MKnob.Kmax[mPTime]
+  UserParms[p0 + uPBndCC]   := MBtn.CC[mPBend]
+  UserParms[p0 + uModeCC]   := MBtn.CC[mMode]
+end function { Save_Preset }
+
+
+function SetSLSMode(ccv) { MIDI CC requested mode change }
+  select ccv             { Update Mode }
+    case 0               { Disable SLS when CC at min }
+      SLSMode := SLS_Off
+    case 1 to 63         { Solo Mode when CC in lower half }
+      SLSMode := Solo_Mode
+    case 64 to 126       { Legato Mode when CC in upper half }
+      SLSMode := Legato_Mode
+    case 127             { Portamento Mode when CC is at max }
+      SLSMode := Port_Mode
+  end select  
+end function { SetSLSMode }
+
+function SetXY(h,x,y)
+{ Moves the Control whose assigned 'handle' is 'h', to position 'x','y' on panel.
+  If x = 0 or y = 0, the Control will be hidden. This case statement ties the
+  previously defined index constants to the corresponding control. NOTE: SetXY,
+  also sets the 'internal' x,y values for 'overlay' buttons when x > 0 }
+  select h
+    case uBend                      { MIDI-controlled Knobs & Menus }
+      move_control(MKnob.Bend,x,y)        { Bend Knob }       
+    case uBTime
+      move_control(MKnob.BTime,x,y)       { BTime Knob } 
+    case uSLSMode
+      move_control(SLSMode,x,y)           { Mode Menu }
+    case uPTime
+      move_control(MKnob.PTime,x,y)       { PTime Knob }
+    case uXTime
+      move_control(MKnob.XTime,x,y)       { XTime Knob }
+    case uBndCC                     { MIDI CC Assignment Buttons }
+      move_control(MBtn.Bend,x,y)         { Legato Bend CC }
+      SetBtnXY(mBend,x,y)      
+    case uBTmCC
+      move_control(MBtn.BTime,x,y)        { Legato BTime CC }
+      SetBtnXY(mBTime,x,y)
+    case uModeCC
+      move_control(MBtn.Mode,x,y)         { SLS Mode CC }
+      SetBtnXY(mMode,x,y)
+    case uPBndCC
+      move_control(MBtn.PBend,x,y)        { PBend CC }
+      SetBtnXY(mPBend,x,y)
+    case uPTmCC
+      move_control(MBtn.PTime,x,y)        { PTime CC }
+      SetBtnXY(mPTime,x,y)
+    case uXTmCC
+      move_control(MBtn.XTime,x,y)        { XTime CC }
+      SetBtnXY(mXTime,x,y)
+    case uAtkFade                   { Non-MIDI Knobs, Menus. & Btns}
+      move_control(AtkFade,x,y)
+    case uNodeVol
+      move_control(NodeVol,x,y)
+    case uOfstMode
+      move_control(OfstMode,x,y)
+    case uOfstKnob
+      move_control(OfstKnob,x,y)
+    case uPreset
+      move_control(Preset,x,y)       
+    case uRlsFade
+      move_control(RlsFade,x,y)
+    case uRlsMode
+      move_control(RlsMode,x,y)
+    case uSlope
+      move_control(Slope,x,y)       
+    case uAlpha                     { Rename Popup-Panel Controls }
+      move_control(Alpha,x,y)
+    case uBackSp
+      move_control(BackSpace,x,y)
+    case uCancel
+      move_control(CancelRename,x,y)    
+    case uEntChr
+      move_control(EnterChar,x,y)
+    case uErase
+      move_control(EraseName,x,y)                
+    case uLoCase
+      move_control(LowerCase,x,y)
+    case tAbout                     { Panel Labels }
+      move_control(About,x,y)
+    case tBndCap
+      move_control(BendCap,x,y)  
+    case tIRBox
+      move_control(IR_Box,x,y)
+    case tIRCap
+      move_control(IRCap,x,y)       
+    case tNameDsp
+      move_control(NameDisplay,x,y)
+    case tPortCap1
+      move_control(PortCap1,x,y)
+    case tXFCap
+      move_control(XFadeCap,x,y)      
+  end select
+end function { SetXY }
+
+function Startup  { Extended ICB routine }
+  move_control(BigLabel,0,0)     { Hide ICB Prompting Label }
+  LastMode := -1                 { Force 'initial' New_Mode update }  
+  ICall(NewMode,none,none)       { Initialize operation to SLSMode }
+  DrawPanel := StdPanel          { Draw the Standard Panel and  }
+  ICall(UpdatePanel,none,none)   {  update all dynamic controls }
+  if Preset < 0       { If persistent value was left in a command state }
+    Preset := No_Cmd  { Display the standard Header caption '-- Presets --' }
+  end if
+end function { Startup }
+
+function Update_Format
+{ Checks for any prior loaded version of this same script to see if data can be
+  imported. If so, the User Preset Data is re-formatted as needed and Fail is
+  set to false. If the prior script bears a different SID or if the prior script
+  is a later version than this script (or if it is from the V1 series), Fail is
+  set to true so the Failure Panel will be displayed at the end of the ICB.}
+  declare Fail
+  declare OldSID
+  declare OldPFC
+  declare ntabs
+  
+  Fail := true               { Assume Upgrade will fail }
+  OldSID := Version[vSID]    { If these aren't the default for this script, they }
+  OldPFC := Version[vPFC]    {  belong to a previously loaded, prior V2 script   }
+  if OldSID = SID and in_range(OldPFC,V2UP,PFC) 
+    { Prior script has same SID, is in V2 series, and is not newer than this one }
+    Fail := false            { Upgrade may proceed }
+    Version[vSID] := SID     { Update codes to defaults for this script }
+    Version[vPFC] := PFC
+    _read_persistent_var(UserParms) { Recover Prior Presets if not fresh install }    
+    Reformat(OldPFC)         { Reformat presets from a prior version }
+  end if
+  if Fail = true     { Update has failed report error and stop }
+    ntabs := 15
+    MsgText[3] := ' Automatic Import of Presets FAILED'
+    MsgText[4] := "   See Page xx of V2.0 User's Guide"
+    Cancel_Startup   { Cancel any XICB 'startup' function }
+  else { Update was successful, write prompter and prepare panel }
+    ntabs := 14
+    MsgText[2] := 'If you see this instead of the Control Panel'
+    MsgText[3] := '            Move a MIDI Controller'
+    MsgText[4] := " (See Section 1.1 of SIPS 2 User's Guide)"
+  end if
+  WriteMsg(ntabs)    { Show Prompter to move CC or Advise of Import Failure }
+end function { Update_Format }
+
+function UpdatePanel_  { After panel restore or control change }
+  if DrawPanel # NoDraw 
+    select DrawPanel   { Copy desired panel map to PMap array }
+      case StdPanel
+        CopyArray(PMap,StdPanel_Map)
+      case RenPanel
+        CopyArray(PMap,RenPanel_Map)
+    end select
+    ShowPanel(PMap)    { Cancel any active Btn-Menu and draw selected panel }
+  end if
+  DrawPanel := NoDraw  { Default index is NoDraw }
+  ShowIR               { Update dynamic controls }
+  Set_RlsKnob
+  Set_OfstKnob
+end function { UpdatePanel_ }
+

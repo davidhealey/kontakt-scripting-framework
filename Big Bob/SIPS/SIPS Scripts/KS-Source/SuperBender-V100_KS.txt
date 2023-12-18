@@ -1,0 +1,130 @@
+{-------------------------------------------------------------------------------
+Title: Super Bender Starter Script for SIPS 2
+Author: R.D.Villwock aka 'Big Bob'
+First Written: July 8, 2008
+Current Version: 1.00
+Last Modified: July 15, 2008
+
+Besides providing the usual automatic (or at least semi-automatic) startup of SIPS 2,
+this script provides for a selection of Pitch Wheel modes which include the Super Bender
+mode. In order for this script to work properly, the SLS must be properly setup with
+appropriate CC assignments. See section 4.15 of the User's Guide for complete details.
+--------------------------------------------------------------------------------}
+
+on init
+                      { Standard CC Assignments }
+  declare const Aftertouch := 124 { Channel Aftertouch KSP+ Proxy }
+  declare const BendCC     := 25  { Legato & Portamento Bend Control }
+  declare const PitchWheel := 128 { K2/3 CC code for PW }
+  declare const PTimeCC    := 23  { PTime Control } 
+  declare const SLSModeCC  := 21  { SLS Mode Control }
+  declare const StartSIPS  := 122 { CC to startup SIPS 2, formerly used as KSP+ Timer }
+                     { Menu Choices }
+  declare const pwmNormal   := 1  { Normal PW operation, using bend Range setting }
+  declare const pwmSuper    := 2  { PW functions as SIPS Super Bender }
+  declare const pwmOff      := 3  { PW functions as a MIDI controller only }
+                     { Misc constants }
+  declare const false := 0
+  declare const true := 1
+  
+  declare ui_menu PWMode   { Pitch Wheel Mode Menu }
+    add_menu_item(PWMode,'Normal Bender',pwmNormal)
+    add_menu_item(PWMode,'Super Bender',pwmSuper)
+    add_menu_item(PWMode,'Controller Only',pwmOff)
+    PWMode := pwmNormal
+    move_control(PWMode,1,2)
+    make_persistent(PWMode)
+  declare ui_value_edit BendRange (1,12,1) { Normal Bender Range in semitones }
+    set_text(BendRange,'Set Range')
+    BendRange := 1                   { Default is one semitone }
+    move_control(BendRange,2,2)
+    make_persistent(BendRange)
+  declare ui_label SuperState (1,1)  { In Super Bender mode, displays current status }
+  declare ui_label PWModeCap (2,1)
+    set_text(PWModeCap,'Pitch Wheel Mode  -  Range or Status')
+    move_control(PWModeCap,1,1)
+   
+  declare PortMode := false       { Flag set when SLS is in portamento mode }
+  declare SwitchOK := true        { Enable Super Bender Switch initially }
+  set_controller(StartSIPS,0)     { When instrument is loaded, send startup event }
+  set_controller(Aftertouch,0)    { Initialize Aftertouch to zero }
+  _read_persistent_var(PWMode)
+  declare LastPWMode
+    LastPWMode := PWMode
+  PWState
+  declare InstTune
+    InstTune := _get_engine_par(ENGINE_PAR_TUNE,-1,-1,-1) { Initial Inst Tuning } 
+  set_controller(SLSModeCC,96)    { Srart SLS in Legato Mode }
+  set_controller(BendCC,0)
+  set_controller(PTimeCC,0)
+  message('')
+end on { init }
+
+on ui_update  { When a script is compiled or instrument tuning is changed }
+  set_controller(StartSIPS,0) { Restart SIPS if need be }
+  if CC[PitchWheel] = 0       { If not bending and user has changed inst tune }
+    InstTune := _get_engine_par(ENGINE_PAR_TUNE,-1,-1,-1)  { Update PW = 0 Tuning }
+  end if
+end on { ui_update }
+
+on ui_control (PWMode)
+  if CC[PitchWheel] # 0 or PLAYED_VOICES_INST # 0
+    PWMode := LastPWMode   { Don't allow a PW Mode change }
+  else                     { OK to change mode }
+    LastPWMode := PWMode   { Update LastPWMode }
+    SwitchOK := true       { Enable Port/Leg switching }
+    PortMode := false      { Set SLS to Legato Mode }
+    set_controller(SLSModeCC,96)
+    PWState                { Update PW Mode and Status Display }
+  end if
+end on { PWMode }
+
+on controller
+  if CC_NUM = PitchWheel and PWMode # pwmOff
+    if PWMode = pwmSuper
+      ignore_controller
+      if CC[PitchWheel] < 0        { PW mode switch request }
+        if SwitchOK = true         { OK to honor request }
+          if CC[SLSModeCC] < 127   { If in any mode other than Portamento }
+            set_controller(SLSModeCC,127)  { Change to Portamento Mode }
+            PortMode := true
+          else
+            set_controller(SLSModeCC,96)   { Change to Legato Mode }
+            PortMode := false
+          end if
+          SwitchOK := false  { No more mode changes allowed until PW >= 0 }
+          PWState            { Update switch status display }
+        end if
+        if PortMode = true   { Map PW to PTime controller }
+          set_controller(PTimeCC,abs(CC[PitchWheel])*127/8191)
+        end if
+      else                   { After PW is out of negative region }
+        SwitchOK := true     { Make it OK for PW to switch modes again }
+        set_controller(BendCC,abs(CC[PitchWheel])*127/8191) { Map PW to Leg/PBend CC }
+      end if
+    else  { Normal Bender mode, tune overall instrument via the PW }
+      _set_engine_par(ENGINE_PAR_TUNE,CC[PitchWheel]*13889*BendRange/8191+InstTune,-1,-1,-1)
+    end if
+  end if
+end on { controller }
+
+function PWState  { Update display to reflect current PW Mode and Bender status }
+  select PWMode
+    case pwmNormal
+      move_control(BendRange,2,2)
+      move_control(SuperState,0,2)
+    case pwmSuper
+      move_control(BendRange,0,2)
+      move_control(SuperState,2,2)
+      if PortMode = true
+        set_text(SuperState,'Portamento Bend')
+      else
+        set_text(SuperState,'   Legato Bend')
+      end if
+    case pwmOff
+      move_control(BendRange,0,2)
+      move_control(SuperState,0,2)
+  end select
+end function { PWState }
+
+

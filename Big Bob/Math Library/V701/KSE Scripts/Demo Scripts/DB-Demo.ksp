@@ -1,0 +1,132 @@
+{ This script illustrates how you can use a value-edit, a knob, or a slider to control
+  Kontakt's Volume by implementing all three at the same time. With this demo script, 
+  changing any of the 3 panel controls causes the remaining 2 panel controls as well
+  as Kontakt's Amplifier Volume to assume the same value. Similarly, changing
+  Kontakt's Amp Volume knob will cause all three panel controls to assume the same
+  value. In this way, all 4 controls continuously track each other.
+  
+  This script uses three Math Library functions. epVolume is used to bi-directionally
+  convert between mdb volume and its equivalent engine parameter value. RoundDiv is
+  used to perform a rounded division of the mdb value to dB scaled by 10 and DFmtVal
+  is used to format the scaled dB value to its text representation with one decimal
+  digit for purposes of displaying the slider's value on a label. }
+  
+import "KSPMathV701.ksp" { This makes library functions available to your script. If
+                           the library is not located alongside DB-Demo, you will
+                           need to include the correct path to it in the import
+                           statement. See KSE documentation. }
+on init
+  message('')    { Clear status line without covering up any error messages that might
+                   occur during execution of the ICB }
+  set_script_title('DB-Demo')
+  SetMathMode(FL+FE,DG) { The library requires that this directive be included near the top
+                          of your ICB. With the fast_options shown, the fast-mode versions
+                          of epVolume (both directions) will be compiled. If you want to run
+                          epVolume in Standard mode, just use zero for fast_opts list.
+                          DG specifies deci-grads for an angular unit but since this script
+                          doesn't use any trig functions, this setting is unimportant. }
+                     
+  { The following declaratives simply define the various controls to be displayed on
+    the script panel and also declare a variable named Vol that will be used to pass
+    a volume parameter to several callable user functions. Vol always contains the desired
+    volume in dB scaled by 10 so it can represent volume with 0.1 dB resolution. }
+
+  { VolEdit, VolKnob, and VolSlide will display volume from Muted to +12.0 dB }
+  declare ui_value_edit VolEdit (Muted/100,120,10)  {  with 0.1 dB resolution }
+    set_text(VolEdit,'Vol dB')
+  declare ui_knob VolKnob (Muted/100,120,10)
+    set_knob_unit(VolKnob,KNOB_UNIT_DB)
+    set_text(VolKnob,'Volume')
+  declare ui_slider VolSlide (Muted/100,120)
+    move_control(VolSlide,3,1)
+  declare ui_label ShowSlide(1,1)  { Sliders have no value display of their own so }
+                                   {  we use an adjacent label to display its      }
+    move_control(ShowSlide,3,2)    {  current value.                               }
+
+  { The Vol variable is used to to hold the current volume setting in dB*10,
+    so it can represent volume with 0.1 dB resolution. } 
+  declare Vol  { volume in dB scaled by 10 }
+end on
+
+on_post_init       { We need to invoke get_amp_vol during initialization but since we}
+  call get_amp_vol { want to 'call it', we put do in the post_init callback instead }
+end_on             { of in the ICB. See User Guide for info on post_initialization }
+                                   
+on ui_update   { This callback runs when the user changes the Amp volume knob, so we
+                 call get_amp_vol to set the panel knobs to the same value as the
+                 Amp Volume knob (just like when first starting the script during
+                 post-initialization) see AppInit }
+  call get_amp_vol  { See header comments of get_amp_vol for details of what it does }
+end on
+
+on ui_control (VolEdit) { Anytime the user changes the panel's edit box, its value
+                          which is the dB setting * 10 is passed (in the variable
+                          named Vol) to user functions named update_panel and
+                          update_amp_volume. See the header comments of these two
+                          routines for details of what they do }
+  Vol := VolEdit
+  call update_panel       { Set all the panel controls to copy the VolEdit setting }
+  call update_amp_volume  { Set Kontakt's Amp volume to the same dB value }
+end on
+
+on ui_control (VolKnob) { Anytime the user changes the panel knob, its value
+                          which is the dB setting * 10 is passed (in the variable
+                          named Vol) to user functions named update_panel and
+                          update_amp_volume. See the header comments of these two
+                          routines for details of what they do }
+  Vol := VolKnob
+  call update_panel       { Set all the panel controls to copy the VolKnob setting }
+  call update_amp_volume  { Set Kontakt's Amp volume to the same dB value }
+end on
+
+on ui_control (VolSlide) { Anytime the user changes the panel slider, its value
+                           which is the dB setting * 10 is passed (in the variable
+                           named Vol) to user functions named update_panel and
+                           update_amp_volume. See the header comments of these two
+                           routines for details of what they do }
+  Vol := VolSlide
+  call update_panel       { Set all the panel controls to copy the VolKnob setting }
+  call update_amp_volume  { Set Kontakt's Amp volume to the same dB value }
+end on
+
+function get_amp_vol { This routine reads Kontakt's Amp Volume setting and sets all 
+                       panel controls to display the same value. It does this by reading
+                       the ep for Amp Volume and then invoking the Math function named
+                       epVolume to convert that ep to its equivalent mdB value. Then,
+                       the mdB value is divided by 100 to express it in 0.1 dB units
+                       (dB scaled by 10) and this value is passed in the variable named
+                       Vol to the user function named update_panel. See the header
+                       comments of update_panel for details of what it does. }
+  Vol := epVolume(E2V,get_engine_par(ENGINE_PAR_VOLUME,0,-1,-1))
+  Vol := RoundDiv(Vol,100) { Vol = ep/100 convert from mdb to dB * 10 }
+  call update_panel   { Set all panel controls to the dB value in Vol }
+end function
+
+function update_amp_volume { This routine uses the scaled volume (in the variable Vol) to
+                             set Kontakt's Amplifier Volume to the same dB value. It does
+                             this by invoking the Math routine named epVolume to convert
+                             Vol to its equivalent engine par in the local var named ep }
+  declare ep
+  ep := epVolume(V2E,Vol*100) { Multiply Vol by 100 first to convert it to mdb units, then
+                                invoke epVolume to convert the mdb value to its equivalent
+                                ep value. This ep value can then be sent to control the
+                                Amplifier volume knob }
+  set_engine_par(ENGINE_PAR_VOLUME,ep,0,-1,-1)  
+end function
+
+function update_panel { This routine displays the dB value (in the variable named Vol) on
+                        all three panel controls. (Remember the integer value in Vol is dB
+                        scaled by 10). The value edit and the knob will automatically
+                        format the dB display with 0.1dB resolution. However, for the
+                        slider, we must overtly format the value in Vol so it will display
+                        with 0.1dB resolution. This is done with the library routine named
+                        DFmtVal. }
+  declare @DB  { text form of Vol }
+  VolEdit := Vol        { copy Vol to all 3 panel controls }
+  VolKnob := Vol
+  VolSlide := Vol
+  DB := DFmtVal(Vol,1)  { format and display slider's value with its associated label }
+  set_text(ShowSlide,'Vol: ' & DB & ' dB')  
+end function
+
+

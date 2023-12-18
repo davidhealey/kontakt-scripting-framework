@@ -1,0 +1,2067 @@
+{ SIPS-Vibrato, Version 205 7-17-08 }
+on init
+declare %Version[6] 
+declare $XTmRng
+declare $XTime__Range
+declare $PkDwell
+declare $LowIR := 2
+declare $TopIR := 127
+$XTmRng := 1000
+$XTime__Range := 1000
+$PkDwell := 1000
+_read_persistent_var($XTmRng)
+_read_persistent_var($XTime__Range)
+_read_persistent_var($PkDwell)
+if ($XTmRng # 1000 or ($XTime__Range # 1000))
+%Version[0] := 1001
+%Version[1] := 102
+else
+if ($PkDwell # 1000)
+%Version[0] := 1002
+%Version[1] := 102
+else
+%Version[0] := 1002
+%Version[1] := 104
+end if
+end if
+_read_persistent_var(%Version)
+declare $ActvTasks
+declare $BlinkCount
+declare $DoStartup
+declare %InParm[4] 
+declare $MsgID
+declare %OutParm[4] 
+declare $pTx
+declare %QTask[51] 
+declare %ReplyBfr[4] 
+declare $StartActv
+declare @StatMsg
+declare $TopTask := 50
+declare $WaitTime
+declare $WatchTask
+declare $WatchSub
+declare $XSub
+declare $XTsk
+declare $HostSID
+@StatMsg := ""
+$HostSID := 1002
+$DoStartup := 1
+if (in_range(1,0,$TopTask))
+$TopTask := 1
+end if
+$XSub := 1
+declare %PresetBfr[57] 
+declare @LowCap
+@LowCap := " Low Key: "
+declare @TopCap
+@TopCap := " High Key: "
+declare $i
+declare !CC_Name[123] 
+$i := 3
+while ($i<=119)
+!CC_Name[$i] := "Undefined"
+inc($i)
+end while
+!CC_Name[0] := "Bsnk Select"
+!CC_Name[1] := "Mod Wheel"
+!CC_Name[2] := "Breath Control"
+!CC_Name[4] := "Foot Controller"
+!CC_Name[5] := "Portamento Time"
+!CC_Name[6] := "Data Entry MSB"
+!CC_Name[7] := "Channel Volume"
+!CC_Name[8] := "Balance"
+!CC_Name[10] := "Pan"
+!CC_Name[11] := "Expression"
+!CC_Name[12] := "Efx Ctl 1"
+!CC_Name[13] := "Efx Ctl 2"
+!CC_Name[16] := "General Ctl #1"
+!CC_Name[17] := "General Ctl #2"
+!CC_Name[18] := "General Ctl #3"
+!CC_Name[19] := "General Ctl #4"
+!CC_Name[32] := "LSB for CC 0"
+!CC_Name[33] := "LSB for CC 1"
+!CC_Name[34] := "LSB for CC 2"
+!CC_Name[35] := "LSB for CC 3"
+!CC_Name[36] := "LSB for CC 4"
+!CC_Name[37] := "LSB for CC 5"
+!CC_Name[38] := "LSB for CC 6"
+!CC_Name[39] := "LSB for CC 7"
+!CC_Name[40] := "LSB for CC 8"
+!CC_Name[41] := "LSB for CC 9"
+!CC_Name[42] := "LSB for CC 10"
+!CC_Name[43] := "LSB for CC 11"
+!CC_Name[44] := "LSB for CC 12"
+!CC_Name[45] := "LSB for CC 13"
+!CC_Name[46] := "LSB for CC 14"
+!CC_Name[47] := "LSB for CC 15"
+!CC_Name[48] := "LSB for CC 16"
+!CC_Name[49] := "LSB for CC 17"
+!CC_Name[50] := "LSB for CC 18"
+!CC_Name[51] := "LSB for CC 19"
+!CC_Name[52] := "LSB for CC 20"
+!CC_Name[53] := "LSB for CC 21"
+!CC_Name[54] := "LSB for CC 22"
+!CC_Name[55] := "LSB for CC 23"
+!CC_Name[56] := "LSB for CC 24"
+!CC_Name[57] := "LSB for CC 25"
+!CC_Name[58] := "LSB for CC 26"
+!CC_Name[59] := "LSB for CC 27"
+!CC_Name[60] := "LSB for CC 28"
+!CC_Name[61] := "LSB for CC 29"
+!CC_Name[62] := "LSB for CC 30"
+!CC_Name[63] := "LSB for CC 31"
+!CC_Name[64] := "Sustain Pedal"
+!CC_Name[65] := "Portamento On/Off"
+!CC_Name[66] := "Sustenuto On/Off"
+!CC_Name[67] := "Soft Pedal On/Off"
+!CC_Name[68] := "Legato Footswitch"
+!CC_Name[69] := "Hold 2"
+!CC_Name[70] := "Sound Ctl 1"
+!CC_Name[71] := "Sound Ctl 2"
+!CC_Name[72] := "Sound Ctl 3"
+!CC_Name[73] := "Sound Ctl 4"
+!CC_Name[74] := "Sound Ctl 5"
+!CC_Name[75] := "Sound Ctl 6"
+!CC_Name[76] := "Sound Ctl 7"
+!CC_Name[77] := "Sound Ctl 8"
+!CC_Name[78] := "Sound Ctl 9"
+!CC_Name[79] := "Sound Ctl 10"
+!CC_Name[80] := "General Ctl #5"
+!CC_Name[81] := "General Ctl #6"
+!CC_Name[82] := "General Ctl #7"
+!CC_Name[83] := "General Ctl #8"
+!CC_Name[84] := "Portamento Ctl"
+!CC_Name[91] := "Efx 1 Depth"
+!CC_Name[92] := "Efx 2 Depth"
+!CC_Name[93] := "Efx 3 Depth"
+!CC_Name[94] := "Efx 4 Depth"
+!CC_Name[95] := "Efx 5 Depth"
+!CC_Name[96] := "Data Inc"
+!CC_Name[97] := "Data Dec"
+!CC_Name[98] := "NRPN LSB"
+!CC_Name[99] := "NRPN MSB"
+!CC_Name[100] := "RPN LSB"
+!CC_Name[101] := "RPN MSB"
+!CC_Name[120] := "    - Pitch Wheel -"
+!CC_Name[121] := "    - Aftertouch -"
+!CC_Name[122] := "     - Velocity -"
+declare !char[73] 
+!char[0] := " "
+!char[1] := "A"
+!char[2] := "B"
+!char[3] := "C"
+!char[4] := "D"
+!char[5] := "E"
+!char[6] := "F"
+!char[7] := "G"
+!char[8] := "H"
+!char[9] := "I"
+!char[10] := "J"
+!char[11] := "K"
+!char[12] := "L"
+!char[13] := "M"
+!char[14] := "N"
+!char[15] := "O"
+!char[16] := "P"
+!char[17] := "Q"
+!char[18] := "R"
+!char[19] := "S"
+!char[20] := "T"
+!char[21] := "U"
+!char[22] := "V"
+!char[23] := "W"
+!char[24] := "X"
+!char[25] := "Y"
+!char[26] := "Z"
+!char[27] := "0"
+!char[28] := "1"
+!char[29] := "2"
+!char[30] := "3"
+!char[31] := "4"
+!char[32] := "5"
+!char[33] := "6"
+!char[34] := "7"
+!char[35] := "8"
+!char[36] := "9"
+!char[37] := "#"
+!char[38] := "<"
+!char[39] := ">"
+!char[40] := "+"
+!char[41] := "-"
+!char[47] := "a"
+!char[48] := "b"
+!char[49] := "c"
+!char[50] := "d"
+!char[51] := "e"
+!char[52] := "f"
+!char[53] := "g"
+!char[54] := "h"
+!char[55] := "i"
+!char[56] := "j"
+!char[57] := "k"
+!char[58] := "l"
+!char[59] := "m"
+!char[60] := "n"
+!char[61] := "o"
+!char[62] := "p"
+!char[63] := "q"
+!char[64] := "r"
+!char[65] := "s"
+!char[66] := "t"
+!char[67] := "u"
+!char[68] := "v"
+!char[69] := "w"
+!char[70] := "x"
+!char[71] := "y"
+!char[72] := "z"
+declare !Tones[12] 
+!Tones[0] := " C"
+!Tones[1] := "C#"
+!Tones[2] := " D"
+!Tones[3] := "D#"
+!Tones[4] := " E"
+!Tones[5] := " F"
+!Tones[6] := "F#"
+!Tones[7] := " G"
+!Tones[8] := "G#"
+!Tones[9] := " A"
+!Tones[10] := "A#"
+!Tones[11] := " B"
+declare ui_menu $MCMenu
+declare $_n
+move_control($MCMenu,0,0)
+add_menu_item($MCMenu,"- MIDI Controller Menu -",-1)
+add_menu_item($MCMenu,"  ----------------------",-1)
+add_menu_item($MCMenu,"   Deassign Controller",-1)
+add_menu_item($MCMenu,"Assign Last CC# Moved",-2)
+add_menu_item($MCMenu,"  ----------------------",-1)
+add_menu_item($MCMenu,!CC_Name[121],124)
+add_menu_item($MCMenu,!CC_Name[120],128)
+add_menu_item($MCMenu,!CC_Name[122],150)
+$_n := 0
+while ($_n<=119)
+add_menu_item($MCMenu,"CC " & $_n & " " & !CC_Name[$_n],$_n)
+inc($_n)
+end while
+add_menu_item($MCMenu," - MC Menu -",-3)
+declare $0db
+declare $0tune
+declare $Command := -1
+declare $DrawPanel
+declare $Env_State
+declare $LastCC := -1
+declare $MsgFlag
+declare %NCCV[129] 
+declare $Pitch_Step
+declare $UserPrefs
+declare $VCV
+declare $Vol_Step
+declare %PMap[36] 
+declare %MainParms[150]  := (0, 300, 400, 33, 0, 0, 0, 0, 1, 1, 1, 100, 100, 0, 2, 62, 200, 400, 33, 15, 15, 10, 20, 10, 5, 35, 55, 100, 0, 1, 0, 750, 483, 32, 16, 0, 3, 11, 1, 5, 35, 42, 100, 0, 1, 10, 992, 381, 13, 12, 11, 10, 10, 1, 3, 71, 66, 100, 0, 1, 62, 908, 460, 29, 15, 15, 10, 20, 4, 3, 35, 55, 100, 0, 1, 62, 752, 400, 33, 15, 15, 10, 20, 1, 2, 35, 55, 100, 0, 1, 124, 1688, 400, 22, 9, 9, 10, 20, 1, 3, 35, 55, 100, 0, 1, 75, 1251, 425, 20, 12, 15, 7, 18, 2, 3, 5, 65, 100, 0, 1, 80, 1600, 400, 37, 15, 15, 9, 15, 2, 3, 4, 70, 100, 0, 1, 80, 1000, 350, 25, 15, 15, 8, 20, 2, 3, 5, 65, 100, 0, 1)
+declare $ImpActv
+declare %PresetParms[512] 
+declare %UserParms[512] 
+declare !UP_Name[10] 
+declare %UPNames[150]  := (13, 71, 0, 16, 64, 51, 65, 51, 66, 0, 37, 28, 0, 0, 0, 13, 71, 0, 16, 64, 51, 65, 51, 66, 0, 37, 29, 0, 0, 0, 13, 71, 0, 16, 64, 51, 65, 51, 66, 0, 37, 30, 0, 0, 0, 13, 71, 0, 16, 64, 51, 65, 51, 66, 0, 37, 31, 0, 0, 0, 13, 71, 0, 16, 64, 51, 65, 51, 66, 0, 37, 32, 0, 0, 0, 13, 71, 0, 16, 64, 51, 65, 51, 66, 0, 37, 33, 0, 0, 0, 13, 71, 0, 16, 64, 51, 65, 51, 66, 0, 37, 34, 0, 0, 0, 13, 71, 0, 16, 64, 51, 65, 51, 66, 0, 37, 35, 0, 0, 0, 13, 71, 0, 16, 64, 51, 65, 51, 66, 0, 37, 36, 0, 0, 0, 13, 71, 0, 16, 64, 51, 65, 51, 66, 0, 37, 28, 27, 0, 0)
+_read_persistent_var(%PresetParms)
+_read_persistent_var(%UserParms)
+_read_persistent_var(%UPNames)
+declare $_i10
+declare $_j
+$_i10 := 0
+while ($_i10<10)
+!UP_Name[$_i10] := ""
+$_j := 0
+while ($_j<15)
+!UP_Name[$_i10] := !UP_Name[$_i10] & !char[%UPNames[$_i10*15+$_j]]
+inc($_j)
+end while
+inc($_i10)
+end while
+declare ui_menu $Preset
+move_control($Preset,0,0)
+add_menu_item($Preset," -- Presets --",-1)
+$Preset := -1
+add_menu_item($Preset,"* Basic Setup *",0)
+add_menu_item($Preset,"Bassoon               AK7",4)
+add_menu_item($Preset,"Clarinet 1              BB",1)
+add_menu_item($Preset,"Clarinet 2             AK8",5)
+add_menu_item($Preset,"Soft Flute            TK12",2)
+add_menu_item($Preset,"French Horn          MN3",9)
+add_menu_item($Preset,"Trombone 1           TK13",3)
+add_menu_item($Preset,"Trombone 2           MN2",8)
+add_menu_item($Preset,"Trumpet 1             MN1",7)
+add_menu_item($Preset,"Trumpet 2            AK9",6)
+add_menu_item($Preset," -- Save As --",-3)
+add_menu_item($Preset,!UP_Name[0],50)
+add_menu_item($Preset,!UP_Name[1],51)
+add_menu_item($Preset,!UP_Name[2],52)
+add_menu_item($Preset,!UP_Name[3],53)
+add_menu_item($Preset,!UP_Name[4],54)
+add_menu_item($Preset,!UP_Name[5],55)
+add_menu_item($Preset,!UP_Name[6],56)
+add_menu_item($Preset,!UP_Name[7],57)
+add_menu_item($Preset,!UP_Name[8],58)
+add_menu_item($Preset,!UP_Name[9],59)
+add_menu_item($Preset," -- Rename --",-2)
+add_menu_item($Preset," -- Export --",-5)
+add_menu_item($Preset," -- Import --",-4)
+declare ui_knob $Vibrato(0, 3000, 100) 
+move_control($Vibrato,0,0)
+set_text($Vibrato,"Vib (cts)")
+$Vibrato := %MainParms[1]
+declare ui_label $ModCap(2, 1) 
+move_control($ModCap,0,0)
+set_text($ModCap,"Vibrato  - Modulation Limits - Tremolo")
+declare ui_knob $Tremolo(0, 500, 100) 
+move_control($Tremolo,0,0)
+set_text($Tremolo,"Tremolo")
+set_knob_unit($Tremolo,$KNOB_UNIT_DB)
+declare ui_knob $Shape(0, 90, 1) 
+move_control($Shape,0,0)
+set_text($Shape," Shape")
+set_knob_unit($Shape,$KNOB_UNIT_PERCENT)
+$Shape := %MainParms[3]
+declare ui_label $WaveCap(1, 1) 
+move_control($WaveCap,0,0)
+set_text($WaveCap," Mod.  Waveform")
+declare ui_label $VarCap(1, 1) 
+move_control($VarCap,0,0)
+set_text($VarCap,"Random Variation")
+declare ui_value_edit $VibVar(0, 30, 1) 
+move_control($VibVar,0,0)
+set_text($VibVar,"Vibrato")
+$VibVar := %MainParms[4]
+declare ui_value_edit $TremVar(0, 30, 1) 
+move_control($TremVar,0,0)
+set_text($TremVar,"Tremolo")
+$TremVar := %MainParms[5]
+declare ui_value_edit $WavDrift(0, 30, 1) 
+move_control($WavDrift,0,0)
+set_text($WavDrift,"Shape Drift")
+$WavDrift := %MainParms[7]
+declare ui_value_edit $SpdDrift(0, 30, 1) 
+move_control($SpdDrift,0,0)
+set_text($SpdDrift,"Speed Drift")
+$SpdDrift := %MainParms[6]
+declare ui_label $About(2, 1) 
+move_control($About,0,0)
+set_text($About,"  SIPS 2   Vibrato Script         by RDV")
+declare ui_label $EnvCap(1, 1) 
+move_control($EnvCap,0,0)
+set_text($EnvCap,"Envelope Settings")
+declare ui_value_edit $Onset(1, 25, 1) 
+move_control($Onset,0,0)
+set_text($Onset,"Onset")
+$Onset := %MainParms[8]
+declare ui_value_edit $Rise(1, 20, 1) 
+move_control($Rise,0,0)
+set_text($Rise,"Rise")
+$Rise := %MainParms[9]
+declare ui_value_edit $Decay(1, 100, 1) 
+move_control($Decay,0,0)
+set_text($Decay,"Decay")
+$Decay := %MainParms[10]
+declare ui_value_edit $Sustain(0, 100, 1) 
+move_control($Sustain,0,0)
+set_text($Sustain,"Sustain")
+$Sustain := %MainParms[11]
+declare ui_label $IRCap(1, 1) 
+move_control($IRCap,0,0)
+set_text($IRCap,"Instrument Range")
+declare @LowKey
+declare @TopKey
+declare ui_label $IR_Box(1, 2) 
+move_control($IR_Box,0,0)
+declare ui_menu $SVSMode
+move_control($SVSMode,0,0)
+add_menu_item($SVSMode,"  Knob + Env",1)
+add_menu_item($SVSMode," Amt Knob Only",2)
+add_menu_item($SVSMode," - SVS OFF -",3)
+$SVSMode := %MainParms[14]
+declare ui_button $MBtn__Amt
+declare ui_button $MBtn__Bal
+declare ui_button $MBtn__Mode
+declare ui_button $MBtn__Speed
+declare $MBtn__Actv
+declare %MBtn__SCMenu[4]  := (1, 1, 1, 0)
+declare %MBtn__Knob[4]  := (1, 1, 1, 0)
+declare !MBtn__Cap[4] 
+declare %MBtn__CC[10] 
+declare %MBtn__CCV[10] 
+declare %MBtn__State[10] 
+declare %MBtn__x[4] 
+declare %MBtn__y[4] 
+declare ui_knob $MKnob__Amt(0, 100, 1) 
+declare ui_knob $MKnob__Bal(-100, 100, 1) 
+declare ui_knob $MKnob__Speed(200, 600, 100) 
+declare %MKnob__DKmin[4]  := (0, -100, 200, 0)
+declare %MKnob__DKmax[4]  := (100, 100, 600, 0)
+declare %MKnob__Kmin[10] 
+declare %MKnob__Kmax[10] 
+move_control($MBtn__Amt,0,0)
+move_control($MBtn__Bal,0,0)
+move_control($MBtn__Mode,0,0)
+move_control($MBtn__Speed,0,0)
+move_control($MKnob__Amt,0,0)
+move_control($MKnob__Bal,0,0)
+move_control($MKnob__Speed,0,0)
+!MBtn__Cap[0] := "  Amt "
+!MBtn__Cap[1] := "  Bal "
+!MBtn__Cap[2] := "Speed "
+!MBtn__Cap[3] := " Mode "
+set_text($MKnob__Amt,"Efx Amt")
+set_knob_unit($MKnob__Amt,$KNOB_UNIT_PERCENT)
+set_text($MKnob__Bal,"Balance")
+set_text($MKnob__Speed," Speed")
+set_knob_unit($MKnob__Speed,$KNOB_UNIT_HZ)
+declare $_bx2
+$_bx2 := 0
+while ($_bx2<=3)
+%MBtn__CC[$_bx2] := -1
+%MKnob__Kmin[$_bx2] := %MKnob__DKmin[$_bx2]
+%MKnob__Kmax[$_bx2] := %MKnob__DKmax[$_bx2]
+inc($_bx2)
+end while
+$MKnob__Amt := %MainParms[12]
+$MKnob__Bal := %MainParms[13]
+$MKnob__Speed := %MainParms[2]
+if (in_range(%Version[1],103,104))
+_read_persistent_var(%MBtn__CC)
+_read_persistent_var($MKnob__Bal)
+_read_persistent_var($MKnob__Speed)
+_read_persistent_var($MKnob__Amt)
+_read_persistent_var(%MKnob__Kmin)
+_read_persistent_var(%MKnob__Kmax)
+end if
+$_bx2 := 0
+while ($_bx2<=3)
+if (%MBtn__CC[$_bx2]=-1)
+select ($_bx2)
+case 0
+set_text($MBtn__Amt,!MBtn__Cap[$_bx2] & "MC=None")
+case 1
+set_text($MBtn__Bal,!MBtn__Cap[$_bx2] & "MC=None")
+case 3
+set_text($MBtn__Mode,!MBtn__Cap[$_bx2] & "MC=None")
+case 2
+set_text($MBtn__Speed,!MBtn__Cap[$_bx2] & "MC=None")
+end select
+%MBtn__State[$_bx2] := 0
+else
+select (%MBtn__CC[$_bx2])
+case 128
+select ($_bx2)
+case 0
+set_text($MBtn__Amt,!MBtn__Cap[$_bx2] & "MC = PW")
+case 1
+set_text($MBtn__Bal,!MBtn__Cap[$_bx2] & "MC = PW")
+case 3
+set_text($MBtn__Mode,!MBtn__Cap[$_bx2] & "MC = PW")
+case 2
+set_text($MBtn__Speed,!MBtn__Cap[$_bx2] & "MC = PW")
+end select
+case 124
+select ($_bx2)
+case 0
+set_text($MBtn__Amt,!MBtn__Cap[$_bx2] & "MC = AT")
+case 1
+set_text($MBtn__Bal,!MBtn__Cap[$_bx2] & "MC = AT")
+case 3
+set_text($MBtn__Mode,!MBtn__Cap[$_bx2] & "MC = AT")
+case 2
+set_text($MBtn__Speed,!MBtn__Cap[$_bx2] & "MC = AT")
+end select
+case 150
+select ($_bx2)
+case 0
+set_text($MBtn__Amt,!MBtn__Cap[$_bx2] & "MC = Vel")
+case 1
+set_text($MBtn__Bal,!MBtn__Cap[$_bx2] & "MC = Vel")
+case 3
+set_text($MBtn__Mode,!MBtn__Cap[$_bx2] & "MC = Vel")
+case 2
+set_text($MBtn__Speed,!MBtn__Cap[$_bx2] & "MC = Vel")
+end select
+case 0 to 119
+select ($_bx2)
+case 0
+set_text($MBtn__Amt,!MBtn__Cap[$_bx2] & "CC# = " & %MBtn__CC[$_bx2])
+case 1
+set_text($MBtn__Bal,!MBtn__Cap[$_bx2] & "CC# = " & %MBtn__CC[$_bx2])
+case 3
+set_text($MBtn__Mode,!MBtn__Cap[$_bx2] & "CC# = " & %MBtn__CC[$_bx2])
+case 2
+set_text($MBtn__Speed,!MBtn__Cap[$_bx2] & "CC# = " & %MBtn__CC[$_bx2])
+end select
+end select
+%MBtn__State[$_bx2] := 1
+end if
+select ($_bx2)
+case 0
+$MBtn__Amt := %MBtn__State[$_bx2]
+case 1
+$MBtn__Bal := %MBtn__State[$_bx2]
+case 3
+$MBtn__Mode := %MBtn__State[$_bx2]
+case 2
+$MBtn__Speed := %MBtn__State[$_bx2]
+end select
+inc($_bx2)
+end while
+if ($MKnob__Bal>0)
+set_knob_label($MKnob__Bal,(100-$MKnob__Bal)/10 & "." & ((100-$MKnob__Bal) mod 10) & "/10")
+else
+if ($MKnob__Bal<0)
+set_knob_label($MKnob__Bal,"10/" & ((100+$MKnob__Bal)/10) & "." & ((100+$MKnob__Bal) mod 10))
+else
+set_knob_label($MKnob__Bal," 10/10")
+end if
+end if
+declare %StdPanel_Map[36]  := (1, 0, 3, 58, 59, 60, -1, -1, -1, 4, 8, 61, 56, -1, 57, 5, 9, -1, 12, 13, 2, 7, 10, 51, -1, -1, -1, 6, 11, 14, 21, 15, 18, 54, -1, 24)
+declare $CP
+declare $EditActv
+declare %EditBfr[15] 
+declare $EditCmd
+declare %RenSub_Map[9]  := (55, -1, -1, 63, 62, 64, 66, -1, 65)
+declare %RenPanel_Map[36]  := (-1)
+declare @AlphaCap0
+declare @AlphaCap1A
+declare @AlphaCap1B
+declare @AlphaCap2
+declare @AlphaCap3
+declare ui_knob $Alpha(0, 41, 1) 
+declare ui_button $BackSpace
+declare ui_button $EnterChar
+declare ui_button $LowerCase
+declare ui_button $EraseName
+declare @NameCap
+declare ui_label $NameDisplay(3, 1) 
+declare ui_button $CancelRename
+%RenPanel_Map[23] := 51
+%RenPanel_Map[29] := 67
+declare $_ap
+declare $_np
+declare $_ns
+$_ap := 13
+$_ns := 0
+$_np := $_ap
+while ($_np<36)
+%RenPanel_Map[$_np] := %RenSub_Map[$_ns]
+inc($_ns)
+if ($_ns<num_elements(%RenSub_Map))
+$_np := $_ns/3*6+($_ns mod 3)+$_ap
+else
+$_np := 36
+end if
+end while
+@AlphaCap0 := " Space"
+@AlphaCap1A := "  A - Z"
+@AlphaCap1B := "  a - z"
+@AlphaCap2 := "  0 - 9"
+@AlphaCap3 := "# < > + -"
+move_control($Alpha,0,0)
+move_control($BackSpace,0,0)
+set_text($BackSpace,"<<  Backspace")
+move_control($EnterChar,0,0)
+set_text($EnterChar,"   Enter Char  >>")
+move_control($LowerCase,0,0)
+set_text($LowerCase,"   Lower Case")
+move_control($EraseName,0,0)
+set_text($EraseName," Erase All Chars")
+@NameCap := " Enter Name (15 chars max): "
+move_control($NameDisplay,0,0)
+move_control($CancelRename,0,0)
+set_text($CancelRename,"Cancel  Rename")
+make_persistent($Vibrato)
+make_persistent($MKnob__Amt)
+make_persistent($Tremolo)
+make_persistent($MKnob__Bal)
+make_persistent($Shape)
+make_persistent($MKnob__Speed)
+make_persistent($VibVar)
+make_persistent($TremVar)
+make_persistent($WavDrift)
+make_persistent($SpdDrift)
+make_persistent($Onset)
+make_persistent($Rise)
+make_persistent($Decay)
+make_persistent($Sustain)
+make_persistent($LowIR)
+make_persistent($TopIR)
+make_persistent($Preset)
+make_persistent($SVSMode)
+make_persistent(%Version)
+make_persistent(%UserParms)
+make_persistent(%UPNames)
+make_persistent(%MBtn__CC)
+make_persistent(%MBtn__CCV)
+make_persistent(%MBtn__State)
+make_persistent(%MKnob__Kmin)
+make_persistent(%MKnob__Kmax)
+declare !MsgText[8] 
+declare ui_label $BigLabel(6, 6) 
+move_control($BigLabel,1,1)
+declare $_Fail
+declare $_OldSID
+declare $_OldPFC
+declare $_ntabs
+$_Fail := 1
+$_OldSID := %Version[0]
+$_OldPFC := %Version[1]
+if ($_OldSID=1002 and in_range($_OldPFC,103,104))
+$_Fail := 0
+%Version[0] := 1002
+%Version[1] := 104
+_read_persistent_var(%UserParms)
+$LowIR := $LowIR
+end if
+if ($_Fail=1)
+$_ntabs := 15
+!MsgText[3] := " Automatic Import of Presets FAILED"
+!MsgText[4] := "   See Page xx of V2.0 User's Guide"
+$DoStartup := 0
+$XSub := 1
+else
+$_ntabs := 14
+!MsgText[2] := "If you see this instead of the Control Panel"
+!MsgText[3] := "            Move a MIDI Controller"
+!MsgText[4] := " (See Section 1.1 of SIPS 2 User's Guide)"
+end if
+declare $_n3
+declare @_slug
+declare @_Tab
+@_Tab := "    "
+@_slug := ""
+$_n3 := 1
+while ($_n3<=$_ntabs)
+@_slug := @_slug & @_Tab
+inc($_n3)
+end while
+$_n3 := 0
+while ($_n3<=7)
+add_text_line($BigLabel,@_slug & !MsgText[$_n3])
+inc($_n3)
+end while
+message("")
+declare $_vx3
+declare $_Atn2
+declare $_tune_amt2
+declare $_vx2
+declare $_Atn
+declare $_tune_amt
+declare $_vx
+declare $_Decay_Step
+declare $_Min_Env
+declare $_Onset_Countdown
+declare $_Ramp_Step
+declare $_ShapeDrift
+declare $_Env
+declare $_PeakPitch
+declare $_PeakVol
+declare $_SpeedDrift
+declare $_TicksPerCycle
+declare $_TicksPerFlat
+declare $_TicksPerRamp
+declare $_LoopActv
+declare $_n4
+declare $_Client
+declare $_MsgCode
+declare $_Reply2
+declare $_Sender
+declare $_i9
+declare $_npx
+declare $_px4
+declare $_upx2
+declare $_i8
+declare $_namebase
+declare $_i7
+declare $_Blink
+declare $_i6
+declare @_Name
+declare @_ZoneCap
+declare $_i5
+declare $_EditRtn
+declare $_i4
+declare $_px3
+declare $_i3
+declare $_nx
+declare $_px2
+declare %_Packet[3] 
+declare $_reply
+declare $_parm02
+declare $_parm0
+declare $_px
+declare $_upx
+declare $_i2
+declare $_imax
+declare $_n2
+declare $_phase
+declare $_x
+declare $_y
+declare $_bx
+declare $_val
+declare $_warn
+declare $_i
+end on
+
+on note
+if ($EVENT_NOTE=0)
+$_Client := %EVENT_PAR[3] .and. 2047
+if ($_Client=2047)
+ignore_event($EVENT_ID)
+exit
+end if
+if ($_Client=2046 or ($_Client=$HostSID))
+$_Sender := sh_right(%EVENT_PAR[3],16) .and. 2047
+$_MsgCode := sh_right(%EVENT_PAR[3],27) .and. 31
+end if
+if ($_Client=2046)
+select ($_Sender)
+case 1000
+select ($_MsgCode)
+case 1
+if (%EVENT_PAR[0] # $LowIR or (%EVENT_PAR[1] # $TopIR))
+$LowIR := %EVENT_PAR[0]
+$TopIR := %EVENT_PAR[1]
+@LowKey := !Tones[$LowIR mod 12] & ($LowIR/12-2)
+@TopKey := !Tones[$TopIR mod 12] & ($TopIR/12-2)
+set_text($IR_Box," Low Key: " & @LowKey)
+add_text_line($IR_Box," High Key: " & @TopKey)
+end if
+case 2
+$UserPrefs := %EVENT_PAR[0]
+end select
+end select
+exit
+end if
+if ($_Client=$HostSID)
+ignore_event($EVENT_ID)
+if ($_MsgCode=31)
+set_event_par($EVENT_ID,3,%EVENT_PAR[3] .or. 2048)
+else
+if ($_Sender=$HostSID and ($_MsgCode=1) and ($Preset=-4))
+if ($ImpActv=0)
+$ImpActv := 1
+$_px3 := 0
+end if
+$_i4 := 0
+while ($_i4<=2)
+%PresetBfr[$_px3+$_i4] := %EVENT_PAR[$_i4]
+inc($_i4)
+end while
+$_px3 := $_px3+3
+if ($_px3>=57)
+if (%PresetBfr[0]=%Version[1])
+$_px4 := %PresetBfr[1]
+$_npx := $_px4*15
+$_i9 := 0
+while ($_i9<=2)
+$_i7 := $_npx+(5*$_i9)+4
+while ($_i7>=($_npx+(5*$_i9)))
+%UPNames[$_i7] := %PresetBfr[2+$_i9] mod 73
+%PresetBfr[2+$_i9] := %PresetBfr[2+$_i9]/73
+dec($_i7)
+end while
+inc($_i9)
+end while
+$_upx2 := $_px4*51
+$_i9 := 0
+while ($_i9<51)
+%UserParms[$_upx2+$_i9] := %PresetBfr[5+$_i9]
+inc($_i9)
+end while
+@StatMsg := "Import Done"
+else
+@StatMsg := "Preset Format Mismatch"
+end if
+$BlinkCount := 17
+while ($XTsk # 0)
+wait(100)
+end while
+if (%QTask[0] .and. 1=0)
+$XTsk := 51
+set_event_par(play_note(0,1,0,1),3,2045)
+end if
+$ImpActv := 0
+end if
+$_Reply2 := 1
+end if
+set_event_par($EVENT_ID,3,%EVENT_PAR[3] .or. sh_left($_Reply2,11))
+end if
+end if
+exit
+end if
+if (not in_range($EVENT_NOTE,$LowIR,$TopIR))
+exit
+end if
+set_event_mark($EVENT_ID,67108864)
+if ($EVENT_VELOCITY # $VCV)
+$VCV := $EVENT_VELOCITY
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 2
+%InParm[0] := 150
+%InParm[1] := $VCV
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+end if
+$Env_State := 0
+while ($XTsk # 0)
+wait(100)
+end while
+if (%QTask[1]=0)
+$XTsk := 1
+set_event_par(play_note(0,1,0,1),3,2045)
+end if
+end on
+
+on release
+if (in_range($WatchTask,1,$ENGINE_UPTIME))
+$WatchTask := 0
+$_n4 := 0
+while ($_n4<=$TopTask)
+%QTask[$_n4] := 0
+$ActvTasks := 0
+inc($_n4)
+end while
+end if
+if (in_range($WatchSub,1,$ENGINE_UPTIME))
+$XSub := 0
+$WatchSub := 0
+end if
+if ($EVENT_NOTE=0)
+ignore_event($EVENT_ID)
+if ($EVENT_ID=$MsgID)
+%ReplyBfr[3] := sh_right(%EVENT_PAR[3],11) .and. 31
+$MsgID := -1
+if (sh_right(%EVENT_PAR[3],27) .and. 31=31)
+exit
+end if
+if (%ReplyBfr[3] # 0)
+%ReplyBfr[0] := %EVENT_PAR[0]
+%ReplyBfr[1] := %EVENT_PAR[1]
+%ReplyBfr[2] := %EVENT_PAR[2]
+end if
+exit
+end if
+if (%EVENT_PAR[3] .and. 2047=2047 and ($XSub>0))
+$WatchSub := $ENGINE_UPTIME+100
+select ($XSub)
+case 1
+%OutParm[0] := 0
+$MBtn__Actv := 1
+select (%InParm[0])
+case 0
+move_control($MBtn__Amt,0,0)
+case 1
+move_control($MBtn__Bal,0,0)
+case 3
+move_control($MBtn__Mode,0,0)
+case 2
+move_control($MBtn__Speed,0,0)
+end select
+move_control($MCMenu,%MBtn__x[%InParm[0]],%MBtn__y[%InParm[0]])
+$MCMenu := -3
+while ($MBtn__Actv=1)
+$WatchSub := $WatchSub+1
+wait(1000)
+end while
+select (%InParm[0])
+case 0
+move_control($MBtn__Amt,%MBtn__x[%InParm[0]],%MBtn__y[%InParm[0]])
+case 1
+move_control($MBtn__Bal,%MBtn__x[%InParm[0]],%MBtn__y[%InParm[0]])
+case 3
+move_control($MBtn__Mode,%MBtn__x[%InParm[0]],%MBtn__y[%InParm[0]])
+case 2
+move_control($MBtn__Speed,%MBtn__x[%InParm[0]],%MBtn__y[%InParm[0]])
+end select
+move_control($MCMenu,0,0)
+%MBtn__CC[%InParm[0]] := $MCMenu
+if (%MBtn__CC[%InParm[0]]>119 and (%MBtn__SCMenu[%InParm[0]]=0))
+%MBtn__CC[%InParm[0]] := -1
+@StatMsg := "Only CCs can be assigned to control this function"
+%OutParm[0] := 1
+end if
+if (%MBtn__CC[%InParm[0]]<0 or (%MBtn__CC[%InParm[0]]>119 and (%MBtn__SCMenu[%InParm[0]]=0)))
+%MBtn__CC[%InParm[0]] := -1
+else
+%MBtn__CCV[%InParm[0]] := 0
+end if
+if (%MBtn__CC[%InParm[0]]=-1)
+select (%InParm[0])
+case 0
+set_text($MBtn__Amt,!MBtn__Cap[%InParm[0]] & "MC=None")
+case 1
+set_text($MBtn__Bal,!MBtn__Cap[%InParm[0]] & "MC=None")
+case 3
+set_text($MBtn__Mode,!MBtn__Cap[%InParm[0]] & "MC=None")
+case 2
+set_text($MBtn__Speed,!MBtn__Cap[%InParm[0]] & "MC=None")
+end select
+%MBtn__State[%InParm[0]] := 0
+else
+select (%MBtn__CC[%InParm[0]])
+case 128
+select (%InParm[0])
+case 0
+set_text($MBtn__Amt,!MBtn__Cap[%InParm[0]] & "MC = PW")
+case 1
+set_text($MBtn__Bal,!MBtn__Cap[%InParm[0]] & "MC = PW")
+case 3
+set_text($MBtn__Mode,!MBtn__Cap[%InParm[0]] & "MC = PW")
+case 2
+set_text($MBtn__Speed,!MBtn__Cap[%InParm[0]] & "MC = PW")
+end select
+case 124
+select (%InParm[0])
+case 0
+set_text($MBtn__Amt,!MBtn__Cap[%InParm[0]] & "MC = AT")
+case 1
+set_text($MBtn__Bal,!MBtn__Cap[%InParm[0]] & "MC = AT")
+case 3
+set_text($MBtn__Mode,!MBtn__Cap[%InParm[0]] & "MC = AT")
+case 2
+set_text($MBtn__Speed,!MBtn__Cap[%InParm[0]] & "MC = AT")
+end select
+case 150
+select (%InParm[0])
+case 0
+set_text($MBtn__Amt,!MBtn__Cap[%InParm[0]] & "MC = Vel")
+case 1
+set_text($MBtn__Bal,!MBtn__Cap[%InParm[0]] & "MC = Vel")
+case 3
+set_text($MBtn__Mode,!MBtn__Cap[%InParm[0]] & "MC = Vel")
+case 2
+set_text($MBtn__Speed,!MBtn__Cap[%InParm[0]] & "MC = Vel")
+end select
+case 0 to 119
+select (%InParm[0])
+case 0
+set_text($MBtn__Amt,!MBtn__Cap[%InParm[0]] & "CC# = " & %MBtn__CC[%InParm[0]])
+case 1
+set_text($MBtn__Bal,!MBtn__Cap[%InParm[0]] & "CC# = " & %MBtn__CC[%InParm[0]])
+case 3
+set_text($MBtn__Mode,!MBtn__Cap[%InParm[0]] & "CC# = " & %MBtn__CC[%InParm[0]])
+case 2
+set_text($MBtn__Speed,!MBtn__Cap[%InParm[0]] & "CC# = " & %MBtn__CC[%InParm[0]])
+end select
+end select
+%MBtn__State[%InParm[0]] := 1
+end if
+select (%InParm[0])
+case 0
+$MBtn__Amt := %MBtn__State[%InParm[0]]
+case 1
+$MBtn__Bal := %MBtn__State[%InParm[0]]
+case 3
+$MBtn__Mode := %MBtn__State[%InParm[0]]
+case 2
+$MBtn__Speed := %MBtn__State[%InParm[0]]
+end select
+case 2
+$_bx := 0
+while ($_bx<=3)
+if (%MBtn__CC[$_bx]=%InParm[0])
+%MBtn__CCV[$_bx] := %InParm[1]
+if (%MBtn__Knob[$_bx] # 0)
+$_val := %MKnob__Kmin[$_bx]+((%MKnob__Kmax[$_bx]-%MKnob__Kmin[$_bx])*%MBtn__CCV[$_bx]/127)
+select ($_bx)
+case 0
+$MKnob__Amt := $_val
+case 1
+$MKnob__Bal := $_val
+if ($MKnob__Bal>0)
+set_knob_label($MKnob__Bal,(100-$MKnob__Bal)/10 & "." & ((100-$MKnob__Bal) mod 10) & "/10")
+else
+if ($MKnob__Bal<0)
+set_knob_label($MKnob__Bal,"10/" & ((100+$MKnob__Bal)/10) & "." & ((100+$MKnob__Bal) mod 10))
+else
+set_knob_label($MKnob__Bal," 10/10")
+end if
+end if
+case 2
+$MKnob__Speed := $_val
+end select
+end if
+end if
+inc($_bx)
+end while
+case 3
+if ($DrawPanel # 0)
+select ($DrawPanel)
+case 1
+$_i := 0
+while ($_i<num_elements(%PMap))
+%PMap[$_i] := %StdPanel_Map[$_i]
+inc($_i)
+end while
+case 2
+$_i := 0
+while ($_i<num_elements(%PMap))
+%PMap[$_i] := %RenPanel_Map[$_i]
+inc($_i)
+end while
+end select
+$MBtn__Actv := 0
+wait(3000)
+$_phase := 1
+$_x := 0
+$_y := 0
+$_imax := 67
+while ($_phase<3)
+$_i2 := 0
+while ($_i2<=$_imax)
+if ($_phase=1 or (%PMap[$_i2]>=0))
+if ($_phase=1)
+$_n2 := $_i2
+else
+$_n2 := %PMap[$_i2]
+$_x := $_i2 mod 6+1
+$_y := $_i2/6+1
+end if
+select ($_n2)
+case 12
+move_control($MKnob__Amt,$_x,$_y)
+case 13
+move_control($MKnob__Bal,$_x,$_y)
+case 2
+move_control($MKnob__Speed,$_x,$_y)
+case 14
+move_control($SVSMode,$_x,$_y)
+case 21
+move_control($MBtn__Amt,$_x,$_y)
+if ($_x>0)
+%MBtn__x[0] := $_x
+%MBtn__y[0] := $_y
+end if
+case 15
+move_control($MBtn__Bal,$_x,$_y)
+if ($_x>0)
+%MBtn__x[1] := $_x
+%MBtn__y[1] := $_y
+end if
+case 18
+move_control($MBtn__Speed,$_x,$_y)
+if ($_x>0)
+%MBtn__x[2] := $_x
+%MBtn__y[2] := $_y
+end if
+case 24
+move_control($MBtn__Mode,$_x,$_y)
+if ($_x>0)
+%MBtn__x[3] := $_x
+%MBtn__y[3] := $_y
+end if
+case 10
+move_control($Decay,$_x,$_y)
+case 8
+move_control($Onset,$_x,$_y)
+case 51
+move_control($Preset,$_x,$_y)
+case 9
+move_control($Rise,$_x,$_y)
+case 3
+move_control($Shape,$_x,$_y)
+case 7
+move_control($WavDrift,$_x,$_y)
+case 6
+move_control($SpdDrift,$_x,$_y)
+case 11
+move_control($Sustain,$_x,$_y)
+case 0
+move_control($Tremolo,$_x,$_y)
+case 5
+move_control($TremVar,$_x,$_y)
+case 1
+move_control($Vibrato,$_x,$_y)
+case 4
+move_control($VibVar,$_x,$_y)
+case 62
+move_control($Alpha,$_x,$_y)
+case 63
+move_control($BackSpace,$_x,$_y)
+case 67
+move_control($CancelRename,$_x,$_y)
+case 64
+move_control($EnterChar,$_x,$_y)
+case 66
+move_control($EraseName,$_x,$_y)
+case 65
+move_control($LowerCase,$_x,$_y)
+case 54
+move_control($About,$_x,$_y)
+case 59
+move_control($EnvCap,$_x,$_y)
+case 61
+move_control($IR_Box,$_x,$_y)
+case 60
+move_control($IRCap,$_x,$_y)
+case 56
+move_control($ModCap,$_x,$_y)
+case 55
+move_control($NameDisplay,$_x,$_y)
+case 58
+move_control($VarCap,$_x,$_y)
+case 57
+move_control($WaveCap,$_x,$_y)
+end select
+end if
+inc($_i2)
+end while
+inc($_phase)
+$_imax := 35
+end while
+end if
+$DrawPanel := 0
+if ($MKnob__Bal>0)
+set_knob_label($MKnob__Bal,(100-$MKnob__Bal)/10 & "." & ((100-$MKnob__Bal) mod 10) & "/10")
+else
+if ($MKnob__Bal<0)
+set_knob_label($MKnob__Bal,"10/" & ((100+$MKnob__Bal)/10) & "." & ((100+$MKnob__Bal) mod 10))
+else
+set_knob_label($MKnob__Bal," 10/10")
+end if
+end if
+@LowKey := !Tones[$LowIR mod 12] & ($LowIR/12-2)
+@TopKey := !Tones[$TopIR mod 12] & ($TopIR/12-2)
+set_text($IR_Box," Low Key: " & @LowKey)
+add_text_line($IR_Box," High Key: " & @TopKey)
+end select
+if ($StartActv=1)
+$XSub := -$XSub
+else
+$XSub := 0
+end if
+else
+if (%EVENT_PAR[3] .and. 2047 # 2045)
+exit
+end if
+end if
+else
+$LowIR := $LowIR
+end if
+if ($XTsk>0)
+$pTx := $XTsk
+if ($pTx=51)
+$pTx := 0
+end if
+$WatchTask := $ENGINE_UPTIME+500
+$WaitTime := 0
+%QTask[$pTx] := 1
+$XTsk := 0
+inc($ActvTasks)
+if ($pTx=0)
+while ($BlinkCount>=0)
+if ($BlinkCount .and. 1=0)
+message("")
+else
+message(@StatMsg)
+end if
+$WaitTime := $WaitTime+300000
+if ($WaitTime>=1000)
+$WatchTask := $WatchTask+($WaitTime/1000)
+$WaitTime := $WaitTime mod 1000
+end if
+wait(300000)
+dec($BlinkCount)
+end while
+@StatMsg := ""
+$pTx := 0
+else
+select ($pTx)
+case 1
+$_LoopActv := 1
+while ($_LoopActv=1)
+if ($SVSMode # 3)
+select ($Env_State)
+case 0
+$_Env := 0
+$_Onset_Countdown := $Onset
+$_Min_Env := 1000*$Sustain/100
+$_Decay_Step := (1000-$_Min_Env)/$Decay
+$_Ramp_Step := 1000/$Rise
+$0db := 0
+$_ShapeDrift := 0
+$_SpeedDrift := 0
+$Env_State := 1
+case 1
+dec($_Onset_Countdown)
+if ($_Onset_Countdown<=0)
+$Env_State := 2
+end if
+case 2
+$_Env := $_Env+$_Ramp_Step
+if ($_Env>=1000)
+$_Env := 1000
+$Env_State := 3
+end if
+case 3
+$_Env := $_Env-$_Decay_Step
+if ($_Env<$_Min_Env)
+$_Env := $_Min_Env
+end if
+end select
+if ($SVSMode=2)
+$_Env := 1000
+end if
+$_Env := $_Env*$MKnob__Amt/100
+$_SpeedDrift := $_SpeedDrift+(random(-$SpdDrift,$SpdDrift)/2)
+if (abs($_SpeedDrift)>$SpdDrift)
+$_SpeedDrift := $SpdDrift*abs($_SpeedDrift)/$_SpeedDrift
+end if
+$_TicksPerCycle := 1000000*(100+$_SpeedDrift)/$MKnob__Speed/100
+$_ShapeDrift := $_ShapeDrift+(random(-$WavDrift,$WavDrift)/2)
+if (abs($_ShapeDrift)>$WavDrift)
+$_ShapeDrift := $WavDrift*abs($_ShapeDrift)/$_ShapeDrift
+end if
+$_TicksPerFlat := ($_TicksPerCycle*$Shape*(100+$_ShapeDrift)+10000)/20000
+$_TicksPerRamp := ($_TicksPerCycle-(2*$_TicksPerFlat)+2)/4
+$_PeakPitch := (100+random(-$VibVar,$VibVar))*$Vibrato/10
+$_PeakVol := (100+random(-$TremVar,$TremVar))*$Tremolo/10
+if ($MKnob__Bal<0)
+$_PeakVol := $_PeakVol*(100+$MKnob__Bal)/100
+else
+$_PeakPitch := $_PeakPitch*(100-$MKnob__Bal)/100
+end if
+$Pitch_Step := $_PeakPitch*$_Env/1000/$_TicksPerRamp
+$Vol_Step := $_PeakVol*$_Env/1000/$_TicksPerRamp
+set_event_mark(-2080374784,134217728)
+$_vx2 := 0
+while ($_vx2<$_TicksPerRamp)
+inc($_vx2)
+$_tune_amt2 := $Pitch_Step*$_vx2
+change_tune(-2013265920,$_tune_amt2-$0tune,1)
+$0tune := $_tune_amt2
+$_Atn2 := $Vol_Step*$_vx2
+change_vol(-2013265920,$0db-$_Atn2,1)
+$0db := $_Atn2
+$WaitTime := $WaitTime+100
+if ($WaitTime>=1000)
+$WatchTask := $WatchTask+($WaitTime/1000)
+$WaitTime := $WaitTime mod 1000
+end if
+wait(100)
+end while
+$_vx3 := 0
+while ($_vx3<$_TicksPerFlat)
+inc($_vx3)
+$WaitTime := $WaitTime+100
+if ($WaitTime>=1000)
+$WatchTask := $WatchTask+($WaitTime/1000)
+$WaitTime := $WaitTime mod 1000
+end if
+wait(100)
+end while
+$_vx := $_TicksPerRamp
+while ($_vx>-$_TicksPerRamp)
+dec($_vx)
+$_tune_amt := $Pitch_Step*$_vx
+change_tune(-2013265920,$_tune_amt-$0tune,1)
+$0tune := $_tune_amt
+$_Atn := $Vol_Step*$_vx
+change_vol(-2013265920,$0db-$_Atn,1)
+$0db := $_Atn
+$WaitTime := $WaitTime+100
+if ($WaitTime>=1000)
+$WatchTask := $WatchTask+($WaitTime/1000)
+$WaitTime := $WaitTime mod 1000
+end if
+wait(100)
+end while
+$_vx3 := 0
+while ($_vx3<$_TicksPerFlat)
+inc($_vx3)
+$WaitTime := $WaitTime+100
+if ($WaitTime>=1000)
+$WatchTask := $WatchTask+($WaitTime/1000)
+$WaitTime := $WaitTime mod 1000
+end if
+wait(100)
+end while
+$_vx2 := -$_TicksPerRamp
+while ($_vx2<0)
+inc($_vx2)
+$_tune_amt2 := $Pitch_Step*$_vx2
+change_tune(-2013265920,$_tune_amt2-$0tune,1)
+$0tune := $_tune_amt2
+$_Atn2 := $Vol_Step*$_vx2
+change_vol(-2013265920,$0db-$_Atn2,1)
+$0db := $_Atn2
+$WaitTime := $WaitTime+100
+if ($WaitTime>=1000)
+$WatchTask := $WatchTask+($WaitTime/1000)
+$WaitTime := $WaitTime mod 1000
+end if
+wait(100)
+end while
+else
+$Env_State := 0
+$WaitTime := $WaitTime+1000
+if ($WaitTime>=1000)
+$WatchTask := $WatchTask+($WaitTime/1000)
+$WaitTime := $WaitTime mod 1000
+end if
+wait(1000)
+end if
+if ($PLAYED_VOICES_INST=0)
+$_LoopActv := 0
+$0tune := 0
+$0db := 0
+end if
+end while
+$pTx := 1
+end select
+end if
+dec($ActvTasks)
+%QTask[$pTx] := 0
+if ($ActvTasks=0)
+$WatchTask := 0
+end if
+end if
+end on
+
+on controller
+if ($DoStartup # 0)
+$DoStartup := 0
+$StartActv := 1
+move_control($BigLabel,0,0)
+$DrawPanel := 1
+$XSub := 3
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # -3)
+wait(100)
+end while
+$WatchSub := 0
+$StartActv := 0
+$XSub := 0
+end if
+if ($CC_NUM=128)
+%NCCV[$CC_NUM] := abs(%CC[128])*127/8191
+else
+%NCCV[$CC_NUM] := %CC[$CC_NUM]
+if ($CC_NUM<=119)
+$LastCC := $CC_NUM
+end if
+end if
+if ($CC_NUM=%MBtn__CC[3])
+select (%CC[$CC_NUM])
+case 0
+$SVSMode := 3
+case 1 to 126
+$SVSMode := 2
+case 127
+$SVSMode := 1
+end select
+$Env_State := 0
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 3
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+exit
+end if
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 2
+%InParm[0] := $CC_NUM
+%InParm[1] := %NCCV[$CC_NUM]
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+end on
+
+on ui_control($MBtn__Amt)
+$MBtn__Actv := 0
+wait(3000)
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 1
+%InParm[0] := 0
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$_warn := %OutParm[0]
+$WatchSub := 0
+if ($_warn=1)
+$BlinkCount := 17
+while ($XTsk # 0)
+wait(100)
+end while
+if (%QTask[0] .and. 1=0)
+$XTsk := 51
+set_event_par(play_note(0,1,0,1),3,2045)
+end if
+end if
+end on
+
+on ui_control($MBtn__Bal)
+$MBtn__Actv := 0
+wait(3000)
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 1
+%InParm[0] := 1
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$_warn := %OutParm[0]
+$WatchSub := 0
+if ($_warn=1)
+$BlinkCount := 17
+while ($XTsk # 0)
+wait(100)
+end while
+if (%QTask[0] .and. 1=0)
+$XTsk := 51
+set_event_par(play_note(0,1,0,1),3,2045)
+end if
+end if
+end on
+
+on ui_control($MBtn__Mode)
+$MBtn__Actv := 0
+wait(3000)
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 1
+%InParm[0] := 3
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$_warn := %OutParm[0]
+$WatchSub := 0
+if ($_warn=1)
+$BlinkCount := 17
+while ($XTsk # 0)
+wait(100)
+end while
+if (%QTask[0] .and. 1=0)
+$XTsk := 51
+set_event_par(play_note(0,1,0,1),3,2045)
+end if
+end if
+end on
+
+on ui_control($MBtn__Speed)
+$MBtn__Actv := 0
+wait(3000)
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 1
+%InParm[0] := 2
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$_warn := %OutParm[0]
+$WatchSub := 0
+if ($_warn=1)
+$BlinkCount := 17
+while ($XTsk # 0)
+wait(100)
+end while
+if (%QTask[0] .and. 1=0)
+$XTsk := 51
+set_event_par(play_note(0,1,0,1),3,2045)
+end if
+end if
+end on
+
+on ui_control($MKnob__Amt)
+if (%MBtn__CCV[0]=0)
+%MKnob__Kmin[0] := $MKnob__Amt
+else
+if (%MBtn__CCV[0]=127)
+%MKnob__Kmax[0] := $MKnob__Amt
+end if
+end if
+end on
+
+on ui_control($MKnob__Bal)
+if (%MBtn__CCV[1]=0)
+%MKnob__Kmin[1] := $MKnob__Bal
+else
+if (%MBtn__CCV[1]=127)
+%MKnob__Kmax[1] := $MKnob__Bal
+end if
+end if
+if ($MKnob__Bal>0)
+set_knob_label($MKnob__Bal,(100-$MKnob__Bal)/10 & "." & ((100-$MKnob__Bal) mod 10) & "/10")
+else
+if ($MKnob__Bal<0)
+set_knob_label($MKnob__Bal,"10/" & ((100+$MKnob__Bal)/10) & "." & ((100+$MKnob__Bal) mod 10))
+else
+set_knob_label($MKnob__Bal," 10/10")
+end if
+end if
+end on
+
+on ui_control($MKnob__Speed)
+if (%MBtn__CCV[2]=0)
+%MKnob__Kmin[2] := $MKnob__Speed
+else
+if (%MBtn__CCV[2]=127)
+%MKnob__Kmax[2] := $MKnob__Speed
+end if
+end if
+end on
+
+on ui_control($SVSMode)
+$Env_State := 0
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 3
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+end on
+
+on ui_control($Preset)
+$MsgFlag := 0
+$_upx := $Preset-50
+if ($Preset<0)
+$Command := $Preset
+$ImpActv := 0
+else
+if ($Preset<50)
+$Command := -1
+else
+if ($Command=-3)
+$_parm02 := $_upx*51
+%UserParms[$_parm02+0] := $Tremolo
+%UserParms[$_parm02+1] := $Vibrato
+%UserParms[$_parm02+2] := $MKnob__Speed
+%UserParms[$_parm02+3] := $Shape
+%UserParms[$_parm02+4] := $VibVar
+%UserParms[$_parm02+5] := $TremVar
+%UserParms[$_parm02+6] := $SpdDrift
+%UserParms[$_parm02+7] := $WavDrift
+%UserParms[$_parm02+8] := $Onset
+%UserParms[$_parm02+9] := $Rise
+%UserParms[$_parm02+10] := $Decay
+%UserParms[$_parm02+11] := $Sustain
+%UserParms[$_parm02+12] := $MKnob__Amt
+%UserParms[$_parm02+13] := $MKnob__Bal
+%UserParms[$_parm02+14] := $SVSMode
+%UserParms[$_parm02+15] := %MBtn__CC[1]
+%UserParms[$_parm02+16] := %MKnob__Kmin[1]
+%UserParms[$_parm02+17] := %MKnob__Kmax[1]
+%UserParms[$_parm02+18] := %MBtn__CC[2]
+%UserParms[$_parm02+19] := %MKnob__Kmin[2]
+%UserParms[$_parm02+20] := %MKnob__Kmax[2]
+%UserParms[$_parm02+21] := %MBtn__CC[0]
+%UserParms[$_parm02+22] := %MKnob__Kmin[0]
+%UserParms[$_parm02+23] := %MKnob__Kmax[0]
+%UserParms[$_parm02+24] := %MBtn__CC[3]
+$Command := -1
+exit
+else
+if ($Command=-4)
+$Command := -1
+end if
+end if
+end if
+if ($_upx>=0 and (%UserParms[$_upx*51+8]=0))
+$Preset := -1
+@StatMsg := "Preset Empty"
+$MsgFlag := 1
+else
+$MBtn__Actv := 0
+wait(3000)
+if ($Preset<50)
+$_parm0 := $Preset*15
+$_px := 0
+while ($_px<15)
+%PresetBfr[$_px] := %MainParms[$_parm0+$_px]
+inc($_px)
+end while
+else
+$_parm0 := ($Preset-50)*51
+$_px := 0
+while ($_px<51)
+%PresetBfr[$_px] := %UserParms[$_parm0+$_px]
+inc($_px)
+end while
+end if
+if (%PresetBfr[0] # -100000)
+$Tremolo := %PresetBfr[0]
+end if
+if (%PresetBfr[1] # -100000)
+$Vibrato := %PresetBfr[1]
+end if
+if (%PresetBfr[2] # -100000)
+$MKnob__Speed := %PresetBfr[2]
+end if
+if (%PresetBfr[3] # -100000)
+$Shape := %PresetBfr[3]
+end if
+if (%PresetBfr[4] # -100000)
+$VibVar := %PresetBfr[4]
+end if
+if (%PresetBfr[5] # -100000)
+$TremVar := %PresetBfr[5]
+end if
+if (%PresetBfr[6] # -100000)
+$SpdDrift := %PresetBfr[6]
+end if
+if (%PresetBfr[7] # -100000)
+$WavDrift := %PresetBfr[7]
+end if
+if (%PresetBfr[8] # -100000)
+$Onset := %PresetBfr[8]
+end if
+if (%PresetBfr[9] # -100000)
+$Rise := %PresetBfr[9]
+end if
+if (%PresetBfr[10] # -100000)
+$Decay := %PresetBfr[10]
+end if
+if (%PresetBfr[11] # -100000)
+$Sustain := %PresetBfr[11]
+end if
+if (%PresetBfr[12] # -100000)
+$MKnob__Amt := %PresetBfr[12]
+end if
+if (%PresetBfr[13] # -100000)
+$MKnob__Bal := %PresetBfr[13]
+end if
+if (%PresetBfr[14] # -100000)
+$SVSMode := %PresetBfr[14]
+end if
+if ($Preset>=50)
+if (%PresetBfr[15] # -100000)
+%MBtn__CC[1] := %PresetBfr[15]
+end if
+if (%PresetBfr[16] # -100000)
+%MKnob__Kmin[1] := %PresetBfr[16]
+end if
+if (%PresetBfr[17] # -100000)
+%MKnob__Kmax[1] := %PresetBfr[17]
+end if
+if (%PresetBfr[18] # -100000)
+%MBtn__CC[2] := %PresetBfr[18]
+end if
+if (%PresetBfr[19] # -100000)
+%MKnob__Kmin[2] := %PresetBfr[19]
+end if
+if (%PresetBfr[20] # -100000)
+%MKnob__Kmax[2] := %PresetBfr[20]
+end if
+if (%PresetBfr[21] # -100000)
+%MBtn__CC[0] := %PresetBfr[21]
+end if
+if (%PresetBfr[22] # -100000)
+%MKnob__Kmin[0] := %PresetBfr[22]
+end if
+if (%PresetBfr[23] # -100000)
+%MKnob__Kmax[0] := %PresetBfr[23]
+end if
+if (%PresetBfr[24] # -100000)
+%MBtn__CC[3] := %PresetBfr[24]
+end if
+end if
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 3
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+$_px := 0
+while ($_px<=3)
+if (%MBtn__CC[$_px]=-1)
+select ($_px)
+case 0
+set_text($MBtn__Amt,!MBtn__Cap[$_px] & "MC=None")
+case 1
+set_text($MBtn__Bal,!MBtn__Cap[$_px] & "MC=None")
+case 3
+set_text($MBtn__Mode,!MBtn__Cap[$_px] & "MC=None")
+case 2
+set_text($MBtn__Speed,!MBtn__Cap[$_px] & "MC=None")
+end select
+%MBtn__State[$_px] := 0
+else
+select (%MBtn__CC[$_px])
+case 128
+select ($_px)
+case 0
+set_text($MBtn__Amt,!MBtn__Cap[$_px] & "MC = PW")
+case 1
+set_text($MBtn__Bal,!MBtn__Cap[$_px] & "MC = PW")
+case 3
+set_text($MBtn__Mode,!MBtn__Cap[$_px] & "MC = PW")
+case 2
+set_text($MBtn__Speed,!MBtn__Cap[$_px] & "MC = PW")
+end select
+case 124
+select ($_px)
+case 0
+set_text($MBtn__Amt,!MBtn__Cap[$_px] & "MC = AT")
+case 1
+set_text($MBtn__Bal,!MBtn__Cap[$_px] & "MC = AT")
+case 3
+set_text($MBtn__Mode,!MBtn__Cap[$_px] & "MC = AT")
+case 2
+set_text($MBtn__Speed,!MBtn__Cap[$_px] & "MC = AT")
+end select
+case 150
+select ($_px)
+case 0
+set_text($MBtn__Amt,!MBtn__Cap[$_px] & "MC = Vel")
+case 1
+set_text($MBtn__Bal,!MBtn__Cap[$_px] & "MC = Vel")
+case 3
+set_text($MBtn__Mode,!MBtn__Cap[$_px] & "MC = Vel")
+case 2
+set_text($MBtn__Speed,!MBtn__Cap[$_px] & "MC = Vel")
+end select
+case 0 to 119
+select ($_px)
+case 0
+set_text($MBtn__Amt,!MBtn__Cap[$_px] & "CC# = " & %MBtn__CC[$_px])
+case 1
+set_text($MBtn__Bal,!MBtn__Cap[$_px] & "CC# = " & %MBtn__CC[$_px])
+case 3
+set_text($MBtn__Mode,!MBtn__Cap[$_px] & "CC# = " & %MBtn__CC[$_px])
+case 2
+set_text($MBtn__Speed,!MBtn__Cap[$_px] & "CC# = " & %MBtn__CC[$_px])
+end select
+end select
+%MBtn__State[$_px] := 1
+end if
+select ($_px)
+case 0
+$MBtn__Amt := %MBtn__State[$_px]
+case 1
+$MBtn__Bal := %MBtn__State[$_px]
+case 3
+$MBtn__Mode := %MBtn__State[$_px]
+case 2
+$MBtn__Speed := %MBtn__State[$_px]
+end select
+inc($_px)
+end while
+if ($Command=-5)
+%PresetBfr[0] := %Version[1]
+%PresetBfr[1] := $_upx
+$_nx := $_upx*15
+$_i3 := 0
+while ($_i3<=2)
+%PresetBfr[2+$_i3] := 0
+$_i5 := $_nx+(5*$_i3)
+while ($_i5<=($_nx+(5*$_i3)+4))
+%PresetBfr[2+$_i3] := %PresetBfr[2+$_i3]*73+%UPNames[$_i5]
+inc($_i5)
+end while
+inc($_i3)
+end while
+$_px2 := $_upx*51
+$_i3 := 0
+while ($_i3<51)
+%PresetBfr[5+$_i3] := %UserParms[$_px2+$_i3]
+inc($_i3)
+end while
+$_px2 := 0
+while ($_px2<=55)
+$_i3 := 0
+while ($_i3<=2)
+%_Packet[$_i3] := %PresetBfr[$_px2+$_i3]
+inc($_i3)
+end while
+while ($MsgID # 0)
+wait(100)
+end while
+$MsgID := play_note(0,1,0,100)
+set_event_par($MsgID,3,134217728+sh_left($HostSID,16)+$HostSID)
+set_event_par($MsgID,0,%_Packet[0])
+set_event_par($MsgID,1,%_Packet[1])
+set_event_par($MsgID,2,%_Packet[2])
+while ($MsgID # -1)
+wait(100)
+end while
+$_reply := %ReplyBfr[3]
+$MsgID := 0
+if ($_reply # 1)
+@StatMsg := "Can't find Import script"
+$MsgFlag := 1
+$_px2 := 56
+end if
+$_px2 := $_px2+3
+end while
+end if
+end if
+if ($Command=-2)
+$_namebase := $_upx*15
+$_i8 := 0
+while ($_i8<$CP)
+%UPNames[$_namebase+$_i8] := %EditBfr[$_i8]
+inc($_i8)
+end while
+$_i8 := $CP
+while ($_i8<15)
+%UPNames[$_namebase+$_i8] := 0
+inc($_i8)
+end while
+$Command := -1
+else
+if ($Command=-5)
+$Preset := -5
+end if
+end if
+end if
+if ($MsgFlag=1)
+$BlinkCount := 17
+while ($XTsk # 0)
+wait(100)
+end while
+if (%QTask[0] .and. 1=0)
+$XTsk := 51
+set_event_par(play_note(0,1,0,1),3,2045)
+end if
+end if
+if ($EditActv=1)
+if ($Command # -2)
+$EditCmd := 3
+end if
+else
+if ($Command=-2)
+$EditActv := 1
+$EditCmd := 1
+$CP := 0
+$LowerCase := 0
+select ($Alpha)
+case 0
+@_ZoneCap := @AlphaCap0
+case 1 to 26
+if ($LowerCase=0)
+@_ZoneCap := @AlphaCap1A
+else
+@_ZoneCap := @AlphaCap1B
+end if
+case 27 to 36
+@_ZoneCap := @AlphaCap2
+case 37 to 41
+@_ZoneCap := @AlphaCap3
+end select
+set_text($Alpha,@_ZoneCap)
+$Alpha := 1
+set_knob_label($Alpha,"      " & !char[$Alpha])
+select ($Alpha)
+case 0
+@_ZoneCap := @AlphaCap0
+case 1 to 26
+if ($LowerCase=0)
+@_ZoneCap := @AlphaCap1A
+else
+@_ZoneCap := @AlphaCap1B
+end if
+case 27 to 36
+@_ZoneCap := @AlphaCap2
+case 37 to 41
+@_ZoneCap := @AlphaCap3
+end select
+set_text($Alpha,@_ZoneCap)
+while ($EditActv=1)
+select ($EditCmd)
+case 1
+$DrawPanel := 2
+$_EditRtn := 1
+$EditCmd := 0
+case 3
+$DrawPanel := 1
+$_EditRtn := 1
+$EditActv := 0
+end select
+select ($_EditRtn)
+case 0
+@_Name := @NameCap
+$_i6 := 0
+while ($_i6<=$CP)
+if ($_i6=$CP)
+if ($_i6<15)
+if ($_Blink=1)
+@_Name := @_Name & "_"
+else
+@_Name := @_Name & " "
+end if
+end if
+else
+@_Name := @_Name & !char[%EditBfr[$_i6]]
+end if
+inc($_i6)
+end while
+set_text($NameDisplay,@_Name)
+$_Blink := $_Blink+1 .and. 1
+case 1
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 3
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+end select
+if ($EditCmd=0)
+$_EditRtn := 0
+wait(300000)
+end if
+end while
+end if
+end if
+end on
+
+on ui_control($Alpha)
+set_knob_label($Alpha,"      " & !char[$Alpha])
+select ($Alpha)
+case 0
+@_ZoneCap := @AlphaCap0
+case 1 to 26
+if ($LowerCase=0)
+@_ZoneCap := @AlphaCap1A
+else
+@_ZoneCap := @AlphaCap1B
+end if
+case 27 to 36
+@_ZoneCap := @AlphaCap2
+case 37 to 41
+@_ZoneCap := @AlphaCap3
+end select
+set_text($Alpha,@_ZoneCap)
+end on
+
+on ui_control($BackSpace)
+$BackSpace := 0
+if ($CP>0)
+dec($CP)
+if ($CP=0)
+$LowerCase := 0
+select ($Alpha)
+case 0
+@_ZoneCap := @AlphaCap0
+case 1 to 26
+if ($LowerCase=0)
+@_ZoneCap := @AlphaCap1A
+else
+@_ZoneCap := @AlphaCap1B
+end if
+case 27 to 36
+@_ZoneCap := @AlphaCap2
+case 37 to 41
+@_ZoneCap := @AlphaCap3
+end select
+set_text($Alpha,@_ZoneCap)
+end if
+end if
+end on
+
+on ui_control($CancelRename)
+$CancelRename := 0
+if ($EditActv=1)
+$EditCmd := 3
+end if
+$Preset := -1
+end on
+
+on ui_control($EnterChar)
+$EnterChar := 0
+if ($CP<15)
+%EditBfr[$CP] := $Alpha
+if (in_range($Alpha,1,26) and ($LowerCase=1))
+%EditBfr[$CP] := $Alpha+46
+end if
+if ($CP=0)
+$LowerCase := 1
+select ($Alpha)
+case 0
+@_ZoneCap := @AlphaCap0
+case 1 to 26
+if ($LowerCase=0)
+@_ZoneCap := @AlphaCap1A
+else
+@_ZoneCap := @AlphaCap1B
+end if
+case 27 to 36
+@_ZoneCap := @AlphaCap2
+case 37 to 41
+@_ZoneCap := @AlphaCap3
+end select
+set_text($Alpha,@_ZoneCap)
+end if
+inc($CP)
+end if
+end on
+
+on ui_control($EraseName)
+$EraseName := 0
+$CP := 0
+$LowerCase := 0
+select ($Alpha)
+case 0
+@_ZoneCap := @AlphaCap0
+case 1 to 26
+if ($LowerCase=0)
+@_ZoneCap := @AlphaCap1A
+else
+@_ZoneCap := @AlphaCap1B
+end if
+case 27 to 36
+@_ZoneCap := @AlphaCap2
+case 37 to 41
+@_ZoneCap := @AlphaCap3
+end select
+set_text($Alpha,@_ZoneCap)
+end on
+
+on ui_control($LowerCase)
+select ($Alpha)
+case 0
+@_ZoneCap := @AlphaCap0
+case 1 to 26
+if ($LowerCase=0)
+@_ZoneCap := @AlphaCap1A
+else
+@_ZoneCap := @AlphaCap1B
+end if
+case 27 to 36
+@_ZoneCap := @AlphaCap2
+case 37 to 41
+@_ZoneCap := @AlphaCap3
+end select
+set_text($Alpha,@_ZoneCap)
+end on
+
+on ui_control($MCMenu)
+if ($MCMenu=-2)
+$MCMenu := $LastCC
+end if
+$MBtn__Actv := 0
+end on
+

@@ -1,0 +1,370 @@
+{************************** SIPS Module **************************
+Module: General Support Routines V2, SXM-GSR
+Author: R.D.Villwock aka 'Big Bob'
+First Written: September 18, 2006
+Current Version: 2.05
+Last Modified: May 31, 2008
+******************************************************************}
+{ ---------------- Data Constructor Functions ---------------- }
+function on_init_BigLabel
+  declare !MsgText[8]
+  declare ui_label BigLabel (6,6)
+    move_control(BigLabel,1,1)   { Initially cover the whole panel }
+end function { on_init_BigLabel }
+
+function on_init_MCMenu  { Construct MIDI Controller Assignment Menu }
+                    { Special Menu indices }
+  declare const NoCC := -1       { Token CC# when deassigned }
+  declare const UseLastCC := -2  { Replace with last moved CC# }
+  declare const PreOpen := -3    { Display before opening Menu }
+  declare ui_menu MCMenu  { Define the MIDI Controller assignment Menu }
+    move_control(MCMenu,0,0)     { Hide until opened }
+  declare local n
+
+  add_menu_item(MCMenu,'- MIDI Controller Menu -',NoCC)
+  add_menu_item(MCMenu,'  ----------------------',NoCC)   
+  add_menu_item(MCMenu,'   Deassign Controller',NoCC)
+  add_menu_item(MCMenu,'Assign Last CC# Moved',UseLastCC)
+  add_menu_item(MCMenu,'  ----------------------',NoCC)    
+  add_menu_item(MCMenu,CC_Name[TopCC+2],Aftertouch)
+  add_menu_item(MCMenu,CC_Name[TopCC+1],PitchWheel)
+  add_menu_item(MCMenu,CC_Name[TopCC+3],VelCC)
+  for n := 0 to TopCC
+    add_menu_item(MCMenu,'CC ' & n & ' ' & CC_Name[n],n)
+  end for
+  add_menu_item(MCMenu,' - MC Menu -',PreOpen)   { Pre-Open caption }
+end function { on_init_MCMenu }
+
+function on_init_ScaleTones
+{ Allocate and initialize Tones array with Key Name prefixes }
+  declare !Tones[12]   { Allocate Scale Tones Array }
+    Tones[0] := ' C'
+    Tones[1] := 'C#' 
+    Tones[2] := ' D' 
+    Tones[3] := 'D#' 
+    Tones[4] := ' E' 
+    Tones[5] := ' F' 
+    Tones[6] := 'F#' 
+    Tones[7] := ' G' 
+    Tones[8] := 'G#' 
+    Tones[9] := ' A' 
+    Tones[10] := 'A#' 
+    Tones[11] := ' B'
+end function { on_init_ScaleTones }
+
+function on_init_VerIR  { Determine version parms and sets default Inst Range }
+  { Version Array offsets currently in use }
+  declare const vSID := 0  { Version offset to SID, Script ID Code }
+  declare const vPFC := 1  { Version offset to PFC, Preset Format Code }
+  declare Version[6]   { This array is persistent, never make it any smaller }  
+  { Version 1 series, simple persistent test variables }
+  declare XTmRng       { Only used by SLS prior to V150 }
+  declare XTime.Range  { Only used by SLS in V150/151 }
+  declare PkDwell      { PkDwell only used by SVS in V1 series }    
+  XTmRng := 1000       { Set to 'impossible' values }
+  XTime.Range := 1000
+  PkDwell := 1000
+  _read_persistent_var(XTmRng)      { If any of these exist in prior script, }
+  _read_persistent_var(XTime.Range) {  their value will be changed from 1000 }
+  _read_persistent_var(PkDwell)
+  if XTmRng # 1000 or XTime.Range # 1000
+    Version[vSID] := SLS_ID         { Prior version was SLS }
+    Version[vPFC] := V2UP - 1       { From Version 1 series }
+  else if PkDwell # 1000
+    Version[vSID] := SVS_ID         { Prior version was SVS }
+    Version[vPFC] := V2UP - 1       { From Version 1 series }
+  else { Prior script not from V1 series }  
+    Version[vSID] := SID   { Default (self-value) of SID for 'Freah' install }
+    Version[vPFC] := PFC   { Default (self-value) of PFC for 'Fresh' install }
+  end if  
+  _read_persistent_var(Version) { Override defaults if prior script is from V2 series }
+  declare LowIR := MinNote      { Default IR, exclude notes below MinNote }
+  declare TopIR := MaxNote      { Default IR, exclude notes above MaxNote }
+end function { on_init_VerIR }
+
+{ ------------------- General Support Routines ------------------ }
+function AddSubPanel(pmap,smap,w,x,y)
+  { pmap = Current, full cmap array[36]
+    smap = Sub-Panel array[w*h] where w*h <= 36
+       w = Width of equivalent smap[w,h]
+     x,y = pmap anchor point (for upper-left corner of sub-panel)
+    This routine modifies current pmap to contain smap as a popup }
+  declare ap
+  declare np
+  declare ns
+  ap := x + 6*y - 7    { Linear Anchor Point offset }
+  ns := 0        { Start index of smap }
+  np := ap       { Start index of pmap anchor point }
+  while np < 36  { smap[ns] lies within pmap }
+    pmap[np] := smap[ns]    { Copy UI Control Index }
+    inc(ns)                 { Next smap position }
+    if ns < num_elements(smap)  { smap has more elements }
+      { Now compute corresponding pmap index, np }
+      np := ns/w*6 + ns mod w + ap
+    else { smap exhausted }
+      np := 36  { Force loop exit }
+    end if
+  end while 
+end function { AddSubPanel }
+
+function CopyArray(a1,a2)
+  declare i
+  { Copy a1 elements of array a2 to array a1, a2 >= a1 }  
+  for i := 0 to num_elements(a1) - 1
+    a1[i] := a2[i]
+  end for
+end function { CopyArray }
+
+function NOP
+{ Dummy action to avoid empty conditionals for the KSP }
+  LowIR := LowIR
+end function { NOP }
+
+function Note2Key(midi_note,key_name) 
+{ Converts a MIDI note# to a Scale-tone/Octave format string } 
+  key_name := Tones[midi_note mod 12] & (midi_note/12 -2) 
+end function { Note2Key }
+
+function OpenMenu_(bx,warn)   { Open menu for MIDI MC button bx }
+  warn := false
+  MBtn.Actv := true      { Until CC selection is made }
+  ShowMenu(bx)           { Replace button with menu }
+  MCMenu := PreOpen      { Display pre-opening header prior to drop-down }
+  while MBtn.Actv = true
+    SWait(1)             { Wait for CC selection, or cancellation }
+  end while
+  HideMenu(bx)           { Replace menu with button again }
+  MBtn.CC[bx] := MCMenu  { Read selected CC# }
+  if MBtn.CC[bx] > 119 and MBtn.SCMenu[bx] = 0 { Normal CCs only for this parm }
+    MBtn.CC[bx] := NoCC
+    StatMsg := 'Only CCs can be assigned to control this function'
+    warn := true
+  end if
+  if MBtn.CC[bx] < 0 or (MBtn.CC[bx] > 119 and MBtn.SCMenu[bx] = 0) { De-Assign or Invalid }
+    MBtn.CC[bx] := NoCC  { Use standard unassigned CC value }
+    DeAssignCC(bx)       { Do any special deassign action }
+  else { CC[bx] has been assigned to a valid MC# }
+    MBtn.CCV[bx] := 0    { Use zero as initial value until MC is moved }
+    AssignCC(bx)         { Do any special assignment action }
+  end if
+  UpdateBtn(bx)          { Update button text to show assigned CC }
+end function { OpenMenu_ }
+
+function SetBtnXY(bx,x,y)
+  { Set panel position xy for btn/menu, not affected by hiding }
+  if x > 0
+    MBtn.x[bx] := x
+    MBtn.y[bx] := y
+  end if  
+end function { SetBtnXY }
+
+function SetCC(bx)
+  declare warn
+  
+  MBtn.Actv := false           { Cancel any active menu }
+  wait(3000)                   { Give it enough time to exit OpenMenu }
+  Call(OpenMenu,cp1(bx),rp1(warn))  { Open this menu for selection }
+  if warn = true
+    BlinkStatMsg(5)
+  end if
+end function { SetCC }
+
+function SetMKnobs_(ccn,ccv)
+  declare bx
+  declare val
+  { Update MIDI Btns/Knobs assigned to 'ccn' with value 'ccv' }
+  for bx := 0 to mLast  { Find all btns assigned to 'ccn' }
+    if MBtn.CC[bx] = ccn
+      MBtn.CCV[bx] := ccv    { Update value }
+      if MBtn.Knob[bx] # 0   { If this MC also controls an associated knob .. }
+        val := MKnob.Kmin[bx] + (MKnob.Kmax[bx] - MKnob.Kmin[bx])*MBtn.CCV[bx]/127
+        SetMKnob(bx,val)     { Update the knob's value }
+      end if
+    end if
+  end for
+end function { SetMKnobs_ }
+
+function SetMRange(bx,kv) { Set MIDI-controlled knob range }
+  if MBtn.CCV[bx] = 0
+    MKnob.Kmin[bx] := kv
+  else if MBtn.CCV[bx] = 127
+    MKnob.Kmax[bx] := kv
+  end if
+end function { SetMRange(bx,kv) }
+
+function ShowIR
+{ Updates display of IR and LowKey/TopKey from LowIR/TopIR } 
+  Note2Key(LowIR,LowKey) 
+  Note2Key(TopIR,TopKey) 
+  set_text(IR_Box,' Low Key: ' & LowKey) { Update display } 
+  add_text_line(IR_Box,' High Key: ' & TopKey) } 
+end function { ShowIR }
+
+function ShowPanel(pmap)
+{ Displays a full-sized (6x6) control panel as specified in a Panel Map. 'pmap' is
+  a 36-element array that specifies the anchor positions of all controls by means of
+  their 'handles' (as implictly associated with the controls in the SetXY function).
+  All other controls not specified in pmap are hidden. Negative entries in the pmap
+  indicate panel positions that have no Control 'anchored' there. Since SetXY is a
+  lengthy function, ShowPanel is written to only inline it one time (even though it
+  is looped-through twice at runtime). This is done to reduce the overall size of
+  the compiled script. }
+  declare i
+  declare imax
+  declare n
+  declare phase
+  declare x
+  declare y
+  
+  MBtn.Actv := false { Cancel any in-process Button-Menu operation }
+  wait(3000)         { Allow time for button menu to close }
+  phase := 1         { Use 1st inner-loop pass to hide all controls }
+  x := 0
+  y := 0
+  imax := MaxControl
+  while phase < 3
+    for i := 0 to imax
+      if phase = 1 or pmap[i] >= 0  { pmap < 0 means no control }
+        if phase = 1
+          n := i
+        else
+          n := pmap[i]        { Get control 'handle' from map }
+          x := (i mod 6) + 1  { Determine x,y position on panel }
+          y := i/6 + 1
+        end if
+        SetXY(n,x,y)  { Show/Hide control n }
+      end if
+    end for
+    inc(phase)    { Use 2nd inner-loop pass to display all }
+    imax := 35    {  the pmap-specified controls (0..35)   }
+  end while
+end function { ShowPanel }
+
+function UpdateBtn(bx) { Update button text to show assigned CC }
+  if MBtn.CC[bx] = NoCC   { De-assigning CC, label as 'off' }
+    SetBtnText(bx,MBtn.Cap[bx] & 'MC=None')
+    MBtn.State[bx] := 0   { Set button state = off }
+  else                    { Assigning the CC, label with CC# }
+    select MBtn.CC[bx]
+    case PitchWheel
+      SetBtnText(bx,MBtn.Cap[bx] & 'MC = PW')
+    case Aftertouch
+      SetBtnText(bx,MBtn.Cap[bx] & 'MC = AT')
+    case VelCC
+      SetBtnText(bx,MBtn.Cap[bx] & 'MC = Vel')
+    case 0 to TopCC
+      SetBtnText(bx,MBtn.Cap[bx] & 'CC# = ' & MBtn.CC[bx])
+    end select
+    MBtn.State[bx] := 1     { Set button state = on }
+  end if
+  SetBtn(bx,MBtn.State[bx]) { Set dark/lit state of button per State }  
+end function { UpdateBtn }
+
+function WriteMsg(ntabs) 
+  { Write MsgText[] array to 'ctl' with left margin at ntabs }
+  declare n
+  declare @slug
+  declare @Tab
+    Tab := '    ' { 4 Blanks }
+  slug := ''
+  for n := 1 to ntabs
+    slug := slug & Tab
+  end for
+  for n := 0 to 7
+    add_text_line(BigLabel,slug & MsgText[n])
+  end for
+end function { WriteMsg }
+
+function on_init_CCNames
+  declare i
+  { Populate CC_Name array with 'standard' MIDI CC assignments per MMA } 
+  for i := 3 to TopCC
+    CC_Name[i] := 'Undefined'
+  end for
+  declare !CC_Name[TopCC+4]  { 0..TopCC + PW + AT }
+    CC_Name[0]   := 'Bsnk Select'
+    CC_Name[1]   := 'Mod Wheel'
+    CC_Name[2]   := 'Breath Control'
+    CC_Name[4]   := 'Foot Controller'
+    CC_Name[5]   := 'Portamento Time'
+    CC_Name[6]   := 'Data Entry MSB'
+    CC_Name[7]   := 'Channel Volume'
+    CC_Name[8]   := 'Balance'
+    CC_Name[10]  := 'Pan'
+    CC_Name[11]  := 'Expression'
+    CC_Name[12]  := 'Efx Ctl 1'
+    CC_Name[13]  := 'Efx Ctl 2'
+    CC_Name[16]  := 'General Ctl #1'
+    CC_Name[17]  := 'General Ctl #2'
+    CC_Name[18]  := 'General Ctl #3'
+    CC_Name[19]  := 'General Ctl #4'
+    CC_Name[32]  := 'LSB for CC 0'
+    CC_Name[33]  := 'LSB for CC 1'
+    CC_Name[34]  := 'LSB for CC 2'
+    CC_Name[35]  := 'LSB for CC 3'
+    CC_Name[36]  := 'LSB for CC 4'
+    CC_Name[37]  := 'LSB for CC 5'
+    CC_Name[38]  := 'LSB for CC 6'
+    CC_Name[39]  := 'LSB for CC 7'
+    CC_Name[40]  := 'LSB for CC 8'
+    CC_Name[41]  := 'LSB for CC 9'
+    CC_Name[42]  := 'LSB for CC 10'
+    CC_Name[43]  := 'LSB for CC 11'
+    CC_Name[44]  := 'LSB for CC 12'
+    CC_Name[45]  := 'LSB for CC 13'
+    CC_Name[46]  := 'LSB for CC 14'
+    CC_Name[47]  := 'LSB for CC 15'
+    CC_Name[48]  := 'LSB for CC 16'
+    CC_Name[49]  := 'LSB for CC 17'
+    CC_Name[50]  := 'LSB for CC 18'
+    CC_Name[51]  := 'LSB for CC 19'
+    CC_Name[52]  := 'LSB for CC 20'
+    CC_Name[53]  := 'LSB for CC 21'
+    CC_Name[54]  := 'LSB for CC 22'
+    CC_Name[55]  := 'LSB for CC 23'
+    CC_Name[56]  := 'LSB for CC 24'
+    CC_Name[57]  := 'LSB for CC 25'
+    CC_Name[58]  := 'LSB for CC 26'
+    CC_Name[59]  := 'LSB for CC 27'
+    CC_Name[60]  := 'LSB for CC 28'
+    CC_Name[61]  := 'LSB for CC 29'
+    CC_Name[62]  := 'LSB for CC 30'
+    CC_Name[63]  := 'LSB for CC 31'
+    CC_Name[64]  := 'Sustain Pedal'
+    CC_Name[65]  := 'Portamento On/Off'
+    CC_Name[66]  := 'Sustenuto On/Off'
+    CC_Name[67]  := 'Soft Pedal On/Off'
+    CC_Name[68]  := 'Legato Footswitch'
+    CC_Name[69]  := 'Hold 2'
+    CC_Name[70]  := 'Sound Ctl 1'
+    CC_Name[71]  := 'Sound Ctl 2'
+    CC_Name[72]  := 'Sound Ctl 3'
+    CC_Name[73]  := 'Sound Ctl 4'
+    CC_Name[74]  := 'Sound Ctl 5'
+    CC_Name[75]  := 'Sound Ctl 6'
+    CC_Name[76]  := 'Sound Ctl 7'
+    CC_Name[77]  := 'Sound Ctl 8'
+    CC_Name[78]  := 'Sound Ctl 9'
+    CC_Name[79]  := 'Sound Ctl 10'
+    CC_Name[80]  := 'General Ctl #5'
+    CC_Name[81]  := 'General Ctl #6'
+    CC_Name[82]  := 'General Ctl #7'
+    CC_Name[83]  := 'General Ctl #8'
+    CC_Name[84]  := 'Portamento Ctl'
+    CC_Name[91]  := 'Efx 1 Depth'
+    CC_Name[92]  := 'Efx 2 Depth'
+    CC_Name[93]  := 'Efx 3 Depth'
+    CC_Name[94]  := 'Efx 4 Depth'
+    CC_Name[95]  := 'Efx 5 Depth'
+    CC_Name[96]  := 'Data Inc'
+    CC_Name[97]  := 'Data Dec'
+    CC_Name[98]  := 'NRPN LSB'
+    CC_Name[99]  := 'NRPN MSB'
+    CC_Name[100] := 'RPN LSB'
+    CC_Name[101] := 'RPN MSB'
+    CC_Name[TopCC+1] := '    - Pitch Wheel -'
+    CC_Name[TopCC+2] := '    - Aftertouch -'
+    CC_Name[TopCC+3] := '     - Velocity -'    
+end function { on_init_CC }
+
+

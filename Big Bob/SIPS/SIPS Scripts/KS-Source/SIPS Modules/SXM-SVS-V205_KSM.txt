@@ -1,0 +1,523 @@
+{************************** SIPS Module **************************
+Module: SVS-Support V2, SXM-SVS
+Author: R.D.Villwock aka 'Big Bob'
+First Written: September 18, 2006
+Current Version: 2.05
+Last Modified: June 1, 2008
+******************************************************************}
+{ The following routines have the same or similar name as their
+  counterparts in the SLS-Support module. These routines perform
+  the same (or nearly the same) function but may have some diff-
+  erences in implementation that is specific to the Vibrato script }
+
+{ ---------------- Data Constructor Functions ---------------- }
+function on_init_MBtns    { Build MIDI CC buttons and MIDI Knobs }
+  declare const PASize := 10  { Persistent array size, never make any smaller }
+  declare const mAmt   := 0   { CC Btn & Knob reference indicess }
+  declare const mBal   := 1
+  declare const mSpeed := 2
+  declare const mMode  := 3
+  declare const mLast  := 3   { Highest MIDI button/knob index }
+  family MBtn   { MIDI CC assignment button system }
+    declare ui_button Amt     { Assignment buttons }
+    declare ui_button Bal
+    declare ui_button Mode
+    declare ui_button Speed
+    declare Actv   { Flag set when menu is active }
+                   { Indexed Constants }
+    declare SCMenu[mLast+1] := (1,1,1,0) { 1 = Can Use special MCs, 0 = CCs only } 
+    declare Knob[mLast+1] := (1,1,1,0)   { 1 = Uses MIDI Knob, 0 = No Knob }
+    declare !Cap[mLast+1]   { Button prefix captions }    
+                   { Indexed Variables }
+    declare CC[PASize]     { Assigned CC number, -1 = NoCC (unassigned) }
+    declare CCV[PASize]    { Last value of assigned CC, normalized 0..127 }
+    declare State[PASize]  { Current button state }
+    declare x[mLast+1]     { Button/Menu Panel position }
+    declare y[mLast+1]
+  end family
+  move_control(MBtn.Amt,0,0)  { Initially Hide all MBtns }
+  move_control(MBtn.Bal,0,0)
+  move_control(MBtn.Mode,0,0)
+  move_control(MBtn.Speed,0,0)
+  
+  family MKnob  { MIDI Knobs, controlled with associated CC }
+    declare ui_knob Amt   (0,MaxAmt,1)              { MIDI Knob, index = mAmt }
+    declare ui_knob Bal   (MinBal,MaxBal,1)         { MIDI Knob, index = mBal }
+    declare ui_knob Speed (MinSpeed,MaxSpeed,100)   { MIDI Knob, index = mSpeed }
+    declare DKmin[mLast+1] := (0,MinBal,MinSpeed,0) { Default MIDI range limits }
+    declare DKmax[mLast+1] := (MaxAmt,MaxBal,MaxSpeed,0)
+    declare Kmin[PASize]   { Currently set MIDI range }
+    declare Kmax[PASize]                         
+  end family 
+  move_control(MKnob.Amt,0,0)   { Initially Hide all MKnobs }  
+  move_control(MKnob.Bal,0,0)
+  move_control(MKnob.Speed,0,0)
+  MBtn.Cap[mAmt] := '  Amt '    { Initialize button prefix captions }
+  MBtn.Cap[mBal] := '  Bal '
+  MBtn.Cap[mSpeed] := 'Speed '
+  MBtn.Cap[mMode] := ' Mode '
+  set_text(MKnob.Amt,'Efx Amt')              { Name the Amt Knob  }
+  set_knob_unit(MKnob.Amt,KNOB_UNIT_PERCENT) {  and set unit to % } 
+  set_text(MKnob.Bal,'Balance')              { Name the Balance Knob }  
+  set_text(MKnob.Speed,' Speed')             { Name the Speed Knob  }
+  set_knob_unit(MKnob.Speed,KNOB_UNIT_HZ)    {  and set units to Hz }
+  InzParms    { Initialize to prior-version or default settings }
+end function { on_init_MBtns }
+
+{---------------- Support routines for MIDI Btns/Knobs ----------------}
+function HideMenu(bx)
+  move_btn(bx,MBtn.x[bx],MBtn.y[bx])
+  move_control(MCMenu,0,0)  
+end function { HideMenu }
+
+function InzParms
+  declare bx
+  { Convert from prior version or use 'fresh' install defaults }
+  for bx := 0 to mLast
+    MBtn.CC[bx] := NoCC                  { Default to CCs unassigned }
+    MKnob.Kmin[bx] := MKnob.DKmin[bx]    { Set default MIDI knob ranges }
+    MKnob.Kmax[bx] := MKnob.DKmax[bx]      
+  end for
+  MKnob.Amt := MainParms[uAmt]           { Default to Inst_0 knob values }
+  MKnob.Bal := MainParms[uBal]
+  MKnob.Speed := MainParms[uSpeed]
+  if in_range(Version[vPFC],V2UP,V200)   { Could be newer so leave defaults }   
+    _read_persistent_var(MBtn.CC)        { Override defaults if updating }
+    _read_persistent_var(MKnob.Bal)      {  from V2UP or V200            }
+    _read_persistent_var(MKnob.Speed)
+    _read_persistent_var(MKnob.Amt)
+    _read_persistent_var(MKnob.Kmin)
+    _read_persistent_var(MKnob.Kmax)
+  end if
+  for bx := 0 to mLast
+    UpdateBtn(bx)   { Display prior version or default CC assignment } 
+  end for
+  ShowBalKnob       { Set initial text-form display of knob value }
+end function { InzParms }
+
+function move_btn(bx,x,y)  { Move button bx to position x,y }
+  select bx
+    case mAmt
+      move_control(MBtn.Amt,x,y)
+    case mBal
+      move_control(MBtn.Bal,x,y)
+    case mMode
+      move_control(MBtn.Mode,x,y)
+    case mSpeed
+      move_control(MBtn.Speed,x,y)
+  end select  
+end function { move_btn }
+
+function SetBtn(bx,val) { 'bx' = button index, 'val' = button value }
+  select bx
+    case mAmt
+      MBtn.Amt := val
+    case mBal
+      MBtn.Bal := val
+    case mMode
+      MBtn.Mode := val
+    case mSpeed
+      MBtn.Speed := val
+  end select
+end function { SetBtn }
+
+function SetBtnText(bx,txt) { 'bx' = btn index, 'txt' = btn text str }
+  select bx
+  case mAmt
+    set_text(MBtn.Amt,txt)
+  case mBal
+    set_text(MBtn.Bal,txt)
+  case mMode
+    set_text(MBtn.Mode,txt)
+  case mSpeed
+    set_text(MBtn.Speed,txt)
+  end select
+end function { SetBtnText }
+
+function SetMKnob(bx,val) { Set knob associated with 'bx' to 'val' }
+  select bx
+    case mAmt
+      MKnob.Amt := val
+    case mBal
+      MKnob.Bal := val
+      ShowBalKnob
+    case mSpeed
+      MKnob.Speed := val
+  end select
+end function { SetMKnob }
+
+function ShowMenu(bx)
+  move_btn(bx,0,0)
+  move_control(MCMenu,MBtn.x[bx],MBtn.y[bx])   
+end function { ShowMenu }
+{--------------- End Support routines MIDI Btns/Knobs ----------------}
+
+function on_init_Mode
+  declare ui_menu SVSMode
+    move_control(SVSMode,0,0)
+    add_menu_item (SVSMode,'  Knob + Env',Amt_and_Env)
+    add_menu_item (SVSMode,' Amt Knob Only',Amt_Only)
+    add_menu_item (SVSMode,' - SVS OFF -',SVS_Off)   
+    SVSMode := MainParms[uSVSMode]  { 'Fresh install default }
+end function { on_init_Mode }
+
+function on_init_Set_UIX
+{ These index constants are used for two main purposes. As 'Offsets' and 
+  'Handles'. 'Offsets' are used to access Preset parameters and thus are
+  assigned to those controls and parms that will be saved with presets.
+  Since MaxParms = 25, the 'Offset' range is from 0..24. 'Handles' on the
+  other hand, are used by callers of SetXY to specify a specific control to
+  position or hide. Most Preset parms are also panel controls but those that
+  aren't are excluded from SetXY. Thus, the indices for all preset parms are
+  'Offsets' but only some of these are also 'Handles'. Conversely, the indices
+  for all panel controls are 'Handles' but only some are also 'Offsets'. To
+  help with this distinction, real panel controls are prefixed by a lower-case
+  'u' or 't' whereas Preset parm 'offsets' that do not refer to a control are
+  prefixed by a lower-case 'p'. }
+  declare const uTrem     := 0   { Offsets for Key Parms }
+  declare const uVib      := 1
+  declare const uSpeed    := 2  
+  declare const uShape    := 3
+  declare const uVibVar   := 4
+  declare const uTremVar  := 5
+  declare const uSpdDrft  := 6
+  declare const uWavDrft  := 7
+  declare const uOnset    := 8
+  declare const uRise     := 9
+  declare const uDecay    := 10
+  declare const uSustain  := 11
+  declare const uAmt      := 12
+  declare const uBal      := 13 
+  declare const uSVSMode  := 14
+                   { Offsets for extended parms }
+  declare const uBalCC    := 15
+  declare const pBalRng1  := 16
+  declare const pBalRng2  := 17
+  declare const uSpdCC    := 18
+  declare const pSpdRng1  := 19
+  declare const pSpdRng2  := 20
+  declare const uAmtCC    := 21
+  declare const pAmtRng1  := 22
+  declare const pAmtRng2  := 23
+  declare const uModeCC   := 24  
+  declare const UP_Empty := uOnset  { User preset empty when zero }
+  { Preset offsets from 25..50 are available for future expansion }
+  declare const uPreset   := 51  { Panel controls not in presets }
+  declare const uCCMenu   := 52
+  declare const uCCPMenu  := 53
+  declare const tAbout    := 54  { Panel Labels (tags) } 
+  declare const tNameDsp  := 55
+  declare const tModCap   := 56
+  declare const tWavCap   := 57
+  declare const tVarCap   := 58
+  declare const tEnvCap   := 59
+  declare const tIRCap    := 60
+  declare const tIRBox    := 61
+  declare const uAlpha    := 62  { Rename Panel Controls }
+  declare const uBackSp   := 63
+  declare const uEntChr   := 64
+  declare const uLoCase   := 65
+  declare const uErase    := 66
+  declare const uCancel   := 67
+  declare const MaxControl := uCancel  { Highest Control Index } 
+  declare const xxx       := -1        { Unused anchor position }
+end function { on_init_Set_UIX }
+
+function on_init_Std_PanelMap   { Control Layout for the Standard SVS Panel }
+  declare global StdPanel_Map[36] := ( ...
+       uVib,   uTrem,   uShape,    tVarCap,   tEnvCap,    tIRCap, ...
+        xxx,     xxx,      xxx,    uVibVar,    uOnset,    tIRBox, ...
+    tModCap,     xxx,  tWavCap,   uTremVar,     uRise,       xxx, ...
+       uAmt,    uBal,   uSpeed,   uWavDrft,    uDecay,   uPreset, ...
+        xxx,     xxx,      xxx,   uSpdDrft,  uSustain,  uSVSMode, ...
+     uAmtCC,  uBalCC,   uSpdCC,     tAbout,       xxx,   uModeCC)   
+end function { on_init_Std_PanelMap }
+
+{ ---------------- SVS Version of Other Common Routines --------------- }
+function AssignCC(bx)   { Special handling of certain CC assignments }
+  { Not Used by the SVS }
+end function { AssignCC }
+
+function DeAssignCC(bx) { Special handling of certain CC de-assignments }
+  { Not Used by the SVS }
+end function { DeAssignCC }
+
+function Do_Preset
+{ Process Preset Menu commands and indices }
+  declare upx
+  
+  MsgFlag := false          { Assume no Info messages }
+  upx := Preset - User0     { User Preset Index, (if Preset >= User0) }
+  if Preset < 0
+    Command := Preset       { This is a 'command' index }
+    ImpActv := false        { Reset for next import }
+  else   { This is a preset index }
+    if Preset < User0       { It's a Built_In preset }
+      Command := No_Cmd     { Cancel any pending commands }
+    else { User Preset }
+      if Command = Save_As  { User preset selected with Save As pending }
+        Save_Preset(upx)    { Save current parms to the specified User Preset }
+        Command := No_Cmd   { Cancel the Save_As command }      
+        exit                { We're done }
+      else if Command = Import
+        Command := No_Cmd   { Cancel Import }
+      end if
+    end if
+    if upx >= 0 and UserParms[upx*MaxParms + UP_Empty] = 0
+      Preset := No_Cmd
+      StatMsg := 'Preset Empty'
+      MsgFlag := true
+    else  { Selected preset is not empty }
+      Recall_Preset(Preset)
+      if Command = Export
+        Do_Export(upx)      { Send Preset upx to Importing script }
+      end if
+    end if
+    if Command = Rename     { If rename is still active (User was selected) }
+      Update_Name(upx)      { Update selected user preset name }
+      Command := No_Cmd     { Cancel rename command }
+    else if Command = Export
+      Preset := Export      { Continue to display 'Export' }
+    end if
+  end if
+  if MsgFlag = true
+    BlinkStatMsg(5)
+  end if
+  Do_Edit   { Check for Rename command }
+end function { Do_Preset }
+
+function Load_KeyParms   { Load KeyParms from PresetBfr }
+  LoadParm(Tremolo,uTrem) 
+  LoadParm(Vibrato,uVib)
+  LoadParm(MKnob.Speed,uSpeed) 
+  LoadParm(Shape,uShape)
+  LoadParm(VibVar,uVibVar)
+  LoadParm(TremVar,uTremVar)
+  LoadParm(SpdDrift,uSpdDrft)
+  LoadParm(WavDrift,uWavDrft)
+  LoadParm(Onset,uOnset)
+  LoadParm(Rise,uRise)
+  LoadParm(Decay,uDecay)
+  LoadParm(Sustain,uSustain)
+  LoadParm(MKnob.Amt,uAmt)
+  LoadParm(MKnob.Bal,uBal)
+  LoadParm(SVSMode,uSVSMode)
+end function { Load_KeyParms }
+
+function Load_XParms   { Load Extra Parms from PresetBfr }
+  LoadParm(MBtn.CC[mBal],uBalCC)
+  LoadParm(MKnob.Kmin[mBal],pBalRng1)
+  LoadParm(MKnob.Kmax[mBal],pBalRng2)
+  LoadParm(MBtn.CC[mSpeed],uSpdCC)
+  LoadParm(MKnob.Kmin[mSpeed],pSpdRng1)
+  LoadParm(MKnob.Kmax[mSpeed],pSpdRng2)
+  LoadParm(MBtn.CC[mAmt],uAmtCC)
+  LoadParm(MKnob.Kmin[mAmt],pAmtRng1)
+  LoadParm(MKnob.Kmax[mAmt],pAmtRng2)
+  LoadParm(MBtn.CC[mMode],uModeCC)  
+end function { Load_XParms }
+
+function Recall_Preset(menu_index)
+{ Retrieves Preset Parameters from either MainParms or UserParms }
+  declare parm0  { Offset to 1st parm of preset }
+  declare px     { PresetBfr index }
+  
+  MBtn.Actv := false { Terminate any in-process CC assignment }
+  wait(3000)         { Allow time for button menu to close }
+  if menu_index < User0
+    parm0 := menu_index*KeyParms
+    for px := 0 to KeyParms - 1  
+      PresetBfr[px] := MainParms[parm0 + px]
+    end for  { Get parms for Built-In Preset selected }
+  else { menu index indicates a User Preset }
+    parm0 := (menu_index - User0)*MaxParms
+    for px := 0 to MaxParms - 1
+      PresetBfr[px] := UserParms[parm0 + px]
+    end for  { Get parms for User Preset selected }
+  end if
+  Load_KeyParms   { Recall Key Parms from buffer }
+  if menu_index >= User0  { User Preset being recalled }
+    Load_XParms           { Recall extra User parms }
+  end if
+  Call(UpdatePanel,none,none)
+  for px := 0 to mLast    { Restore BtnMenus for CC assignment }
+    UpdateBtn(px)
+  end for  
+end function { Recall_Preset }
+
+function Reformat(oldpfc)
+   { Since this script is V200, 'oldpfc' can only be }
+   {  V2UP or V200 and no reformatting is required   }
+   NOP
+end function { Reformat }
+
+function Save_Preset(upx)
+{ Save current panel parameter set in UserParms array at upx }
+  declare parm0
+  
+  parm0 := upx*MaxParms
+  UserParms[parm0 + uTrem]    := Tremolo
+  UserParms[parm0 + uVib]     := Vibrato
+  UserParms[parm0 + uSpeed]   := MKnob.Speed
+  UserParms[parm0 + uShape]   := Shape
+  UserParms[parm0 + uVibVar]  := VibVar
+  UserParms[parm0 + uTremVar] := TremVar 
+  UserParms[parm0 + uSpdDrft] := SpdDrift
+  UserParms[parm0 + uWavDrft] := WavDrift
+  UserParms[parm0 + uOnset]   := Onset
+  UserParms[parm0 + uRise]    := Rise
+  UserParms[parm0 + uDecay]   := Decay
+  UserParms[parm0 + uSustain] := Sustain
+  UserParms[parm0 + uAmt]     := MKnob.Amt
+  UserParms[parm0 + uBal]     := MKnob.Bal
+  UserParms[parm0 + uSVSMode] := SVSMode
+  UserParms[parm0 + uBalCC]   := MBtn.CC[mBal]
+  UserParms[parm0 + pBalRng1] := MKnob.Kmin[mBal]
+  UserParms[parm0 + pBalRng2] := MKnob.Kmax[mBal]
+  UserParms[parm0 + uSpdCC]   := MBtn.CC[mSpeed]
+  UserParms[parm0 + pSpdRng1] := MKnob.Kmin[mSpeed]
+  UserParms[parm0 + pSpdRng2] := MKnob.Kmax[mSpeed]  
+  UserParms[parm0 + uAmtCC]   := MBtn.CC[mAmt]
+  UserParms[parm0 + pAmtRng1] := MKnob.Kmin[mAmt]
+  UserParms[parm0 + pAmtRng2] := MKnob.Kmax[mAmt]  
+  UserParms[parm0 + uModeCC]  := MBtn.CC[mMode]   
+end function { Save_Preset }
+
+function SetXY(h,x,y)
+{ Moves the Control whose assigned 'handle' is h, to position x,y on the panel.
+  If x = 0 or y = 0, the Control will be hidden. This case statement ties the
+  previously defined index constants to the corresponding control. NOTE: SetXY,
+  via SetBtnXY, sets the 'internal' x,y values for Button-Menus when x > 0 }
+  select h
+    case uAmt                       { MIDI-controlled Knobs & Menus }
+      move_control(MKnob.Amt,x,y)
+    case uBal
+      move_control(MKnob.Bal,x,y)
+    case uSpeed
+      move_control(MKnob.Speed,x,y) 
+    case uSVSMode                   { Mode Menu }
+      move_control(SVSMode,x,y)
+    case uAmtCC                     { MIDI CC Assignment Buttons }
+      move_control(MBtn.Amt,x,y)
+      SetBtnXY(mAmt,x,y)
+    case uBalCC
+      move_control(MBtn.Bal,x,y)
+      SetBtnXY(mBal,x,y)
+    case uSpdCC
+      move_control(MBtn.Speed,x,y)
+      SetBtnXY(mSpeed,x,y)
+    case uModeCC
+      move_control(MBtn.Mode,x,y)
+      SetBtnXY(mMode,x,y)      
+    case uDecay                    { Non-MIDI controls }
+      move_control(Decay,x,y)
+    case uOnset
+      move_control(Onset,x,y)
+    case uPreset
+      move_control(Preset,x,y)
+    case uRise
+      move_control(Rise,x,y)  
+    case uShape
+      move_control(Shape,x,y)
+    case uWavDrft
+      move_control(WavDrift,x,y)
+    case uSpdDrft
+      move_control(SpdDrift,x,y)
+    case uSustain
+      move_control(Sustain,x,y)  
+    case uTrem
+      move_control(Tremolo,x,y)  
+    case uTremVar
+      move_control(TremVar,x,y)
+    case uVib
+      move_control(Vibrato,x,y)
+    case uVibVar
+      move_control(VibVar,x,y)
+    case uAlpha                     { Rename Popup Controls }
+      move_control(Alpha,x,y)      
+    case uBackSp
+      move_control(BackSpace,x,y)
+    case uCancel
+      move_control(CancelRename,x,y)        
+    case uEntChr
+      move_control(EnterChar,x,y)
+    case uErase
+      move_control(EraseName,x,y) 
+    case uLoCase
+      move_control(LowerCase,x,y)
+    case tAbout                    { Panel Labels }
+      move_control(About,x,y)      
+    case tEnvCap
+      move_control(EnvCap,x,y)
+    case tIRBox
+      move_control(IR_Box,x,y)
+    case tIRCap
+      move_control(IRCap,x,y)               
+    case tModCap
+      move_control(ModCap,x,y)
+    case tNameDsp
+      move_control(NameDisplay,x,y)
+    case tVarCap
+      move_control(VarCap,x,y)
+    case tWavCap
+      move_control(WaveCap,x,y)
+  end select
+end function { SetXY }
+
+function Startup  { Extended ICB routine }
+  move_control(BigLabel,0,0)     { Hide ICB Prompting Label }
+  DrawPanel := StdPanel          { Draw the Standard Panel and  }  
+  ICall(UpdatePanel,none,none)   {  update sll dynamic controls }
+end function { Startup }
+
+function Update_Format
+{ Checks for any prior loaded version of this same script to see if data can be
+  imported. If so, the User Preset Data is re-formatted as needed and Fail is
+  set to false. If the prior script bears a different SID or if the prior script
+  is a later version than this script (or if it is from the V1 series), Fail is
+  set to true so the Failure Panel will be displayed at the end of the ICB.}
+  declare Fail
+  declare OldSID
+  declare OldPFC
+  declare ntabs
+  
+  Fail := true               { Assume Upgrade will fail }
+  OldSID := Version[vSID]    { If these aren't the default for this script, they }
+  OldPFC := Version[vPFC]    {  belong to a previously loaded, prior V2 script   }
+  if OldSID = SID and in_range(OldPFC,V2UP,PFC) 
+    { Prior script has same SID, is in V2 series, and is not newer than this one }
+    Fail := false            { Upgrade may proceed }
+    Version[vSID] := SID     { Update codes to defaults for this script }
+    Version[vPFC] := PFC
+    _read_persistent_var(UserParms) { Recover Prior Presets if not fresh install }    
+    Reformat(OldPFC)         { Reformat presets from a prior version }
+  end if
+  if Fail = true     { Update has failed report error and stop }
+    ntabs := 15
+    MsgText[3] := ' Automatic Import of Presets FAILED'
+    MsgText[4] := "   See Page xx of V2.0 User's Guide"
+    Cancel_Startup   { Cancel any XICB 'startup' function }
+  else { Update was successful, write prompter and prepare panel }
+    ntabs := 14
+    MsgText[2] := 'If you see this instead of the Control Panel'
+    MsgText[3] := '            Move a MIDI Controller'
+    MsgText[4] := " (See Section 1.1 of SIPS 2 User's Guide)"
+  end if
+  WriteMsg(ntabs) { Show Prompter to move CC or Advise of Import Failure }
+end function { Update_Format }
+
+function UpdatePanel_ { After panel restore or control change }
+  if DrawPanel # NoDraw 
+    select DrawPanel   { Copy desired panel map to PMap array }
+      case StdPanel
+        CopyArray(PMap,StdPanel_Map)
+      case RenPanel
+        CopyArray(PMap,RenPanel_Map)
+    end select
+    ShowPanel(PMap)    { Cancel any active Btn-Menu and draw selected panel }
+  end if
+  DrawPanel := NoDraw  { Default index is NoDraw }
+  ShowBalKnob
+  ShowIR
+end function { UpdatePanel_ }
+

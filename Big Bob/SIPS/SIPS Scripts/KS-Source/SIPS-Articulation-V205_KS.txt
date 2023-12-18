@@ -1,0 +1,1425 @@
+{-------------------------------------------------------------------------------
+Title: SIPS-Articulation Script V2
+Author: R.D.Villwock aka 'Big Bob'
+First Written: September 27, 2007
+Current Version: 2.05
+Last Modified: July 9, 2008 
+
+This is the KS source code for the SIPS Articulation Script, SAS. This script is
+part of the new V2 series of SIPS. It provides both Articulation and Alternation
+control for the SIPS family. As such, it is intended to be used in the Script Slot
+ahead of the SLS. To obtain the TKT alternation effect, the SAS tags the notes
+to be 'effected' using EP3 to specify the amount of TKT offset to use. The SLS
+does the actual note changing and retuning. The format for EP3 is as follows:
+
+         Fields | TKT Offset | AudGRoup | Rflag | Dflag | SAS_ID |
+         Bits   | 31      15 | 14    14 | 13 13 | 12 12 | 11   0 |
+             
+Where the TKT Offset is a signed integer between +/-4*ZoneSize but is always
+guaranteed to be within the Instrument Range set by the SAS and broadcast to the
+SLS and SVS. AudGroup is a single bit reflecting the current state of the Group
+Audition button. The RT and DFD flags are single bits that denote whether the
+current articulation contains Release and/or 'Inside' (DFD) groups.
+
+*******************************************************************************
+NOTE: To compile this source code, you should use V1.25.6 or higher of Nils
+Liberg's KScript Editor. Use the semi-compact output mode with code optimization
+turned on. This is important because SIPS 2 uses the conditional compilation
+features of the optimization mode to greatly reduce code size. Also, since this
+modularized version of SIPS uses the 'import' feature of the KS Editor, you will
+need the KSM source text files for all the 'External Modules' (in appropriately
+named sub-folders) to recompile this script.
+*******************************************************************************
+External SIPS Modules Needed: In Sub-Folder named 'SIPS Modules'
+  SXM-GSR     General Support Routines for the SIPS suite
+  SXM-SAS     Common SIPS Routines and Data types, Customized for the SAS
+
+Other External Modules Needed: In Sub-Folder named 'Support Modules'
+  ISCS-V215   Inter-Script Communication System
+-------------------------------------------------------------------------------}
+import "Support Modules\ISCS-V215_KSM.txt"
+import "SIPS Modules\SXM-SAS-V205_KSM.txt" 
+import "SIPS Modules\SXM-GSR-V205_KSM.txt" 
+
+on init
+  make_perfview
+                 { Special CCs and IR limits Used by SIPS }
+  declare const AfterTouch := 124 { Proxy CC# for channel pressure }
+  declare const ArtCC := 126      { K2 group-start, Articulation CC }
+  declare const ArtSCC := 127     { Sub articulation CC }
+  declare const MaxNote := 127    { Currently no reserve notes on high end }
+  declare const MinNote := 2      { Reserve MIDI notes 0..1 for special stuff }
+  declare const ModWheel := 1     { Standard MIDI Mod Wheel code }
+  declare const NoArt := 99       { Undefined articulation index }
+  declare const PitchWheel := 128 { KSP CC# for pitch bender wheel }
+  declare const ProgChange := 125 { Proxy CC# for program change }
+  declare const SPedal := 64      { CC# for Sustain pedal }
+  declare const StartAll := 90    { Art.CC value that enables all artic. groups }
+  declare const StartSIPS := 122  { CC used to startup SIPS 2, formerly KSP+ Timer }  
+  declare const TopCC := 119      { SIPS assignable CC range is 0..TopCC }
+  declare const VelCC := 150      { Pseudo CC# used for Velocity control }
+  
+  { ----------------- SIPS ID and Version Parameters ------------------ }
+  declare const SAS_ID := 1000 { ISCS Registered SID for the SAS Script }
+  declare const SLS_ID := 1001 { ISCS Registered SID for the SLS Script }
+  declare const SVS_ID := 1002 { ISCS Registered SID for the SVS Script }
+  declare const V2UP   := 103  { Updater for Version 2 }
+  declare const V200   := 104  { User Preset Format Code for V200 }
+  declare const SID := SAS_ID  { Script ID Code for this Script }
+  declare const PFC := V200    { Preset Format Code for this script }
+  on_init_VerIR  { Default or 'prior' version plus Instrument Range *GSR* } 
+
+  {------------------------- ISCS Interface Block ---------------------------}
+                   { No Omni Messages accepted by SAS }
+                      { Omni Messages sent by SAS }
+  declare const new_inst_range  := 1 { Instrument Range:  EP[0], EP[1] = low, top }
+  declare const new_prefs       := 2 { Updated Preferences in low 16 bits of EP0 }                     
+            {------- No SLS Client Messages sent by SAS-------}
+                         { UserPrefs Bit Masks }
+  declare const NoPedal  := 0x01    { CC64 is controller only, no sustain function }
+  declare const NoMenus  := 0x02    { Disable SAS MIDI Menu control }
+  declare const PC128    := 0x04    { Kybd inputs PC = 1..128 to send 0..127 }
+  declare const 3SecRT   := 0x08    { Play release samples for 3 seconds only }
+  declare const ResetFCR := 0x10    { Reset random seed each new art or var mode }
+  declare const ShowBX   := 0x20    { Display Bank-Index Key State on status line }
+  declare const HideKS   := 0x40    { Hide 'pink' keyswitch display }
+                      { Local Subroutine Indices } 
+  declare const OpenMenu    := 1    { Open MIDI Controller Assignment Menu }
+  declare const UpdatePanel := 2    { Update Control Panel after anything changes }
+  declare const ShowRanges  := 3    { Display Art/Bank KeySwitch & Inst Ranges }
+  declare const SetMKnobs   := 4    { Update MIDI-Controlled knobs }
+  declare const AcceptPrefs := 5    { Update UserPrefs }
+  declare const SetAttr     := 6    { Scan Groups, set & verify Art attributes array }
+  declare const ChangeGS    := 7    { Routine to change Group Start parameters }
+  declare const CheckGroups := 8    { Groups selected follow all the rules }
+  declare const CheckClass  := 9    { No Articulation Classification problems }
+  declare const UpdateKS    := 10   { Update the group-starts for the Key Switches }
+                        { No Local Task Indices }
+  
+  on_init_ISCS(SAS_ID,1,0)  { Generate ISCS data, use 'startup', no tasks *ISCS* }  
+  {--------------------- End of ISCS Interface Block ------------------------} 
+
+                      { Miscellaneous Constants }
+  declare const MaxChain := 16      { Max #of groups per articulation chain }
+  declare const Fixed := 31         { Class code for Fixed Groups (ie non Chain) }
+  declare const NoID := 0           { Impossible ID }
+  declare const false := 0          { Boolean False }
+  declare const true := 1           { Boolean True } 
+  
+  { ---------------------- String Stuff ------------------------ }
+  declare @Tab10
+    Tab10 := '          '    { 10 Blanks }  
+
+  declare @AllGroups         { Group Assignment messages }
+    AllGroups := 'All selected Groups have been assigned to Articulation '
+  declare @ArtIsChain
+    ArtIsChain := 'Articulation already assigned as a Chain'
+  declare @NoNormalYet
+    NoNormalYet := 'Normal groups not assigned yet'
+    
+  declare @ArtInfoCap1       { First-line note monitor display, Play mode }
+    ArtInfoCap1 := ' Note  Articulation  Var#   TKT Offset'
+  declare @ArtInfoCap2       { First-line note monitor display, Setup mode }    
+    ArtInfoCap2 := ' Note   Art/Group   Var#   TKT Offset'
+  declare @LowCap            { Caption for low key in IR }
+    LowCap := ' Low Key: '
+  declare @LowKey            { String version of LowIR }
+  declare @ShowNoteCap1
+  declare @ShowNoteCap2 
+  declare @TopCap            { Caption for high key in IR }
+    TopCap := ' High Key: '
+  declare @TopKey            { String version of TopIR } 
+
+  { ------------------- String Array Constants --------------------- }
+  on_init_CCNames    { Allocate and intialize MIDI CC menu names, *GSR* }
+  on_init_ScaleTones { Allocate and initialize the Scale Tone array, *GSR* }
+  on_init_MCMenu     { Build MIDI Controller Menu, *GSR* } 
+  
+  on_init_MBtns             { Declare MIDI CC Buttons *SAS* }
+  on_init_general_controls  { Declare the general controls *SAS* }  
+
+  { ----------------------------- Families ------------------------------}
+  family asp           { Assignment parameters }
+    declare artx       { Articulation index }
+    declare checked    { Total groups checked }
+    declare gx         { Loop index for Group }
+    declare @Msg       { Error or Info message text }
+    declare Op         { 1 = Fixed, 2 = Chain, 3 = Series }
+    declare sx         { Sub-articulation index }
+    declare type       { Assignment type: 0 = Normal, 1 = DFD, 2 = RT }
+    declare warn       { Msg flag, Caution = 1 or Error = 2, OK = 0 }
+  end family { asp }
+  
+  family Art  { Articulation Control parameters }
+    declare ArtX  { Decimal articulation code for Audition or Played note }
+    declare Attr[234] := (0) { Attributes of each articulation, 2-dimensional } 
+    { Index = (ArtX-11)*3+type where 0 = Norm type, 1 = DFD type, 2 = RT type }    
+    declare DFD   { Chain length for DFD groups, 31 = Fixed, 0 = none }
+    declare Dflag { Flag, Current note has DFD group(s) }
+    declare GX    { Group index to be Auditioned }
+    declare Norm  { Chain length for RT groups, 31 = Fixed, 0 = art not assigned }
+    declare Play := 11  { Last articulation used in Play mode, default to 1-1 }
+    declare Rflag { Flag, Current note has RT group(s) }
+    declare RT    { Chain length for RT groups, 31 = Fixed, 0 = none }
+    declare Var[78] := (0) { Attached Variation Parameters }
+    declare VParms  { Packed Variation Parameters }
+  end family { Art }
+
+  family KSR  { Keyswitch Ranges. 0 = KR1 = Art, 1 = KR2 = Bank }
+    declare OK[2] := (1)        { Flags, Valid Range is set }
+    declare Root[2] := (21,29)  { Root keys for Ranges, A-1..E0 Art }
+    declare Top[2] := (28,33)   { Top keys for Ranges,  F0..A0 Bank }
+    declare BankKey := 1        { Active Keyswitch Bank key offset }
+    declare ArtKey := 0         { Active Keyswitch Art key offset }
+    declare State    { State of Range setting sequence, 0 = idle }
+    { 1 = Enter Root key for Art, 2 = Enter Root key for Bank, }
+    { 3 = Enter Top Key for Bank }
+  end family { KSR }  
+ 
+  family Var  { Auto Variation control parameters }
+    declare AChn  { Auto Chain index }
+    declare ATKT  { Auto TKT index }
+    declare ATrig { Auto variations trigger flag }
+    declare Fold  { >0 if TKT offset is out of bounds, 1 = reflected, 2 = clamped }
+    declare KVar  { Key-selected variation index }
+    declare Note2 { Older of last 2 notes }
+    declare Note3 { Older of last 3 notes }
+    declare Seed  { Random Generator Seed }
+    declare TKT   { TKT offset in semitones to use for played note }
+    declare VTrig := true  { Auto-variation Trigger CC switch flag }
+    declare XChn  { Chain index for current note, or 31 if art is fixed }     
+    declare XTKT  { Current TKT Variation Index }
+    declare ChnMap[16] { Current Chx-1 sequence from 0 up to Art.Norm - 1 }
+    declare TKTMap[9]  { Current XVar sequence from 0 up to MaxVars }
+  end family { Var }
+  
+ { -------------------------- General Variables ------------------------- }
+  declare LastCC := NoCC  { Last CC moved }
+  declare NCCV[129]       { Normalized value of CC triggering the CCB, thread-safe }  
+  declare RandSeed        { Initial Random Seed }
+  declare Redraw          { Flag read by UpdatePanel }
+  declare SLSFlags        { AudGroup, Rflag, and Dflag sent to SLS via EP3 }
+  declare UserPrefs       { Current settings of User Preferences, in low 16 bits }
+
+  { ------------------------ Arrays -------------------------- }
+  declare PMap[36]    { Current Control Panel layout map }
+  declare ZMap[9] := (0, 1,-1, 2,-2, 3,-3, 4,-4) { TKT index to zone offset mapping }
+   
+  { ------------------- Standard, Rename, and Prefs Panels ------------------ }  
+  on_init_Std_PanelMap      { Build the Standard Panel Map, *SAS* }
+  on_init_Setup_PanelMap    { Build the Setup Panel Map, *SAS* }
+  on_init_PrefPanel         { Build & initialize the Preferences panel, *SAS* } 
+
+  on_init_aliases           { Shorthand aliases for group start engine parameters } 
+  
+  make_persistent(LowIR)    { Range variables }
+  make_persistent(TopIR)
+  make_persistent(KSR.OK)
+  make_persistent(KSR.Root)
+  make_persistent(KSR.Top)
+  
+  make_persistent(Art.Play)
+  make_persistent(Art.Var)
+  make_persistent(KSR.BankKey)
+  make_persistent(KSR.ArtKey)
+  make_persistent(Var.KVar)
+  make_persistent(ArtMode)  { Play-Panel Controls }
+  make_persistent(MaxVars)
+  make_persistent(SASMode)
+  make_persistent(TrigMode)
+  make_persistent(VarMode)
+  make_persistent(VarType)
+  make_persistent(ZoneSize)
+
+  make_persistent(MBtn.CC)      { Array of assigned CCs }
+  make_persistent(MBtn.CCV)     { Last value of assigned CCs }
+  make_persistent(MBtn.State)   { Array of Button states }  
+  make_persistent(Version)      { Version info array }
+  
+  make_persistent(Pref.Switch)  { Preferences Panel Dip Switches }
+  make_persistent(Pref.ISwitch) { Images of the Dip Switches }  
+
+  on_init_BigLabel   { Prompting Panel that precedes standard panel *GSR* }
+  Update_Format      { If version upgrade, re-format presets, *SAS* }
+  WriteMsg(15)       { Show Prompter to move CC or Advise of a Failure }
+  Art.ArtX := 11     { Default articulation }
+  Var.Seed := ENGINE_UPTIME   { Arbitrary starting Seed for Rand function }
+  message('')        { Clear K2's status area } 
+end on { init }
+
+on note
+  ISCS_NCB(MsgHandler,OmniHandler)
+  if SASMode = SAS_Off or Setup = ChgPrefs
+    exit                    { Bypass the rest of the NCB }
+  end if
+  if KSR.State > 0 and in_range(EVENT_NOTE,MinNote,MaxNote)
+    ignore_event(EVENT_ID)  { This is a range setting note }
+    KSR.KeyIn(EVENT_NOTE)   { Deal with it accordingly }
+    exit
+  end if
+  if in_range(EVENT_NOTE,LowIR,TopIR)
+    if Setup = AudSetup and AudGroup = true { User is auditioning a group }
+      SLSFlags := 0x4           { Set AudGroup on, assume Rflag & Dflag off }
+      disallow_group(ALL_GROUPS)
+      allow_group(Art.GX)       { Enable only the selected Group to sound }
+      SetAudTKT                 { Set TKT index based on Setup panel settings }
+    else { Play mode or audition articulation }
+      NextSubArt    { Advance through Group Chain/TKT if appropriate }
+      SLSFlags := 0             { AudGroup off, assume Rflag & Dflag off }
+      if Art.Norm # 0           { Rflag and/or Dflag may be set }
+        SLSFlags := Art.Rflag*2 + Art.Dflag { Copy them for SLS }
+      end if
+    end if
+    TKTOfst    { Compute allowable TKT offset for current index }
+    { Tag EP3 with TKT Offset; AudGroup,Rflag,Dflag; and SAS_ID }
+    set_event_par(EVENT_ID,3,sh_left(Var.TKT,15) + sh_left(SLSFlags,12) + SAS_ID)
+    ShowNoteInfo  { Display Monitoring Info }
+    Var.Note3 := Var.Note2   { Update note history for variation triggering modes }
+    Var.Note2 := EVENT_NOTE    
+  else  { Outside of IR, could be a keyswitch }
+    KeySwitch(EVENT_NOTE) { If so, process it }
+  end if
+end on { note }
+
+on release
+  ISCS_RCB(NOP,CallHandler,TaskHandler) 
+end on { release }
+
+on controller
+  ISCS_CCB(Startup)  { Run extended ICB function after first CC event }
+  if CC_NUM = ArtCC or CC_NUM = ArtSCC
+    ignore_controller   { Discard any 'outside' CC126/CC127 events }
+    exit
+  end if
+  if CC_NUM = PitchWheel  { Normalize the current CC value in NCCV }
+    NCCV[CC_NUM] := abs(CC[PitchWheel])*127/8191  { Map PW to 0..127 range }
+  else
+    NCCV[CC_NUM] := CC[CC_NUM]
+    if CC_NUM <= TopCC    { If in valid CC range 0..119 }
+      LastCC := CC_NUM    { Remember for 'Last Moved' menu option }
+    end if    
+  end if  
+  if CC_NUM = MBtn.CC[mMode]  { Check for possible Mode change request }
+    SetSASMode(CC[CC_NUM])    { Set requested SAS Mode }
+    exit
+  end if 
+  if SASMode = SAS_Off  { SAS is disabled }
+    exit                { Bypass the rest of the CCB }
+  end if
+  Call(SetMKnobs,cp2(CC_NUM,NCCV[CC_NUM]),none)  { Update btn & any associated knob }
+  if CC_NUM = ProgChange
+    ProcessArtChange    { Articulation or Menu Change Requested }
+    exit
+  end if  
+  if CC_NUM = MBtn.CC[mVTrig]  { Set Variation Trigger CC switch }
+    Var.VTrig := sh_right(MBtn.CCV[mVTrig],6)
+    ShowFootSw          { Show current status of FootSw MC }
+  end if
+end on { controller }
+
+on ui_update
+  Art.GX := REF_GROUP_IDX
+  XSwitch  { Force group-start for groups 0/1 to crosswitch }
+end on { ui_update }
+
+on ui_control (ArtSel)
+  Call(UpdatePanel,none,none)  
+end on { ArtSel Knob }
+
+on ui_control (Assign)  
+  AudArt := false      { Force to Group Audition mode, thus requiring overt press of  }
+  AudGroup := true     {  AudArt button before new articulation can be auditioned     }
+  Call(UpdatePanel,none,none)
+  if Assign # NoAssign
+    DoAssign           { Execute selected assignment command }
+  end if
+  Assign := NoAssign   { Restore Menu Header Display }
+end on { Assign Menu }
+
+on ui_control (AttachVar) { Attach/Sever variation parms to/from articulation }
+  select AttachVar
+    case atAttach    { Attach current Variation parms to articulation }
+      PackVar(Art.VParms)
+      Art.Var[Art.ArtX-11] := Art.VParms
+    case atRemove    { Sever Variation parms from articulation }
+      Art.Var[Art.ArtX-11] := 0
+    case atClearAll  { Sever Variations from all articulations }
+      for asp.gx := 0 to 77
+        Art.Var[asp.gx] := 0  { Clear all attached variations }
+      end for     
+  end select 
+  AttachVar := NoAttach
+end on { Attach Menu }
+
+on ui_control (AudArt)
+  AudGroup := true - AudArt
+  Call(UpdatePanel,none,none)
+end on { AudArt Btn }
+
+on ui_control (AudGroup)
+  AudArt := true - AudGroup
+  Call(UpdatePanel,none,none)
+end on { AudGroup Btn }
+
+on ui_control (AutoVar)
+  ManVar := true - AutoVar
+end on { AutoVar Btn }
+
+on ui_control (ManVar)
+  AutoVar := true - ManVar
+end on { ManVar Btn }
+
+on ui_control (MaxVars)
+  Call(UpdatePanel,none,none)
+end on { Variations Menu }
+
+on ui_control (MBtn.Mode)   { Assign Mode MC }
+  SetCC(mMode)
+end on { SLSMode MC Btn }                     
+
+on ui_control (MBtn.VTrig)  { Assign VTrig MC }
+  SetCC(mVTrig) 
+end on { VTrig MC Btn }
+
+on ui_control (MCMenu) { Menu for MIDI Controller assignments }
+  if MCMenu = UseLastCC
+    MCMenu := LastCC   { Replace with last CC# moved }
+  end if
+  MBtn.Actv := false   { Finish BtnMenu routine }
+end on { MCMenu }
+
+on ui_control (Monitor)
+  Monitor := Monitor  { So it won't wash-out with white on orange }
+  if Monitor = false
+    set_text(ArtBox,'')
+  end if
+end on { Monitor On/Off Btn }
+
+on ui_control (Pref.ABtn)
+  Pref.ABtn := false
+  Setup := PlayMode
+  Call(AcceptPrefs,none,none)  { Accept & broadcast DIP Switch settings }
+  Call(UpdateKS,none,none)  
+  Redraw := true
+  Call(UpdatePanel,none,none)  { Re-Display Standard Panel Again }
+  StatMsg := 'Preferences Accepted'
+  BlinkStatMsg(2)
+end on { Accept Btn } 
+
+on ui_control (Pref.CBtn)
+  Pref.CBtn := 0
+  UpdtDips(UserPrefs)          { Put DIPs back the way they were }
+end on { Cancel Changes Btn }
+
+on ui_control (Pref.Switch)
+  Pref.ScanSwitches
+end on { Preference Switch array } 
+
+on ui_control (SetIR)    { Start/Cancel Inst Range entry }
+  if SetIR = true and SASMode # SAS_OFF
+    SetKR1 := false
+    set_text(SetKR1,SetKR1Cap[0])
+    SetKR2 := false
+    set_text(SetKR2,SetKR2Cap[0])
+  else
+    SetIR := false
+  end if
+  set_text(SetIR,SetIRCap[SetIR]) { Prompt/Idle caption }  
+  KSR.State := 4*SetIR  { State = 4 to start entry, 0 = Cancel entry }
+end on { SetIR Button }
+
+on ui_control (SetKR1)  { Start/Cancel Art/Var root entry }
+  if SetKR1 = true and SASMode # SAS_OFF
+    SetKR2 := false
+    set_text(SetKR2,SetKR2Cap[0])
+    SetIR := false
+    set_text(SetIR,SetIRCap[0])
+  else
+    SetKR1 := false
+  end if
+  set_text(SetKR1,SetKR1Cap[SetKR1])  { Prompt/Idle caption }  
+  KSR.State := SetKR1 { State = 1 to start entry, 0 = Cancel entry }  
+end on { SetKR1 Btn }
+
+on ui_control (SetKR2) { Start/Cancel Bank Range entry }
+  if SetKR2 = true and SASMode # SAS_OFF
+    SetKR1 :=0
+    set_text(SetKR1,SetKR1Cap[0])
+    SetIR := 0
+    set_text(SetIR,SetIRCap[0])
+  else
+    SetKR2 := false
+  end if
+  set_text(SetKR2,SetKR2Cap[SetKR2])  { Prompt/Idle caption }  
+  KSR.State := 2*SetKR2 { State = 2 to start entry, 0 = Cancel entry }      
+end on { SetKR2 Btn }
+
+on ui_control (Setup)  { Change Panel Display }
+  Redraw := true
+  Call(UpdatePanel,none,none)
+end on { Setup Menu }
+
+on ui_control (TrigMode)
+  Call(UpdatePanel,none,none)
+end on { Trigger Mode menu }
+
+on ui_control (VarMode) 
+  Call(UpdatePanel,none,none)
+end on { Variations Mode Menu }
+
+on ui_control (VarType) 
+  Call(UpdatePanel,none,none)
+end on { Variation Type Menu }
+
+{ ------------------------ ISCS Handlers ---------------------- }
+function CallHandler(fn)  { SLS subroutine dispatcher }
+  select fn
+    case SetMKnobs
+      SetMKnobs_(InParm[0],InParm[1])    
+    case OpenMenu
+      OpenMenu_(InParm[0],OutParm[0]) 
+    case ShowRanges
+      ShowRanges_   
+    case UpdatePanel
+      UpdatePanel_
+    case AcceptPrefs
+      AcceptPrefs_ 
+    case SetAttr
+      SetAttr_
+    case CheckGroups
+      CheckGroups_
+    case CheckClass
+      CheckClass_
+    case ChangeGS
+      ChangeGS_
+    case UpdateKS
+      while PLAYED_VOICES_INST # 0
+        note_off(ALL_EVENTS)       { Kill any new sounding notes }
+        SWait(100)                 {  before altering GS parms   }
+      end while 
+      UpdateKS_    
+  end select
+end function { CallHandler }
+
+function MsgHandler(sender,msgtype,reply)
+  { Not used }
+end function { MsgHandler }
+
+function OmniHandler(sender,msgtype)
+ { Not Used }
+end function { OmniHandler }
+
+function TaskHandler(fn)
+  { No local tasks }
+end function { TaskHandler }
+
+{---------------------- General Support Routines ----------------------}
+function AddArt(str)  { Append Articulation in Bank-Index Format }
+  declare bx
+  declare ax
+
+  bx := Art.ArtX/10          { Convert mapped index to b-a form }
+  ax := Art.ArtX mod 10
+  if bx = 1                  { Pre-pad a leading 1 }
+    str := str & ' '
+  end if
+  str := str & bx & '-' & ax
+  if ax = 1
+    str := str & ' '         { Post-pad a trailing 1 }
+  end if
+end function { AddArt }
+
+function AddGroup(str)   { Append Group Index or 'None' if GX < 0 }
+  if Art.GX < 10
+    str := str & '  ' & Art.GX & '  '
+  else if Art.GX < 100
+    str := str & ' ' & Art.GX & '  '
+  else if Art.GX < 1000
+    str := str & ' ' & Art.GX & ' '
+  else
+    str := str & Art.GX & ' '
+  end if
+end function { AddGroup }
+
+function AutoSubArt { Deliver the 'next' auto sub-art according to mode settings }
+  AutoTrigger              { Determine if trigger conditions have been met }
+  if Var.ATrig = true      { If so, deliver the next sub-art }
+    if Art.Norm = Fixed
+      NextTKT              { For Fixed articulations, just send the next TKT }
+    else { Chain articulation }
+      select VarType    { For Chain articulations, determine the selected mode }
+        case vtChnOnly  { Chain Only Mode }
+          NextChain     { Enable the 'next' group in the chain }
+          Var.XTKT := 0 { Use no TKT offset }
+        case vtChn_TKT  { Chain then TKT Mode }
+          NextChain     { Enable the 'next' group in the chain with current TKT }
+          if Var.AChn = 0
+            NextTKT     { For each complete chain cycle, advance the TKT }
+          end if
+        case vtTKT_Chn  { TKT then Chain Mode }
+          NextTKT       { Enable the 'next' TKT variation for the current chain group }
+          if Var.ATKT = 0
+            NextChain   { For each complete TKT cycle, advance to the next Chain Group }
+          end if
+      end select
+    end if
+  else  { Trigger conditions not satisfied }
+    Var.XTKT := 0          { Reset to base TKT = 0 }
+    if Art.Norm # Fixed
+      Var.XChn := 1        { Reset to base chain position }
+    end if
+  end if
+end function { AutoSubArt }
+
+function AutoTrigger { Set ATrig flag if auto trigger conditions have been satisfied }
+  Var.ATrig := false     { Assume no trigger }
+  if Var.VTrig = true    { If foot switch is enabled (or not used) }
+    if TrigMode = tmAlways or (EVENT_NOTE = Var.Note2 and TrigMode # tmNever) ...
+                   or (EVENT_NOTE = Var.Note3 and TrigMode = tmMatch3) 
+      Var.ATrig := true  { Set ATrig flag if conditions are correct }
+    end if
+  end if
+end function { AutoTrigger }
+
+function CheckRanges { Verify that Bank-Index Keyswitch ranges and IR do not overlap }
+  declare Valid
+  declare range
+  
+  Valid := true            { Assume all is well }
+  if KSR.OK[1] = true      { KR2 (Bank range) exists }
+    if KSR.OK[0] = false   { KR1 doesn't exist }
+      KSR.Root[0] := KSR.Root[1] - 8  { See if KR1 will fit below KR2 }
+      if KSR.Root[0] < MinNote        { Too low }
+        Valid := false                { Ranges are no good }
+      else { will fits below KR2 }
+        KSR.Top[0] := KSR.Root[0] + 7 { Create KR1 }
+        KSR.OK[0] := true
+      end if
+    end if
+  else { KR2 (Bank range) not defined }
+    if KSR.OK[0] = false
+      Valid := false    { Neither KR1 or KR2 exist, we're done }
+    else { KR1 exists }
+      KSR.Root[1] := KSR.Top[0] + 1 { See if min KR2 will fit above KR1 }
+      if KSR.Root[1] > MaxNote      { Too high }
+        Valid := false              { Ranges are no good }
+      else { KR2 will fit above KR1 }
+        KSR.Top[1] := KSR.Root[1]   { Create Minimum DR2 }
+        KSR.OK[1] := true
+      end if
+    end if
+  end if
+  if Valid = true  { We have all three ranges, no check for overlap problems }
+    range := KSR.Top[1] - KSR.Root[1]    
+    if in_range(KSR.Root[0],KSR.Root[1] - 7,KSR.Top[1]) or ...
+       in_range(KSR.Root[0],LowIR - 7,TopIR) or  ...
+       in_range(KSR.Root[1],LowIR - range,TopIR)
+         Valid := false  { One or more overlaps detected, ranges are no good }
+    end if
+  end if
+  if Valid = false       { Didn't pass muster }
+    KSR.OK[0] := false   { De-assign both Bank & Index ranges }
+    KSR.OK[1] := false
+    if KSR.State = 3     { If Bank setting was half finsished, wrap it up }
+      KSR.State := 0
+    end if
+    SetKR1 := false      { Put everything back to 'idle' }
+    SetKR2 := false
+    set_text(SetKR1,SetKR1Cap[0])
+    set_text(SetKR2,SetKR2Cap[0])
+  end if
+end function { CheckRanges }
+
+function FillMap(map,max)  { Re-fill the sequencer Mapping array }
+  declare i
+  
+  for i := 0 to max
+    map[i] := max - i
+  end for
+end function { FillMap }
+
+function InzChain { Initialize the Chain shuffle parameters }
+  if VarMode = vmAutoFCR           { If in full-cycle-random mode,   }
+    FillMap(Var.ChnMap,Art.Norm-1) {  initialize Chain shuffle array }
+    Var.AChn := Art.Norm - 1       { Set auto Chn index to pre-wrap  }
+  else { Round Robin }
+    Var.AChn := 0                  { Set auto Chn index to 1 }
+  end if
+end function { InzChain }
+
+function InzMode  { Initialize variation parms if in auto mode }
+  if VarMode # vmKeys     { Auto RR or Auto FCR mode active }
+    if Art.Norm = Fixed
+      Var.XChn := Fixed   { For Fixed art, set Chn index to Fixed }
+    else { Art Class is Chain }
+      InzChain   { Initialize chain shuffle array and AChn index to pre-wrap point }
+    end if
+    InzTKT       { Initialize TKT shuffle array and ATKT to pre-wrap point }
+  end if
+end function { InzMode }
+
+function InzTKT  { Initialize the TKT shuffle parameters }
+  if VarMode = vmAutoFCR          { If in Full-Cycle-Random mode,  }
+    FillMap(Var.TKTMap,MaxVars)   {  initialize TKT shuffle array  }
+    Var.ATKT := MaxVars           { Set auto-index to pre-wrap }
+  else { Round Robin }
+    Var.ATKT := 0                 { Set auto-index to base }
+  end if
+end function { InzTKT }
+
+function KeySwitch(kn)  { Process Keyswitch if keynote is in valid range }
+  if KSR.OK[0] = true and KSR.OK[1] = true and Setup = PlayMode and ...
+    (in_range(kn,KSR.Root[1],KSR.Top[1]) or in_range(kn,KSR.Root[0],KSR.Top[0]))
+    ignore_event(EVENT_ID) { Don't let this produce a 'real' K2 keyswitch }
+    if in_range(kn,KSR.Root[1],KSR.Top[1])  { Bank Key }
+      KSR.BankKey := kn - KSR.Root[1]  { Update current KS Bank key offset }
+      Var.KVar := 0                    { Reset KS TKT variation index }
+    else { Not a Bank Key, must be Art# Key }
+      if KSR.BankKey = 0  { If current Bank is the TKT Bank }
+        Var.KVar := kn - KSR.Root[0] + 1    { Update KVar as 1..8 }
+      else { Current Bank is an Articulation Bank }
+        KSR.ArtKey := kn - KSR.Root[0]      { Update KS Art key offset }
+      end if
+    end if
+    if KSR.BankKey # 0 and ArtMode # amPC
+      Art.Play := KSR.BankKey*10 + KSR.ArtKey + 1  { Set ArtX per KSw }
+    end if
+    Call(UpdatePanel,none,none)  { Pickup new articulation }
+  end if
+end function { KeySwitch }
+
+function KSR.KeyIn(key)  { Process key hit for setting ranges }
+  select KSR.State
+    case 1
+      SetArtRange(key)   { Enter Root key for Art/Var keygroup }
+    case 2
+      SetBankRoot(key)   { Enter Root key for Bank keygroup}
+    case 3
+      SetBankTop(key)    { Enter Top key for Bank keygroup }
+    case 4
+      SetLoIR(key)
+    case 5
+      SetTopIR(key)      
+  end select
+  Send_IR                  { Broadcast the Instrument Range }
+  CheckRanges              { Verify that Key Ranges and IR do not conflict }
+  Call(ShowRanges,none,none)  
+  note_off(ALL_EVENTS)     { Lift any stuck K2 Kybd keys }
+  Call(UpdateKS,none,none) { Update KS extension to GS }
+end function { KSR.KeyIn }
+
+function ManSubArt  { Choose sub-articulation/variation based on keyswitches }
+  if Art.Norm = Fixed    { Articulation is Fixed Class }
+    Var.XChn := Fixed    { There is no group chain }
+    Var.XTKT := Var.KVar { Set TKT index to Keyswitch }
+  else  { Articulation is Chain Class }
+    select VarType
+      case vtChnOnly   { Chain Only Mode }
+        Var.XChn := Var.KVar + 1   { Choose group in chain per Keyswitch }
+        Var.XTKT := 0              { Use no TKT variations }
+      case vtChn_TKT   { Chain + TKT Mode }
+        if Var.KVar < 5
+          Var.XChn := Var.KVar + 1 { Choose 1st 4 groups in chain with 1st 4 Keyswitches }
+          Var.XTKT := 0            { Use no TKT variations for first four keys   }
+        else
+          Var.XTKT := Var.KVar - 4 { Choose 1st 4 TKT vars with the 2nd 4 keyswitches }
+          Var.XChn := 1            { Use only the first chain group for 2nd four keys  }        
+        end if
+      case vtTKT_Chn   { TKT + Chain Mode }
+        if Var.KVar < 5
+          Var.XTKT := Var.KVar     { Choose 1st 4 TKT vars with the 1st 4 keyswitches }
+          Var.XChn := 1            { Use only the 1st chain group for the 1st 4 keys }
+        else
+          Var.XChn := Var.KVar - 3 { Choose 1st 4 groups in chain with the 2nd 4 keys }
+          Var.XTKT := 0            { Use no TKT vars for the last four keys }
+        end if
+    end select
+  end if
+end function { ManSubArt }
+
+function MenuChange(px)  { Process possible Menu Change command }
+  if UserPrefs .and. NoMenus = 0 and px > 99
+    select px     { If valid pn code, change corresponding menu }
+      case amKeys to amBoth
+        ArtMode := px
+      case tmNever to tmAlways
+        TrigMode := px
+      case vmAutoFCR to vmKeys
+        VarMode := px
+      case mv2 to mv8
+        MaxVars := (px - 114)*2
+    end select
+  end if
+end function { MenuChange }
+
+function NewArt { Establish initial conditions for a new articulation, ArtX }
+  declare ax
+  declare vx
+  
+  set_controller(ArtCC,Art.ArtX)    { Send new articulation index via ArtCC } 
+  Var.XTKT := 0               { Assume articulation is not assigned or is a }
+  Var.XChn := 0               {  Ghost and set TKT/Chn indices accordingly  }
+  vx := Art.ArtX - 11         { Variation parms index }
+  if Art.ArtX > 88            { Ghost bank }
+    Art.Norm := 0             { Non-playable articulation }
+  else  { 11..88 }
+    ax := 3*vx                { Attributes base address }
+    Art.Norm := Art.Attr[ax]  { Read the Normal Class }
+  end if
+  if Art.Norm > 0 { Assumption was wrong, articulation is assigned }
+    if Art.Var[vx] < 0        { If new Articulation has an attached Variation, }
+      UnpackVar(Art.Var[vx])  {  recall the associated variation parameters    }
+    end if  
+    InzMode       { If in auto mode, initialize variation stuff }
+    Art.DFD := Art.Attr[ax+1] { Read DFD Class code }
+    Art.RT := Art.Attr[ax+2]  { Read RT Class code }
+    SetFlags      { Set Dflag/Rflag accordingly }
+  end if
+  Var.Note3 := 0  { Reset Match in 2,3 history }
+  Var.Note2 := 0
+  if UserPrefs .and. ResetFCR # 0
+    ResetRand     { Reset random generator if user pref selected }
+  end if
+end function { NewArt }
+
+function NextChain  { Advance the current XChn index per the Auto mode that's active }
+  Var.AChn := (Var.AChn + 1) mod (Art.Norm)  { Advance Auto Chn index }
+  if VarMode = vmAutoFCR
+    if Var.AChn = 0
+      Shuffle(Var.ChnMap,Art.Norm-1)     { After each FCR cycle, reshuffle the map array } 
+    end if
+    Var.XChn := Var.ChnMap[Var.AChn] + 1 { In FCR, use auto index to access mapped array } 
+  else
+    Var.XChn := Var.AChn + 1             { Use auto Chn index itself }
+  end if
+end function { NextChain }
+
+function NextSubArt  { Set the Keyswitch-selected or Auto selected sub-art }
+  if Art.Norm > 0    { If articulation is assigned }
+    if VarMode = vmKeys
+      ManSubArt      { Choose the variation per the Var Keyswitch } 
+    else
+      AutoSubArt     { Choose variation per the active auto mode }
+    end if
+    SetFlags         { Set DFD/RT flags before sending them to SLS }
+  end if
+  set_controller(ArtSCC,Var.XChn)  { Send the sub-articulation CC index }
+end function { NextSubArt }
+
+function NextTKT { Advance the current XTKT index per the Auto mode that's active }
+  Var.ATKT := (Var.ATKT + 1) mod (MaxVars + 1)  { Advance Auto TKT index }
+  if VarMode = vmAutoFCR  
+    if Var.ATKT = 0
+      Shuffle(Var.TKTMap,MaxVars)     { After each FCR cycle, reshuffle the map array }     
+    end if
+    Var.XTKT := Var.TKTMap[Var.ATKT]  { In FCR, use auto index to access mapped array } 
+  else { Round Robin Mode }
+    Var.XTKT := Var.ATKT              { Use auto TKT index itself }
+  end if
+end function { NextTKT }
+
+function PackVar(X)  { Encodes variation control settings as X and turns on sign bit }
+  X := sh_left(sh_left(ZoneSize,3)+sh_right(MaxVars,1),3)+TrigMode-110
+  X := sh_left(sh_left(X,3)+VarType-123,3)+VarMode-120 .or. 0x80000000 
+end function { PackVar }
+
+function ProcessArtChange { Process Articulation Change request }
+  declare bx
+  declare ax
+  declare pn
+  
+  if Setup = PlayMode
+    pn := CC[ProgChange]  { MIDI Program Number }
+    if UserPrefs .and. PC128 # 0 
+      inc(pn) { pn sent by kybd is smaller by 1 than entered number }
+    end if
+    if ArtMode # amKeys and in_range(pn,11,99)  { Accept pn for articulation change }
+      ax := pn mod 10 
+      if in_range(ax,1,8)   { Check validity of pn, if not just ignore }
+        bx := pn/10
+        if in_range(bx,1,9) { Include 'Ghost' bank, 91..98 }
+          Art.Play := pn    { Set corresponding articulation index }
+          Call(UpdatePanel,none,none) { Pickup new articulation }       
+        end if
+      end if
+    else { pn >= 100, Might be a Menu change request }
+      MenuChange(pn)
+    end if
+  end if
+end function { ProcessArtChange }
+
+function Rand(min,max,X) { X = new random value: min <= X <= max } 
+  Var.Seed := 8088405*Var.Seed + 1
+  X := (sh_right(Var.Seed,8) .and. 0xFFFFFF) mod (max - min + 1) + min
+end function { Rand }
+
+function ResetRand
+  Var.Seed := 1107155288
+end function { ResetRand }
+
+function Send_IR  { Broadcast Instrument Range to rest of the suite }
+  SendOmniMsg(new_inst_range,od2(LowIR,TopIR))
+end function { Send_IR }
+
+function SetArtRange(key)  { Setting a new Articulation Keyswitch range }
+  KSR.OK[0] := true      { Assume it's good until CheckRanges }
+  KSR.Root[0] := key
+  KSR.Top[0] := key + 7
+  SetKR1 := false        { End of setup }
+  set_text(SetKR1,SetKR1Cap[0])
+  KSR.State := 0
+end function { SetArtRange }
+
+function SetAudTKT   { Select TKT index for Audition }
+  if AutoVar = true  { If auto-increment is active }
+    if EVENT_NOTE = Var.Note2  { Increment knob on repeated notes }
+      VarSel := (VarSel + 1) mod 9  { Cycle 0..8, 0..8, etc }
+    else { New note }
+      VarSel := 0    { Reset knob to zero }
+    end if
+  end if
+  Var.XTKT := VarSel { Copy knob to TKT index }
+end function { SetAudVar }
+
+function SetBankRoot(key)  { Start a new Bank range entry }
+  KSR.Root[1] := key  { Set both low and top to first key hit }
+  KSR.Top[1] := key
+  KSR.OK[1] := true   { Assume range will be OK until CheckRanges }
+  set_text(SetKR2,SetKR2Cap[2])
+  KSR.State := 3      { Prepare to receive the top key }
+end function { SetBankRoot }
+
+function SetBankTop(key) { Complete a new Bank range entry }
+  if key < KSR.Root[1]   { If min > max, reverse the values }
+    KSR.Top[1] := KSR.Root[1]
+    KSR.Root[1] := key   { Make it right }    
+  else
+    KSR.Top[1] := key
+  end if
+  SetKR2 := false        { Terminate range entry }
+  if KSR.Top[1] > KSR.Root[1] + 9
+    KSR.Top[1] := KSR.Root[1] + 9 { Clamp to Max Bank Range }
+  end if
+  set_text(SetKR2,SetKR2Cap[0])
+  KSR.State := 0
+end function { SetBankTop }
+
+function SetBoxText(bx,txt1,txt2) { Display two text lines for KRBox bx }
+  select bx
+    case 0
+      set_text(KRBox1,txt1)
+      add_text_line(KRBox1,txt2)
+    case 1
+      set_text(KRBox2,txt1)
+      add_text_line(KRBox2,txt2)
+  end select
+end function { SetBoxText }
+
+function SetFlags
+  Art.Dflag := 1
+  Art.Rflag := 1
+  if Var.XChn > Art.DFD 
+    Art.Dflag := 0
+  end if
+  if Var.XChn > Art.RT
+    Art.Rflag := 0
+  end if
+end function { SetFlags }
+
+function SetLoIR(key)  { Accept low key of Instrument Range }
+  LowIR := key
+  set_text(SetIR,SetIRCap[2])
+  KSR.State := 5       { Prepare to receive the top key next }
+end function { SetLoIR }
+
+function SetTopIR(key) { Accept Top key of instrument range }
+  if key < LowIR       { Range was entered backwards? }
+    TopIR := LowIR     { Reverse the limits }
+    LowIR := key
+  else
+    TopIR := key  
+  end if 
+  SetIR := false       { Terminate range entry }
+  set_text(SetIR,SetIRCap[0])
+  KSR.State := 0 
+end function { SetTopIR }
+
+function ShowKeyState  { Display Bank-Index key Status }
+  declare @state
+
+  state := 'artic = ' & Art.ArtX/10 & '-' & Art.ArtX mod 10 & '   KSw = '
+  if KSR.BankKey = 0
+    state := state & KSR.BankKey & '-' & Var.KVar
+  else
+    state := state & KSR.BankKey & '-' & KSR.ArtKey+1
+  end if
+  message(state)
+end function { ShowKeyState }
+
+function ShowNoteInfo  { Display pertinent information for a played note }
+  declare @txt   { Note Info String }
+
+  if Setup = PlayMode and Monitor = true or Setup = AudSetup   
+    if Setup = AudSetup
+      set_text(ArtBox,ArtInfoCap2) { Line 1 header in Setup }
+    else { PlayMode }
+      set_text(ArtBox,ArtInfoCap1) { Line 1 header in Play }
+    end if
+    Note2Key(EVENT_NOTE,txt)       { Convert Note to key/octave format }  
+    txt := ' ' & txt & '         ' { Pre/post pend 1 and 9 blanks,  ^D^^^^^^^^^}
+    if Setup = AudSetup and AudGroup = true
+      AddGroup(txt)
+    else { PlayMode or Audition Articulation }
+      AddArt(txt)
+    end if
+    txt := txt & '          ' & Var.XTKT    { Append 9 blanks and TKT index }
+    txt := txt & '             ' & Var.TKT  { Append 11 blanks and TKT offset }
+    while Var.Fold > 0   { Add '*' or '**' if TKT offset reflected or clamped }
+      txt := txt & '*'
+      dec(Var.Fold)
+    end while
+    add_text_line(ArtBox,txt)
+  end if
+end function { ShowNoteInfo }
+
+function ShowRanges_ { Update display of ranges for art/bank and IR }
+  for n := 0 to 1
+    if KSR.OK[n] = false           { Range not valid }
+      SetBoxText(n,NoRange,'')     { Indicate that Range is not set }
+    else  { Range is valid }
+      Note2Key(KSR.Root[n],LowKey) { Comvert to key/octave format }
+      Note2Key(KSR.Top[n],TopKey)
+      SetBoxText(n,' Low Key: ' & LowKey,' High Key: ' & TopKey)      
+    end if
+  end for
+  ShowIR
+end function { ShowRanges_ }
+
+{ For map = TKTMap, max = MaxVars; For map = ChnMap, max = Norm-1 }
+function Shuffle(map,max) { Shuffle map[0] to map[max] }
+  declare i
+  declare j
+  declare temp
+  
+  for i := 0 to max - 1
+    if i = 0
+      Rand(0,max-1,j)  { New map[0] should not be map[max] }
+    else
+      Rand(i,max,j)
+    end if
+    temp := map[i]     { Exchange map[i] with map[j] }
+    map[i] := map[j]
+    map[j] := temp
+  end for
+end function { Shuffle }
+
+function TKTOfst  { Compute TKT offset from current index XTKT }
+  Var.TKT := ZMap[Var.XTKT]*ZoneSize
+  if not in_range(EVENT_NOTE+Var.TKT,LowIR,TopIR) { Outside }
+    Var.TKT := -Var.TKT  { Try simply reflecting it }
+    Var.Fold := 1        { Set warning flag to mirror state }
+    if not in_range(EVENT_NOTE+Var.TKT,LowIR,TopIR) { Still Outside }
+      if Var.TKT < 0     { Clamp to limit of IR on reflected side }
+        Var.TKT := LowIR - EVENT_NOTE
+      else
+        Var.TKT := TopIR - EVENT_NOTE
+      end if
+      Var.Fold := 2      { Set warning flag to clamped state }
+    end if
+  end if   
+end function { TKTOfst }
+
+function UnpackVar(X) { Decodes X and sets variation controls accordingly }
+  VarMode := (X .and. 7) + 120
+  VarType := (sh_right(X,3) .and. 7) + 123
+  TrigMode := (sh_right(X,6) .and. 7) + 110
+  MaxVars := (sh_right(X,8) .and. 0xE)
+  ZoneSize := (sh_right(X,12) .and. 0xF)
+end function { UnpackVar }
+
+function XSwitch { Keep group-start enabled when Auditioning groups 0 or 1 }
+  { NOTE: The SLS will pass these notes without processing because of EP0 tagging }
+  if KSR.OK[0] = true  { KS ranges exist }
+    if Art.GX = 1      { Cross-switch the Bank-Index keyswitches }
+      set_event_par(play_note(KSR.Root[0],1,0,1),0,KSR.Root[0])
+      { Force Keyswitch to group 0, tag EP0 with this note }
+    else if Art.GX = 0
+      set_event_par(play_note(KSR.Root[1],1,0,1),0,KSR.Root[1]) 
+      { Force Keyswitch to group 1, tag EP0 with this note }
+    end if
+  end if
+end function { XSwitch }
+
+{------------------------- Articulation Assignment Stuff ------------------------}
+
+function ChangeGS_  { Inner routine to handle all Assignment Commands }
+  declare OK
+  declare @info
+  
+  for asp.gx := 0 to NUM_GROUPS - 1
+    OK := true
+    if (((asp.Op < asnClrArt or asp.Op = asnFormat) and GROUPS_SELECTED[asp.gx] = 0) or ... 
+        (asp.Op = asnClrArt and _get_engine_par(START_CC_MIN,asp.gx,0,-1) # Art.ArtX))
+      OK := false  { Group gx not checked nor is group's articulation = ArtX }
+    end if
+    if OK = true   { Group gx is checked or Group's articulation is ArtX }
+      if asp.Op < asnClrArt
+        info := '  Assigning Group: '
+      else if asp.Op = asnClrArt
+        info := ' De-Assigning Group: '
+      else
+        info := '  Formatting Group: '
+      end if
+      set_text(ArtBox,Tab10 & info & asp.gx)
+      SetGS(asp.gx,asp.artx,asp.sx)
+      select asp.Op
+        case asnClrArt
+          asp.warn := 0           { At least one group assigned to ArtX }
+        case asnSeries
+          inc(asp.artx)           { Advance to next articulation }
+          if asp.artx mod 10 = 9  { When advancing artx, skip over 9 and 0 }
+            asp.artx := asp.artx + 2
+          end if
+        case asnChain
+          inc(asp.sx)
+      end select
+    end if
+  end for
+  UpdateKS_  { Tack on current KSw extension to GS for groups 0 & 1 }
+end function { ChangeGS_ }
+
+function CheckClass_  { Class is compatible with any prior classification of Art }
+  declare ax
+  
+  if asp.warn # 2
+    ax := (Art.ArtX - 11)*3   { Attribute index }
+    if Art.Attr[ax] = 0       { Articulation not classified yet }
+      if asp.type # 0         { Normal groups must be assigned first }
+        asp.warn := 2
+        asp.Msg := NoNormalYet
+      end if 
+    else { Articulation is already classified }
+      if ((asp.Op # asnChain and Art.Attr[ax] # Fixed) or ...
+                          (asp.Op = asnChain and Art.Attr[ax] = Fixed))
+        asp.warn := 2             { Can't change classification }
+        if asp.Op = asnChain
+          asp.Msg := 'Articulation already assigned as Fixed'
+        else { Op is Fixed (or series) }
+          asp.Msg := ArtIsChain
+        end if
+      end if
+    end if
+  end if
+end function { CheckClass_ }
+
+function CheckGroups_  { Sets asp.type and asp.checked, verifies all groups are unassigned }
+  if asp.warn = 0      { Groups are properly configured }
+    asp.checked := 0
+    asp.gx := 0
+    while asp.warn = 0 and asp.gx < NUM_GROUPS   { Verfiy that all groups are available }
+      if GROUPS_SELECTED[asp.gx] = 1
+        inc(asp.checked)   { Count total groups checked }
+        if _get_engine_par(START_CC_MIN,asp.gx,0,-1) # 99  { Group already assigned }
+          asp.warn := 2
+        end if       
+      end if
+      inc(asp.gx)
+    end while 
+    if asp.warn = 0  { All selected Groups are unassigned }
+      asp.type := sh_right(Assign .and. (asnDFD+asnRT),3) { 0 = Norm, 1 = DFD, 2 = RT }
+    else  { One or more selected groups already assigned to an Art }
+      asp.Msg := 'All Selected Groups must be Unassigned'
+    end if  { Groups are now 'typed' }
+  else  { SetAttr found a problem }
+    asp.warn := 2  { Report Assignment Failure }
+  end if    
+end function { CheckGroups_ }
+
+function ClearArt { Outer routine to Clear the selected articulation }
+  declare @artstr
+  
+  Call(SetAttr,none,none)  { First check configuration integrity }
+  if asp.warn = 0
+    artstr := Art.ArtX/10 & '-' & Art.ArtX mod 10
+    asp.artx := NoArt
+    asp.sx := 0
+    asp.warn := 1          { Assume no groups assigned to ArtX }
+    Call(ChangeGS,none,none)
+    if asp.warn = 1    { Assumption was correct }
+      set_text(ArtBox,'     Articulation ' & artstr & ' Already Cleared')
+    else  { One or more groups de-assigned from ArtX }
+      set_text(ArtBox,Tab10 & 'Articulation ' & artstr & ' Cleared')
+      Art.Var[Art.ArtX-11] := 0  { Also clear any 'attached' variation }
+    end if
+    asp.warn := 0
+    Call(SetAttr,none,none)      { Run a final verify and attribute update }    
+  end if
+end function { ClearArt }
+
+function DoAssign  { Command dispatcher for Group Assignment }
+  asp.warn := 0                { Assume no Errors or Info messages }
+  while PLAYED_VOICES_INST # 0
+    note_off(ALL_EVENTS)       { Kill any sounding notes   }
+    wait(100000)               {  before altering GS parms }
+  end while
+  if asp.warn = 0
+    asp.Op := Assign
+    if asp.Op < asnClrArt      { Strip any DFD or RT bits to }
+      asp.Op := asp.Op .and. 7 {  get actual operation code  }
+    end if                     {  Fixed, Chain, or Series    }
+    select asp.Op              { Execute the specified function }
+      case asnFixed
+        MakeFixed
+      case asnChain
+        MakeChain
+      case asnSeries
+        MakeSeries
+      case asnClrArt
+        ClearArt
+      case asnFormat
+        FormatGroups
+      case asnVerify
+        Call(SetAttr,none,none)
+        if asp.warn = 0
+          asp.Msg := 'Instrument Group Configuration OK'
+          inc(asp.warn)
+        end if
+    end select
+    Call(UpdateKS,none,none)  { In case group 0 or 1 was altered }      
+    XSwitch  { In case Group 0 or 1 has been changed }
+  end if
+  if asp.warn = 2
+    asp.Msg := 'Assign Failure:  ' & asp.Msg
+  end if
+  if asp.warn # 0             { Display Info or Error message }
+    set_text(ArtBox,asp.Msg)
+    StatMsg := asp.Msg
+    BlinkStatMsg(5)
+  end if
+end function { DoAssign }
+
+function FormatGroups  { Outer routine to handle group formatting }
+  asp.artx := NoArt
+  asp.sx := 0
+  Call(ChangeGS,none,none)
+  Call(SetAttr,none,none)   { Verify formatting and clear Attributes }
+  asp.gx := 0
+  while asp.gx < NUM_GROUPS { Check to see if all groups are checked }
+    if GROUPS_SELECTED[asp.gx] = 0
+      asp.gx := NUM_GROUPS
+    end if
+    inc(asp.gx)
+  end while
+  if asp.gx <= NUM_GROUPS   { All groups are checked }
+    for asp.gx := 0 to 77
+      Art.Var[asp.gx] := 0  { Clear all attached variations }
+    end for
+  end if
+  if asp.warn = 0
+    set_text(ArtBox,'  Formatting Completed and Verified')
+  else
+    asp.Msg := 'Verification Failed'
+  end if
+end function { FormatGroups }
+
+function MakeChain { Assign checked groups to Chained articulation ArtX }
+  Call(SetAttr,none,none)  { Check formatting }  
+  Call(CheckGroups,none,none)
+  if asp.warn # 2          { All groups unassigned }
+    if asp.checked > MaxChain
+      asp.warn := 2
+      asp.Msg := 'Chain Size Limited to ' & MaxChain & ' Groups'
+    end if
+    if asp.warn # 2        { Chain size is OK }
+      Call(CheckClass,none,none)
+      if asp.warn # 2      { Class OK, chain is OK to assign }
+        asp.artx := Art.ArtX
+        asp.sx := 1 + sh_left(asp.type,5)  { Tag as Norm, DFD, or RT }
+        Call(ChangeGS,none,none)
+        Call(SetAttr,none,none)
+        set_text(ArtBox,AllGroups & Art.ArtX/10 & '-' & Art.ArtX mod 10 ...
+                         & ' as a Chained set')
+      end if
+    end if
+  end if 
+end function { MakeChain }
+
+function MakeFixed  { Assign checked groups to Fixed articulation ArtX }
+  Call(SetAttr,none,none) { Check formatting }   
+  Call(CheckGroups,none,none)
+  if asp.warn = 0         { All checked groups are free }
+    Call(CheckClass,none,none)
+    if asp.warn = 0       { Classification OK to assign }
+      asp.artx := Art.ArtX
+      asp.sx := Fixed + sh_left(asp.type,5)  { Tag as Norm, DFD, or RT }
+      Call(ChangeGS,none,none)
+      Call(SetAttr,none,none)
+      set_text(ArtBox,AllGroups & Art.ArtX/10 & '-' & Art.ArtX mod 10)
+    end if   { Class matches }
+  end if     { Formatting OK }
+end function { MakeFixed }
+
+function MakeSeries { Assign checked groups to Articulation series }
+  declare artx
+  
+  Call(SetAttr,none,none) { Check formatting }   
+  Call(CheckGroups,none,none)
+  if asp.warn # 2         { No assigned groups }
+    if ArtSel + asp.checked > 64
+      asp.warn := 2
+      asp.Msg := 'Exceeds Maximum allowed articulation of 8-8'
+    end if
+    if asp.warn # 2    { Articulation series within 1-1..8-8 range }
+      asp.artx := Art.ArtX
+      for asp.gx := 1 to asp.checked
+        artx := (asp.artx-11)*3
+        if Art.Attr[artx] # 0 and Art.Attr[artx] # Fixed
+          asp.warn := 2   { One or more arts are of Chain class }
+          asp.Msg := 'At least one ' & ArtIsChain
+          asp.gx := asp.checked    { Force exit from for-loop }
+        else if asp.type # 0 and Art.Attr[artx] = 0
+          asp.warn := 2   { Assigning DFD or RT and no Norm yet }
+          asp.Msg := NoNormalYet
+          asp.gx := asp.checked    { Force exit from for-loop }
+        else
+          inc(asp.artx)            { Advance to next articulation }
+          if asp.artx mod 10 = 9   { When advancing artx, skip over 9 and 0 }
+            asp.artx := asp.artx + 2
+          end if
+        end if 
+      end for
+      if asp.warn # 2     { All Fixed or Unassigned, OK to assign as series }
+        asp.artx := Art.ArtX
+        asp.sx := Fixed + sh_left(asp.type,5)  { Tag as Norm, DFD, or RT } 
+        Call(ChangeGS,none,none)
+        Call(SetAttr,none,none) { Update attributes }
+        set_text(ArtBox,'Groups assigned to Consecutive Articulations' ...
+                       & ' starting at: ' & Art.ArtX/10 & '-' & Art.ArtX mod 10) 
+      end if  { OK to assign }
+    end if    { Series within 1-1..8-8 } }
+  end if      { Formatting OK }  
+end function { MakeSeries }
+
+{------------------------- Group Configuration Support Stuff ------------------------}
+
+function SetAttr_   { Builds Articulation Attribute table and verifies formatting }
+  declare artcc[3] := (ArtCC,ArtSCC,ArtCC)
+  
+  for asp.gx := 0 to 233
+    Art.Attr[asp.gx] := 0  { Reset articulation attributes }
+  end for
+  asp.gx := 0
+  while asp.warn = 0 and asp.gx < NUM_GROUPS
+    asp.sx := 0
+    while asp.warn = 0 and asp.sx < 3
+      if _get_engine_par(START_MODE,asp.gx,asp.sx,-1) # ON_CC 
+        asp.warn := 1
+      else if _get_engine_par(START_ON_CC,asp.gx,asp.sx,-1) # artcc[asp.sx]
+        asp.warn := 1
+      end if
+      inc(asp.sx)
+    end while { Completes test for the correct trio of CC numbers }
+    if asp.warn = 0
+      if _get_engine_par(START_CRITERIA,asp.gx,0,-1) # AND_NEXT or ...
+          _get_engine_par(START_CRITERIA,asp.gx,1,-1) # OR_NEXT or ...
+          _get_engine_par(START_CRITERIA,asp.gx,2,-1) # AND_NOT or ...
+          (asp.gx > 1 and _get_engine_par(START_MODE,asp.gx,3,-1) # ON_NONE) or ...
+          (asp.gx < 2 and _get_engine_par(START_MODE,asp.gx,3,-1) # ON_KEY)              
+        asp.warn := 1
+      else    { 4 CCs for groups 0 & 1, Only 3 CCs for all other groups }
+        asp.sx := 0
+        while asp.warn = 0 and asp.sx < 3
+          if _get_engine_par(START_CC_MIN,asp.gx,asp.sx,-1) ...
+                              #  _get_engine_par(START_CC_MAX,asp.gx,asp.sx,-1)
+            asp.warn := 1
+          end if
+          inc(asp.sx)
+        end while   { Completes test for min = max for all 3 CCs }
+        if asp.warn = 0
+          if _get_engine_par(START_CC_MIN,asp.gx,2,-1) # 90
+            asp.warn := 1
+          else      { 3rd CC OK, ie set to 90 }
+            asp.artx := _get_engine_par(START_CC_MIN,asp.gx,0,-1)
+            if asp.artx # 99 and ((asp.artx mod 10 = 9) or (asp.artx mod 10 = 0) ... 
+                                   or (asp.artx > 88))
+              asp.warn := 1
+            else    { artx = 99 or an octal value 11 to 88 }
+              if asp.artx # 99    { Skip unassigned groups }
+                asp.sx := _get_engine_par(START_CC_MIN,asp.gx,1,-1)
+                asp.type := sh_right(asp.sx .and. 0x60,5) { 0 = norm, 1 = DFD, 2 = RT }
+                asp.sx := asp.sx .and. 0x1F               { Extract Class code }
+                if in_range(asp.sx,MaxChain+1,Fixed-1) or asp.type > 2
+                  asp.warn := 1                           { Illegal Class or type code }
+                else  { Valid Class Code = 0..16 or 31 and type = 0..2 }
+                  asp.artx := (asp.artx-11)*3 + asp.type  { Index for this art & type }
+                  if Art.Attr[asp.artx] < asp.sx   { Update art Class code to highest }
+                    Art.Attr[asp.artx] := asp.sx
+                  end if
+                end if                
+              end if
+            end if
+          end if
+        end if
+      end if
+    end if
+    inc(asp.gx)
+  end while  { gx < NUM_GROUPS }
+  for asp.gx := 0 to 231 step 3 { Verify articulation attributes }
+    if Art.Attr[asp.gx] # 0     { Articulation is assigned }
+      for asp.sx := 1 to 2      { Check subordinate DFD and RT Class codes }
+        if Art.Attr[asp.gx+asp.sx] # 0  { Subordinate group exists } 
+          if ((Art.Attr[asp.gx] = Fixed and Art.Attr[asp.gx+asp.sx] # Fixed) or ...
+               (Art.Attr[asp.gx] # Fixed and Art.Attr[asp.gx+asp.sx] = Fixed))
+            asp.warn := 2       { Disagrees with Normal Class }
+          end if
+        end if
+      end for
+    end if
+  end for
+  if asp.warn # 0            { Group Configuration Error(s) detected }
+    for asp.gx := 0 to 233
+      Art.Attr[asp.gx] := 0  { Erase attributes }
+    end for
+    asp.Msg := 'ERROR: Instrument Groups Not Properly Configured'
+  end if
+end function { SetAttr_ }
+
+function SetGS(gx,artx,sub)
+  while _get_engine_par(START_MODE,gx,0,-1) # ON_NONE
+    _set_engine_par(START_MODE,ON_NONE,gx,0,-1)
+  end while  { All old group start stuff is now cleared out for group gx }  
+  _set_engine_par(START_MODE,ON_CC,gx,0,-1)  { Configure this group to 'start' with a  }
+  _set_engine_par(START_MODE,ON_CC,gx,1,-1)  {  trio of CCs for articulation, sub-art, } 
+  _set_engine_par(START_MODE,ON_CC,gx,2,-1)  {  and Group Audition control.            }
+  _set_engine_par(START_CRITERIA,AND_NEXT,gx,0,-1)  { 'And' artic. with sub-artic }
+  _set_engine_par(START_CRITERIA,OR_NEXT,gx,1,-1)   { 'or' with Group Audition    }
+  _set_engine_par(START_CRITERIA,AND_NOT,gx,2,-1)   { 'And-Not' with Key range if present }  
+  _set_engine_par(START_ON_CC,ArtCC,gx,0,-1)  { Use ArtCC, currently CC126 for artic }
+  _set_engine_par(START_CC_MIN,artx,gx,0,-1)   
+  _set_engine_par(START_CC_MAX,artx,gx,0,-1)
+  _set_engine_par(START_ON_CC,ArtSCC,gx,1,-1) { Use ArtSCC, currently CC127 for sub-art }
+  _set_engine_par(START_CC_MIN,sub,gx,1,-1)
+  _set_engine_par(START_CC_MAX,sub,gx,1,-1)
+  _set_engine_par(START_ON_CC,ArtCC,gx,2,-1)      { Use ArtCC = StartAll, currently 90 }
+  _set_engine_par(START_CC_MIN,StartAll,gx,2,-1)  {  for Group Audition control        }
+  _set_engine_par(START_CC_MAX,StartAll,gx,2,-1)
+end function { SetGS }
+
+function SetKS(gx,min,max)
+  _set_engine_par(START_MODE,ON_KEY,gx,3,-1)
+  _set_engine_par(START_KEY_MIN,min,gx,3,-1)
+  _set_engine_par(START_KEY_MAX,max,gx,3,-1)
+end function { SetKS }
+
+function UpdateKS_ { Updates groups 0 & 1, with KSw extensions }
+  asp.gx := 0
+  while asp.gx < 2 and asp.gx < NUM_GROUPS  { Do only group 0 if no group 1 }
+    if KSR.OK[asp.gx] = true and (UserPrefs .and. HideKS = 0){ If key range is set }
+      SetKS(asp.gx,KSR.Root[asp.gx],KSR.Top[asp.gx])    
+    else  { Key range not set or hidden }
+      SetKS(asp.gx,MinNote+1,MinNote) { Make min > max }
+    end if
+    inc(asp.gx)
+  end while
+end function { UpdateKS }
+

@@ -1,0 +1,142 @@
+{ --------------------------------------------------------------------------------
+Title: S-Curve Demo
+Author: R.D.Villwock aka 'Big Bob'
+First Written: May 17, 2011
+Current Version: 1.10
+Last Modified: January 22, 2014
+----------------------------------------------------------------------------------
+      This script provides a demonstration of four XFade functions that have been
+      added to the K4 Math Library. There are three variations of S-shaped curves
+      and one equal-power function. All four of these functions provide for morphing
+      control. }
+            
+import "KSPMathV610.ksp"
+
+on init
+  message('')
+  set_script_title('XFade Demo')
+  make_perfview
+  set_ui_height(6)
+  SetMathMode(0) 
+  declare ui_table Show[128] (3,6,10000)
+    move_control_px(Show,66,2)
+    Show -> height := 249
+    Show -> width := 390
+  declare ui_menu Curve
+    add_menu_item(Curve,'Sin/Cos S-Curve',0)
+    add_menu_item(Curve,'Log/Exp S-Curve',1)
+    add_menu_item(Curve,'Exp/Exp S-Curve',2)
+    add_menu_item(Curve,'Equal-Pwr Curve',3)
+    move_control_px(Curve,475,86) 
+    Curve -> width := 125
+    Curve -> text_alignment := 1  
+    Curve := 0
+    make_persistent(Curve)
+  declare ui_knob Morph (-1000,1000,10)
+    move_control_px(Morph,493,40)
+    set_knob_unit(Morph,KNOB_UNIT_PERCENT)
+    set_knob_defval(Morph,0)
+    set_text(Morph,'  Morph')
+    Morph := 0
+    make_persistent(Morph)    
+  declare ui_knob X (0,1000,10)
+    move_control_px(X,459,212)
+    set_knob_unit(X,KNOB_UNIT_PERCENT)    
+    set_text(X,'  XFade')
+    X := 0
+    make_persistent(X) 
+  declare ui_label Y1 (1,1)
+    move_control_px(Y1,546,212)
+    Y1 -> width := 72
+  declare ui_label Y2 (1,1)
+    move_control_px(Y2,546,233)
+    Y2 -> width := 72
+  declare v1
+  declare v2
+  declare xv
+end on
+
+on_pgs_do_post { Do this as soon as the ICB exits }
+
+function AppInit override
+  call update_all
+end function
+
+on ui_control(X)
+  call update_all
+end on
+
+on ui_control(Curve)
+  call update_all
+end on
+
+on ui_control(Morph)
+  call update_all
+end on
+
+function update_all
+  call show_xfade
+  call updateY
+  call update_cursor
+end function
+
+function show_xfade
+  declare n
+  for n := 0 to 127
+    xv := n*1000/127
+    call ChooseCurve
+    if n .and. 1 = 0
+      if v1 < 0
+        v1 := 0
+      end if
+      if v1 > 10000
+        v1 := 10000
+      end if
+      Show[n] := v1
+    else
+      if v2 < 0
+        v2 := 0
+      end if
+      if v2 > 10000
+        v2 := 10000
+      end if
+      Show[n] := v2
+    end if
+  end for
+end function
+
+function update_cursor
+  declare n
+    n := (X*127+500)/1000
+    if n = 0
+      inc(n)
+    end if
+    Show[n-1] := 10000    
+    Show[n] := 10000
+end function
+
+function updateY
+  declare @s1
+  declare @s2
+  xv := X
+  call ChooseCurve
+  s1 := DFmtVal(v1,4)
+  s2 := DFmtVal(v2,4)
+  set_text(Y1,'VR1 = ' & s1)
+  set_text(Y2,'VR2 = ' & s2)  
+end function
+
+function ChooseCurve 
+  select Curve
+    case 0
+      S1_XFade(xv,Morph,v1,v2)      
+    case 1
+      S2_XFade(xv,Morph,v1,v2)
+    case 2
+      S3_XFade(xv,Morph,v1,v2)
+    case 3
+      EP_XFade(xv,Morph,v1,v2)
+  end select
+end function
+
+

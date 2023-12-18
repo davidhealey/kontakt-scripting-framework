@@ -1,0 +1,27 @@
+{-------------------------------------------------------------------------------
+Title: SIPS Starter Script
+Author: R.D.Villwock aka 'Big Bob'
+First Written: May 17, 2008
+Current Version: 2.05
+Last Modified: May 30, 2008
+
+This script can provide automatic (or at least semi-automatic) startup of SIPS 2.
+If you include this script (ahead of the SAS) when you save an instrument that uses the
+SIPS scripts, upon loading the instrument, this starter script will provide the
+needed CC event to start the trio of SIPS scripts. It will also provide an automatic
+restart whenvever you recompile any SIPS script (via the Apply button). However, if you
+just reload one of scripts, it itself will not be able to start and you will see the
+familiar 6x6 panel asking you to wiggle a CC.
+--------------------------------------------------------------------------------}
+
+on init
+  declare const StartSIPS := 122  { CC used to startup SIPS 2, formerly KSP+ Timer } 
+  set_controller(StartSIPS,0)     { When instrument is loaded, send startup event }
+  message('')
+end on { init }
+
+on ui_update                      { This callback will run whenever any script is   }
+  set_controller(StartSIPS,0)     {  recompiled. By sending this CC event, the      } 
+end on { ui_update }              {  newly-compiled script will restart automatically }
+
+

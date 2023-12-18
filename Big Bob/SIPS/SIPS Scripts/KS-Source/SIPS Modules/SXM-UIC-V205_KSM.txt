@@ -1,0 +1,45 @@
+{************************** SIPS Module **************************
+Module: Common User Interface V2, SXM-UIC
+Author: R.D.Villwock aka 'Big Bob'
+First Written: September 18, 2006
+Current Version: 2.05
+Last Modified: January 29, 2008
+******************************************************************}
+             { Rename Panel UI Handlers }
+on ui_control (Alpha)
+  Show_Alpha       { Display character selected }
+end on { Alpha Knob }
+
+on ui_control (BackSpace)
+  BackSpace := false { Don't light this button }
+  Back_Space         { Edit Prior character }
+end on { BackSpace }
+
+on ui_control (CancelRename)
+  CancelRename := 0
+  if EditActv = true        { Edit Panel Open }
+    EditCmd := CloseEdit    { Trigger Edit Panel closure }
+  end if
+  Preset := No_Cmd          { Set Preset Menu to Idle }
+end on { CancelRename }
+
+on ui_control (EnterChar)
+  EnterChar := false { Don't light this button }
+  Enter_Char         { Put selected char in EditBfr }
+end on { EnterChar }
+
+on ui_control (EraseName)
+  EraseName := false { Don't light this button }
+  Erase_Name
+end on { EraseName }
+
+on ui_control (LowerCase)
+  Set_Zone           { Update zone caption }
+end on { LowerCase }
+              { MIDI Controller Assignment Menu Handler }
+on ui_control (MCMenu) { Menu for MIDI Controller assignments }
+  if MCMenu = UseLastCC
+    MCMenu := LastCC   { Replace with last CC# moved }
+  end if
+  MBtn.Actv := false   { Finish BtnMenu routine }
+end on { MCMenu }

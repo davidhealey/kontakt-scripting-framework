@@ -1,0 +1,2503 @@
+{ --------------------------------------------------------------------------------
+Title: KSP Math Library
+Author: R.D.Villwock aka 'Big Bob'
+First Written: October 2, 2006
+Current Version: 6.10
+Last Modified: January 22, 2014
+-----------------------------------------------------------------------------------
+  V610 should be imported and compiled using Nils Liberg's KSP Editor, either
+V1.5.2 of the KScript Editor or the equivalent plugin for Sublime Text 3. Nils'
+Editor will be referred to throughout this document as the KSE.
+----------------------------------------------------------------------------------
+  Importing the Math Library will not 'bloat your code'. Nothing will be added to
+  your code other than what is needed to support the functions you actually use. If
+  you don't use any of the Library's functions, no code or data declarations will
+  be added provided that you enable the 'Optimize compiled code' option in the KSE.
+  The source code for this Library is heavily commented, so you will also want to
+  enable the 'Compact output' option of the KSE to strip-out these comments (as well
+  as unnecessary white space) from the compiled code. You must use the New compiler
+  (not the optional Old compiler) but, using the KSE's Compact variables feature
+  is optional.
+  
+  All functions automatically declare any needed data structures so all you need do
+  to use any Library function is simply reference it in your host script. However,
+  you must always include SetMathMode near the top of your script's ICB and
+  do_post_init at the head of your pgs callback in order to use the library
+  (see sections 2.1 and 2.2 of the User's Guide).
+  
+  If you need to reference Library functions during initialization, please see
+  section 2.3 of the User's Guide for how to do that.
+  
+      INPUT PARAMETERS: All Library Routines treat input arguments as read-only
+      so you can pass variables or constants (symbolic or literal) as desired. 
+        
+      OUTPUT PARAMETERS: Library routines use the KSE return-value feature for
+      all single-output-value functions. However, the dual-output-value routines
+      such as SinCos/XSinCos and the four XFade functions, use the former
+      function format providing the outputs as part of the argument list.
+        
+  -------------------------------------------------------------------------------
+                          Library Functions Table of Contents
+  -------------------------------------------------------------------------------
+  The library is organized alphabetically by function name within each of its
+  subsections. Sections 1.0 to 5.0 contain all the functions you can reference
+  from your application. The remaining sections contain support routines for the
+  library and generally you will not need to concern yourself with these routines
+  unless you intend to make custom modifications to the library.
+  
+                              1.0 System Directives
+  This is where you'll find the library interface directives such as SetMathMode.
+  
+                              2.0 Advanced Data Types
+  Here's where you'll find macros for declaring advanced array types and such.
+
+                              3.0 Basic Functions
+  This section is where to look for things like Log or Trig functions. Here you
+  will find such things as extended arithmetic and transcendental functions along
+  with some miscellaneous functions such as conditional predicates and a
+  resettable random number generator. 
+  
+                              4.0 Special Functions
+  This section is where to look if you want to experiment with such things as 
+  Equal-Power or S-shaped/morphing crossfades, etc.
+        
+                              5.0 Format Converters
+  This is where to look if you need to convert from one unit or scale to another.
+  For example, all the engine parameter converters are here along with several
+  non-ep format converters. 
+  
+                               Library Support 
+  This section of the library contains both KS and KN function support for the
+  library functions.
+    
+  ----------------------------- Library Constants -----------------------------------
+  The following constants are made available by the library for use in your scripts.
+  The first four are generally useful values while the remaining constants are for
+  mode control of various ep converters and such.
+  
+  Ang90     This constant (currently = 1000 dg) is useful for angle
+            conversion from arbitrary right-angle units. For example,
+            if you want to use a MIDI CC to cover the range from
+            0..90 degrees, you can use:  angle = CC*Ang90/127.
+  
+  MaxInt    This constant is the maximum allowed positive integer value
+            which is 2,147,483,647 or 0x7FFFFFFF.
+            
+  MinInt    This constant is the minimum (most-negative) allowed integer
+            value which is -2,147,483,648 or 0x80000000.
+  
+  Muted     This constant is currently -180,000 mdb in value 
+  
+    E2V, V2E       Bi-directional ep converter mode control 
+    IMOD, TARG     Mode control for ModInt_to_ep function
+    LF,LMF,HMF,HF  Solid-G  EQ-Band selection 
+    MATH_OVERFLOW  For use in the TCM Debug Mode } 
+                 
+macro   System_Directives { KSE Section Marker }
+end macro
+
+function AppInit() { NOP placeholder if user doesn't declare a post-init routine }
+end function { AppInit }
+
+{ do_post_init
+
+  This routine must be included at the top of the application's pgs callback. This
+  routine will only be executed once, right after the ICB exits. If application
+  doesn't otherwise require a pgs callback, use the macro named on_pgs_do_post --
+  it will both create the pgs callback header and include the do_post_init code.  
+  
+  If the application needs to execute a post-ICB routine, simply code it as a
+  KScript function using the name AppInit and attach the override directive. The
+  library provides a dummy routine by that name which does nothing if no AppInit
+  routine is defined within the application. }
+  
+function do_post_init()
+  if M.PostInit = 1  { This code will only be executed once after ICB exits }
+    M.PostInit := -1 { only do post init once per new run of the ICB }
+    FM.FillTables()  { Initialize the fast-math lookup tables }
+    AppInit() { Execute application's post init routine if user has written it }
+    M.PostInit := 0  { Release wait_for_post after AppInit completes }
+  end if  
+end function { do_post_init }
+
+{ This macro will create a pgs callback and invoke do_post_init code from
+  within it. Either use this macro or invoke the do_post_init routine
+  directly from the top of the application's pgs callback.  }
+  
+macro on_pgs_do_post()
+  on pgs_changed
+    do_post_init()
+  end on
+end macro { on_pgs_do_post }
+
+{----------------------------------------------------------------------------
+  SetMathMode(option_list)   
+                
+      This macro must always be invoked near the top of the application
+      ICB in order to use the Math Library. The option_list is formed
+      by summing all the required option codes. 
+            
+        FL - Fast Logarithms
+        FE - Fast Exponentials 
+        FT - Fast Trig
+         0 - Use Zero for no options }
+
+macro SetMathMode(option_list)
+  M.DefOptionCodes()
+  declare const M.Opts := option_list  { Mode control bits }
+  M.DefMathConst()
+  M.DefMathPars()
+  M.DefFastArrays() 
+  pgs_create_key(M__PINIT,1) 
+  M.PostInit := 1       { Authorize pgs post-init one time after ICB }
+  pgs_set_key_val(M__PINIT,0,1) { Trigger pgs callback for post-init }
+end macro { SetMathMode }
+
+{ This routine will pause until the AppInit routine exits at the end of
+  post-initialization. Subsequent calls to wait_for_post do nothing. 
+  
+  CAUTION: Do not use this directive within the AppInit routine itself. } 
+
+function wait_for_post()
+  while M.PostInit # 0  { spin here until post-init finishes }
+    wait(100)
+  end while
+end function { wait_for_post }
+
+macro   Advanced_Data_Types { KSE Section Marker }
+end macro
+{ ------------------------------------------------------------------------------
+                           2.0 Advanced Data Types
+  ------------------------------------------------------------------------------
+{  2dArray(name,d1,d2)
+
+    name - name of array (property)
+      d1 - constant specifying first dimension
+      d2 - constant specifying second dimension
+
+    This macro creates a 2-dimensional array with dimensions
+    specified by the constants d1 and d2 and may be referenced
+    using conventional syntax with either constants or variables
+    for the indices.
+    
+    For example:   name[2,3] := name[x,y] 
+    
+    Caution: No range checking is performed so your application
+             must insure that no index values exceed the range
+             specified when you declare the array. For example,
+             if you declare 2dArray[name,4,5] you may only use
+             indices from 0..3 and 0..4 respectively when you
+             reference the array. }
+
+macro 2dArray(#name#,d1,d2)
+  declare _#name#[d1*d2]
+  property #name#
+    function get(x,y) -> result
+      result := _#name#[d2*x + y]
+    end function
+    function set(x,y,val)
+      _#name#[d2*x + y] := val
+    end function
+  end property
+end macro { d2dArray }
+
+{  3dArray(name,d1,d2,d3)
+
+    name - name of array (property)
+      d1 - constant specifying first dimension
+      d2 - constant specifying second dimension
+      d3 - constant specifying third dimension
+
+    This macro creates a 3-dimensional array with dimensions
+    specified by the constants d1, d2, and d3 and may then be
+    referenced using conventional syntax with either constants
+    or variables for the indices.
+    
+    For example:   name[x,y,4] := name[4,6,5]
+    
+    Caution: No range checking is performed so your application
+             must insure that no index values exceed the range
+             specified when you declare the array. For example,
+             if you declare 3dArray[name,4,5,6] you may only
+             use indices from 0..3, 0..4, and 0..5 respectively
+             when you reference the array. }
+
+macro 3dArray(#name#,d1,d2,d3)
+  declare _#name#[d1*d2*d3]
+  property #name#
+    function get(x,y,z) -> result
+      result := _#name#[d2*d3*x + d3*y + z]
+    end function
+    function set(x,y,z,val)
+      _#name#[d2*d3*x + d3*y+ z] := val
+    end function
+  end property
+end macro { 3dArray }
+
+{  PackedArray(name,d1,d2,ft)
+
+     name - name of array (property)
+       d1 - number of array elements (32-bit words)
+       d2 - number of fields per word
+       ft - field template array name
+
+    The 32 bits of each array word can be grouped as an arbitrary number (2..32) of
+    fields. Each field can be from 1 to 31 bits wide but of course the total of the
+    field widths cannot exceed 32 bits. The field layout is specified by the field
+    template array, ft.
+     
+    An ft example would be, Fields[6] := (2,5,6,4,7,8). The 2-bit field is then
+    accessed with field index, fx = 0. The 5-bit field is accessed with fx = 1,
+    the 6-bit field is accessed with fx = 2, etc. To access any field of the
+    packed array, use:
+     
+              name[ax,fx] := value     or    value := name[ax,fx]     
+     
+    where ax is the array's word index and fx is the desired field index.
+    
+    As exemplified above, the field template should specify all the field sizes
+    in bits using the format ft[nf] := (f0,f1,f2, .. fn) where f0 is the bit width
+    of the leftmost field, f1 is the width of the next contiguous field to the
+    right, etc.
+            
+    NOTE: The sum of all the fn widths must be equal or less than 32 bits. 
+          The value stored in any field must be a positive number that will
+          fit in the number of bits assigned to the field. For example, a
+          field width of 5 bits can contain values from 0 to 31, or in
+          general the range of values is:  0 to 2^fn-1 }
+     
+macro PackedArray(#name#,d1,d2,ft)
+  declare _#name#[d1]       { declare the actual array }
+  declare #name#.mask[d2]   { bit-mask for field n at position 0 }
+  declare #name#.shft[d2]   { rightmost bit position in word for field n }
+  M.In := 32   { bit position }
+  M.Out := 0    { n, compile-time field index }       
+  { compile-time loop to create shift and mask arrays for each field }
+  while M.Out < d2 and (M.In - ft[M.Out]) >= 0
+    M.In := M.In - ft[M.Out]
+    #name#.shft[M.Out] := M.In      { rightmost bit of field n }
+    #name#.mask[M.Out] := sh_left(1,ft[M.Out])-1 { field n mask }
+    inc(M.Out)
+  end while
+  property #name#  { property construct to access array/field }
+    function get(ax,fx) -> result  { one-line get }
+      result := sh_right(_#name#[ax],#name#.shft[fx]) .and. #name#.mask[fx]
+    end function
+    function set(ax,fx,val)        { one-line set }
+      _#name#[ax] := _#name#[ax] .and. .not. sh_left(#name#.mask[fx],#name#.shft[fx])  ... 
+                    .or. sh_left(val .and. #name#.mask[fx],#name#.shft[fx])
+    end function
+  end property
+end macro { PackedArray }
+  
+macro   Basic_Functions  { KSE Section marker }
+end macro
+{ -------------------------------------------------------------------------------
+                              3.0 Basic Functions
+  ------------------------------------------------------------------------------- 
+{ Boolean(X)   Can be used Inline with the KSE
+               This is a conditional predicate
+               result = 1 if X # 0 and
+               result = 0 if X = 0 }
+
+function Boolean(X) -> result
+  result := 1+sh_right(abs(X)-1,31)
+end function { Boolean } 
+
+{ Cabs(X)   Can be used Inline with the KSE
+            Returns Clamped Absolute Value of X
+            for all X except MinInt
+            Cabs(MinInt) returns MaxInt }
+
+function Cabs(X) -> result  { Clamped absolute value } 
+  result := abs(X + sh_right(abs(X),31))  
+end function { Cabs }
+
+{ ------------------------------------------------------------------  
+  Cos(ang)   First Quadrant Cosine Function     
+             Set FT for fast Cos
+  
+    ang = 1st quadrant input angle in deci-grads (0..1000)
+            (1000 deci-grads = 90 degrees = PI/2 radians)
+            
+          Computes: 10000*Cos(ang)
+  
+    NOTE: No input angle checking is performed. Caller should confine
+          ang to the range 0 <= ang <= 1000 dg or use XCos. }
+        
+function Cos(ang) -> result
+  M.In := ang
+  call _SinCos
+  result := M.Out2
+end function { Cos }
+
+{  Expe(X)    Natural Exponential (antiLog) Function (base e)   
+              Set FE for fast Expe
+
+              Expe(X) -> result    
+  
+              X = Input value (scaled by 1000000)
+              Computes: e^(X/1000000) ie Base e antilog of X
+                        when 0.0 <= X <= 21.487562
+            
+    NOTE: For X < 0.0, result is set to zero. 
+          For X > 21.487562, result is set to MaxInt and a 
+          MATH_OVERFLOW exception is created if you are using
+          the TCM_DEBUG mode. }
+          
+function Expe(X) -> result
+  M.In := X
+  call _Expe
+  result := M.Out  
+end function { Expe } 
+
+{ ------------------------------------------------------------------------------
+    Exp2(X)   Binary Exponential (antiLog) Function (base 2)
+              Set FE for fast Exp2
+              
+              Exp2(X) -> result
+  
+              X = Input value (scaled by 1000000)
+              Computes: 2^(X/1000000) ie Base 2 antilog of X
+                         when 0.0 <= X <= 30.999999
+            
+    NOTE: For X < 0.0, result is set to zero. 
+          For X > 30.999999, result is clamped to MaxInt and a
+          MATH_OVERFLOW exception is created if you are using
+          the TCM_DEBUG mode. }
+
+function Exp2(X) -> result
+  M.In := X
+  call _Exp2
+  result := M.Out
+end function { Exp2 } 
+
+{ -------------------------------------------------------------------------
+    Exp10(X)   Common AntiLog Function (base 10) 
+               Set FE for fast Exp10
+                    
+               Exp10(X) -> result
+               
+               X = Input value (scaled by 1000000)
+               Computes: 10^(X/1000000) ie Base 10 Antilog of X
+                           when 0.0 <= X <= 9.331929
+            
+    NOTE: For X < 0.0, result is set to zero. 
+          For X > 9.331929, result is clamped to MaxInt and a
+          MATH_OVERFLOW exception is created if you are using
+          the TCM_DEBUG mode. }
+          
+function Exp10(X) -> result
+  M.In := X
+  call _Exp10
+  result := M.Out
+end function { Exp10 }
+
+{  Loge(X)   Natural Logarithm Function (base e)
+             Set FL for fast Loge
+             
+             Loge(X) -> result
+  
+             X = Input can be any integer value
+             Computes: log scaled by 1000000 
+
+      NOTE: For X <= 0, result is set to MinInt and a
+            MATH_OVERFLOW exception will be generated
+            if you have the TCM_DEBUG mode enabled }
+          
+function Loge(X) -> result
+  M.In := X
+  call _Loge
+  result := M.Out
+end function { Loge }
+
+{ -------------------------------------------------------------------------
+   Log2(X)   Binary Logarithm Function (base 2) 
+             Set FL for fast Log2
+             
+             Log2(X) -> result
+  
+             X = Input can be any integer value
+             Computes: log scaled by 1000000 
+
+      NOTE: For X <= 0, result is set to MinInt and a
+            MATH_OVERFLOW exception will be generated
+            if you have the TCM_DEBUG mode enabled }
+
+function Log2(X) -> result
+  M.In := X
+  call _Log2
+  result := M.Out
+end function { Log2 }
+
+{  Log10(X)    Common Logarithm Function (base 10)
+               Set FL for fast Log10
+               
+               Log10(X) -> result
+  
+               X = Input can be any integer value
+               Computes: log scaled by 1000000 
+
+      NOTE: For X <= 0, result is set to MinInt and a
+            MATH_OVERFLOW exception will be generated
+            if you have the TCM_DEBUG mode enabled }
+                
+function Log10(X) -> result
+  M.In := X
+  call _Log10
+  result := M.Out
+end function { Log10 }
+
+{ MulDiv64 calculates result = X*Y/Z where X, Y, and Z are any 32-bit, signed
+  integers **. The interim product of X*Y is held as a 64-bit value and as long
+  as the correct result is in the range from -MaxInt < result <= MaxInt, no
+  arithmetic overflow will occur. If the result cannot be contained in a 32-bit
+  integer, the result returned from MulDiv64 will be set to MaxInt with the
+  approrpiate sign. Optionally, a MATH_OVERFLOW exception will also be generated
+  if you have the TCM_DEBUG mode enabled.
+  
+  ** Note: Negative input values of 0x80000000 will be clamped
+            to -MaxInt before performing the calculation. }
+           
+function MulDiv64(x,y,z) -> result  { xt=5.2 to 5.5 usec, min/avg }
+  M.Unsign(x,y,z)                   { force operands all positive }
+  call _UMulDiv                     { XL = x*y/z }
+  result := M.Out*M.Qsign(x,y,z)    { affix sign to result, z }
+end function { MulDiv64 }
+
+{ Power(X,n,d,dd)    General Power Function
+                     Set FL+FE for fast Power
+
+                       Inputs: X - Any positive Integer 
+                               n - numerator of power
+                               d - denominator of power
+                              dd - decimal digits desired
+                              
+                       Returns: X^(n/d) scaled by 10^dd 
+                       
+     Examples: Power(X,1,2,2) -> Square Root scaled by 100
+               Power(X,1,3,1) -> Cube Root scaled by 10
+               Power(X,3,1,0) -> X^3, no scaling
+               Power(X,2,3,3) -> X^(2/3) scaled by 1000 
+               
+     NOTE: Input values must be chosen such that the result can
+           be expressed as a positive integer without overflow. }
+
+function Power(X,n,d,dd) -> result
+  M.In := Cabs(X)
+  call _Log2
+  M.In := RoundDiv(n*M.Out,d)+3321928*dd
+  call _Exp2
+  result := M.Out
+end function { Power }
+
+{ Rand(min,max) -> result  
+
+        A pseudo-random number generater with a full cycle M.Seed
+        but, only the lowest 24 bits (the most random) are used to
+        provide an output X between min and max inclusive.
+        
+        min - minimum random number desired for X
+        max - maximum random number desired for X
+        Generates: a random number between min and max inclusive
+        
+    Notes: max - min must be less than 2^24 
+        See also RandomSeed and ResetRand }
+
+function Rand(min,max) -> result  { X = new random value: min <= X <= max } 
+  M.Seed := 8088405*M.Seed + 1
+  result := (sh_right(M.Seed,8) .and. 0xFFFFFF) mod (max - min + 1) + min
+end function { Rand }
+
+{ RandomSeed
+
+        This routine re-seeds the Rand generator from the KSP_TIMER and
+        can therefore be invoked whenever you want to pick a new, more
+        or less random seed to continue with }
+
+function RandomSeed()
+  M.Seed := KSP_TIMER
+end function { RandomSeed }
+
+{ ResetRand
+
+        This routine resets the Rand generator and can be used whenever
+        a repeatable sequence of 'random' numbers might be required. }
+
+function ResetRand()
+  M.Seed := 1107155288
+end function { ResetRand }
+
+{ -------------------------------------------------------------------------------
+  Root2(X)    Returns the square-root of any positive input integer
+  
+              X = Input can be any integer value
+              Computes Square Root of X, scaled by 1000 
+              
+       NOTE1: For X < 0, this routine returns
+              the square-root of abs(X), scaled by 1000 
+             
+       NOTE2: Fractional part is rather crude for small X but
+              of course at least as accurate as using only the
+              integer result. If you want just the floor integer
+              result i.e. the truncated integer result, simply
+              use result/1000. If you want the result rounded
+              to the closest integer, use (result+500)/1000 }
+
+function Root2(X) -> result
+  M.In := Cabs(X)
+  call _Root2
+  result := M.Out
+end function { Root2 }
+
+{ -------------------------------------------------------------------------------
+  Root3(X)    Returns the cube-root of any input integer
+  
+              X = Input can be any integer value
+              Computes Cube Root of X, scaled by 10^5 } 
+
+function Root3(X) -> result
+  M.In := X
+  call _Root3
+  result := M.Out
+end function { Root3 }
+
+{ RoundDiv(x,y)   Can be used Inline with the KSE
+                  Performs rounded integer division
+
+            Inputs x and y can be any signed-integers
+            Computes: x/y rounded to closest integer }
+
+function RoundDiv(x,y) -> result  { x/y rounded }
+  result := (x + x mod y)/y
+end function { RoundDiv }
+
+{ Sign(X)    Can be used Inline with the KSE
+             This is a conditional predicate that returns
+             result = +1 if X >= 0 and
+             result = -1 if X < 0 }
+
+function Sign(X) -> result
+  result := sh_right(X,31) .or. 1
+end function { Sign }
+
+{ Sign3(X)   Can be used Inline with the KSE
+             This is a conditional predicate that returns
+             result = +1 if X > 0 
+             result = 0  if X = 0  and
+             result = -1 if X < 0 }
+
+function Sign3(X) -> result
+  result := Sign(X) .and. -Boolean(X)
+end function { Sign3 }
+
+{ ------------------------------------------------------------------  
+  Sin(ang)   First Quadrant Sine Function 
+             Set FT for fast Sin
+  
+    ang = 1st quadrant input angle in deci-grads (0..1000)
+            (1000 deci-grads = 90 degrees = PI/2 radians)
+            
+          Computes: 10000*sin(ang)
+  
+    NOTE: No input angle checking is performed. Caller should confine
+          ang to the range 0 <= ang <= 1000 dg or use XSin. }
+        
+function Sin(ang) -> result
+  M.In := ang
+  call _SinCos
+  result := M.Out
+end function { Sin }
+
+{ ------------------------------------------------------------------  
+  SinCos(ang,sin,cos)   First Quadrant Sine/Cosine Function 
+                        Set FT for fast SinCos
+                        
+    ang = 1st quadrant input angle in deci-grads (0..1000)
+            (1000 deci-grads = 90 degrees = PI/2 radians)
+            
+          Computes: 10000*sin(ang) and 10000*cos(ang)
+  
+    NOTE: No input angle checking is performed. Caller should confine
+          ang to the range 0 <= ang <= 1000 dg or use XSinCos. }
+        
+function SinCos(ang,sin,cos)
+  M.In := ang
+  call _SinCos
+  sin := M.Out
+  cos := M.Out2
+end function { SinCos }
+
+{  -------------------------------------------------------------------
+  Tan(ang)   First-Quadrant Tangent Function
+             Set FT for fast Tan 
+  
+    ang = 1st quadrant input angle in deci-grads (0..1000)
+              (1000 deci-grads = 90 degrees = PI/2 radians)
+          Computes: 10000*Tan(ang)
+    
+    NOTE: No input angle checking is performed. Caller should confine
+          'ang' to range 0 <= ang <= 1000 dg or use XTan. 
+          
+          The tangent function is discontinuous at +/-90 degrees, that
+          is: tan(1000) -> infinity.  Therefore, this function returns
+          MaxInt for Tangent(1000) and Optionally a MATH_OVERFLOW
+          exception will also be generated if you have the TCM_DEBUG
+          mode enabled. }
+
+function Tan(ang) -> result
+  M.In := ang
+  call _Tangent
+  result := M.Out
+end function { Tan }
+
+{ -------------------------------------------------------------------
+   XCos(ang)    Extended-Angle Cosine Function 
+                Set FT for fast XCos
+                
+    ang = Input angle in deci-grads (1000 deci-grads = 90 degrees)
+           Angle may be any 32-bit signed-integer
+          
+          Computes: 10000*Cos(ang)  }
+
+function XCos(ang) -> result
+  M.In := ang
+  call _XSinCos
+  result := M.Out2
+end function { XCos }
+
+{ XOR(x,y)   Can be used Inline with the KSE
+             Returns the bitwise exclusive-or of x and y  }
+
+function XOR(x,y) -> result
+  result := (x .or. y) - (x .and. y)
+end function { XOR }
+
+{ -------------------------------------------------------------------
+   XSin(ang)    Extended-Angle Sine Function
+                Set FT for fast XSin
+  
+    ang = Input angle in deci-grads (1000 deci-grads = 90 degrees)
+           Angle may be any 32-bit signed-integer
+          
+          Computes: 10000*Sin(ang)  }
+
+function XSin(ang) -> result
+  M.In := ang
+  call _XSinCos
+  result := M.Out
+end function { XSin }
+
+{ -------------------------------------------------------------------
+   XSinCos(ang,sin,cos)    Extended-Angle Sine/Cosine Function 
+                           Set FT for fast XSinCos
+  
+    ang = Input angle in deci-grads (1000 deci-grads = 90 degrees)
+           Angle may be any 32-bit signed-integer
+          
+          Computes: 10000*Sin(ang) and 10000*Cos(ang)  }
+
+function XSinCos(ang,sin,cos)
+  M.In := ang
+  call _XSinCos
+  sin := M.Out
+  cos := M.Out2
+end function { XSinCos }
+
+{  -------------------------------------------------------------------
+    XTan(ang)   Extended-Angle Tangent Function 
+                Set FT for fast XTan
+  
+     ang = Input angle in deci-grads (1000 deci-grads = 90 degrees)
+                (Angle may be any signed integer)
+             Computes: 10000*Tan(ang)
+    
+      The tangent function is discontinuous at +/-90 degrees, that
+      is: Tan(1000) -> infinity.  Therefore, this function returns
+      MaxInt for Tan(1000), Tan(3000), etc. Optionally a MATH_OVERFLOW
+      exception will also be generated if you have the TCM_DEBUG mode
+      enabled }
+
+function XTan(ang) -> result
+  M.In := ang
+  call _XTangent
+  result := M.Out
+end function { XTan }
+
+macro   Special_Functions  { KSE Section Marker }
+end macro
+{---------------------------------------------------------------------------------
+                           3.0 Special Functions
+----------------------------------------------------------------------------------
+{  ATFade(cv,rng)     Audio-Taper MIDI Fader Function 
+  
+        cv  = control value input 0..127
+        rng = control range input 0..100%
+               returns attenuation output -200,000..0 mdb
+  
+  Fast Mode: None
+  
+  Accepts a linear control value, and returns an audio-taper
+  attenuation value. At 'cv' = 127, 'atn' = 0 db. As 'cv' swings
+  from 127..0, 'atn' increases from 0 db toward some maximum
+  negative value determined by the 'rng' input. At 'rng' = 100%,
+  'atn' swings through the full range from 0..-180 db (muted).
+  For 'rng' values of 100..0%, the max 'atn' value (at 'cv' = 0)
+  changes from -200..0 db. Thus, with 'rng' at 0%, 'atn' = 0 db
+  for any 'cv' value (ie 'cv' has NO control range).
+    
+  For the full range of attenuation, 'rng' = 100%, a 3-segment
+  linear db relationship is used. The 'working' zone from 0..-25 db
+  is assigned to 'cv' = 127..50. The 'soft' zone from -25..-60 db
+  is assigned to 'cv' = 50..17, and the 'fade-out' zone from
+  -60..-200 db is assigned to 'cv' = 17..0. This provides smooth
+  and accurate volume control throughout the entire audio range. }
+
+function ATFade(cv,rng) -> result
+  M.In := cv
+  M.In2 := rng
+  call _ATFade
+  result := M.Out
+end function { ATFade }
+
+{    The following four functions each take two input arguments and provide two
+     output values. The inputs are the crossfade control variable, 0 <= xv <= 1000
+     and the Morph control variable, 0 <= mv <= 1000. The outputs are the up-curve
+     volume ratio VR1 and down-curve volume ratio VR2, each scaled by 10000. As xv
+     swings from 0 to 1000, VR1 swings from 0 to 10000 while VR2 swings from 10000
+     to 0. However, if you need to control a K4 mdb function or engine-parameter
+     function, you can use the library format converters VR_to_mdb or epVR to
+     convert the outputs to the needed control format.
+     
+     The morphing variable has zero effect when mv = 0 and it fully linearizes the
+     curves when mv = 1000. Of course, between these two limits, the curves morph.
+     
+     When mv = 0, the first function produces true sine/cosine, equal-power
+     crossfading. But, as mv increases toward 1000, the curves become linear and
+     the crossover point moves down from 70.7% to 50%. The next 3 functions
+     produce S-shaped curves. The first two were suggested by Tuwa Sni and the 3rd
+     is a symmetrical variation of the second. All three of these functions always
+     crossover at the 50% point and therefore are not equal-power throughout the
+     fade. I have no personal experience with using these S-shaped curves but Tuwa
+     seems to think they provide musically pleasing results. }
+     
+{ EP_XFade(xv,m,VR1,VR2)   Equal-Power Crossfade function
+                           Set FT for fast EP_XFade
+
+           xv = Input crossfade control variable 0 <= xv <= 1000
+           mv = Input morphing control variable  0 <= m <= 1000
+          VR1 = Volume Ratio #1, the up curve, scaled by 10000
+          VR2 = Volume Ratio #2, the down curve, scaled by 10000
+        
+     When mv = 0, this variation provides true equal-power, sine/cosine
+     curvature over the entire range of 0 <= xv <= 1000  }
+
+function EP_XFade(xv,mv,VR1,VR2)
+  M.In := xv
+  M.In2 := mv
+  call _EPXFade
+  VR1 := M.Out
+  VR2 := M.Out2
+end function { EP_XFade }     
+     
+{ S1_XFade(xv,mv,VR1,VR2)    S-shape #1 Crossfade Function
+                             Set FT for fast S1_XFade
+                             
+           xv = Input crossfade control variable 0 <= xv <= 1000
+           mv = Input morphing control variable  0 <= mv <= 1000
+          VR1 = Volume Ratio #1, the up curve, scaled by 10000
+          VR2 = Volume Ratio #2, the down curve, scaled by 10000
+          
+          When mv = 0, this variation follows a sin/cos curvature
+          over 180 degrees of angle.  }
+         
+function S1_XFade(xv,mv,VR1,VR2)
+  M.In := xv
+  M.In2 := mv
+  call _S1XFade
+  VR1 := M.Out
+  VR2 := M.Out2
+end function { S1_XFade }
+
+{ S2_XFade(xv,mv,VR1,VR2)    S-shape #2 Crossfade Function
+                             Set FL for fast S2_XFade
+
+           xv = Input crossfade control variable 0 <= xv <= 1000
+           mv = Input morphing control variable  0 <= m <= 1000
+          VR1 = Volume Ratio #1, the up curve, scaled by 10000
+          VR2 = Volume Ratio #2, the down curve, scaled by 10000
+        
+     When mv = 0, this variation provides an exponential curve for 0 <= xv <= 500
+     and a logarithmic curve for 500 <= xv <= 1000  }
+
+function S2_XFade(xv,mv,VR1,VR2)
+  M.In := xv
+  M.In2 := mv
+  call _S2XFade
+  VR1 := M.Out
+  VR2 := M.Out2
+end function { S2_XFade }
+
+{ S3_XFade(xv,m,VR1,VR2)    S-shape #3 Crossfade function
+                            
+           xv = Input crossfade control variable 0 <= xv <= 1000
+           mv = Input morphing control variable  0 <= m <= 1000
+          VR1 = Volume Ratio #1, the up curve, scaled by 10000
+          VR2 = Volume Ratio #2, the down curve, scaled by 10000
+        
+     When mv = 0, this variation provides a symetrical exponential curve
+     over the entire range of 0 <= xv <= 1000  }
+     
+function S3_XFade(xv,mv,VR1,VR2)
+  M.In := xv
+  M.In2 := mv
+  call _S3XFade
+  VR1 := M.Out
+  VR2 := M.Out2
+end function { S3_XFade3 }
+
+macro   Format_Converters  { KSE Section Marker }
+end macro
+{ ------------------------------------------------------------------------------
+                        4.0 Format Converters
+  ------------------------------------------------------------------------------
+  CVHex(val)   Convert integer val to an 8-digit Hexadecimal string 
+
+                val = Input 32-bit integer
+                Output: Text string formatted as a hexadecimal number
+                 
+               Fast Mode: None }
+
+function CVHex(val) -> result
+  M.In := val
+  call _CVHex
+  result := M.Str
+end function { CVHex }
+ 
+{ DFmtVal(val,dd)      Decimal Format Value
+  
+       val = input value
+        dd = number of digits desired to the right of the decimal point
+             This should be a value in the range of 1 to 9. Values
+             outside this range will revert to default Kontakt formatting.
+             
+    Returns: A text string formatted as an integer and decimal fraction
+             I.f where f contains dd digits. For example, if you set dd
+             to 3 and value is -12045, the text string will be -12.045
+             
+             Fast Mode: None }
+
+function DFmtVal(val,dd) -> result
+  M.In := val
+  M.In2 := dd
+  call _DFmtVal
+  result := M.Str
+end function { DFmtVal }
+
+{                                *** NOTE ***
+        All engine parameter converters begin with ep and can convert
+        bi-directionaly by simply specifying the desired mode. For
+        example, with epVolume(mode,vol) you can use:
+        
+               epVolume(V2E,vol) for converting volume to ep
+            or epVolume(E2V,vol) for converting ep to volume
+--------------------------------------------------------------------------  
+
+  epARFreq(mode,F)  Engine Parameter Converter for AR filter Frequency
+           (including LP2, LP4, LP2/4, HP2, HP4, HP2/4, BP2, BP4, BP2/4 )
+               
+               F = frequency: 8.2 to 35500.0 Hz  (scaled by 10)
+                       
+    epARFreq(V2E,F) -> ep    Set FL for fast V2E
+    epARFreq(E2V,ep) -> F    Set FE for fast E2V 
+    
+    Fundamental Equation: ep = 10^6/K*Lg(F/Fmin)
+         where K = Lg(Fmax/Fmin) = 12.07990749 = 302/25
+     
+      V2E computes: ep = (Log2[(F/Fmin)*2^18] - 18000000)/K
+      E2V computes: F = Exp2[K*ep + 1000000*Lg(10*Fmin)] }
+
+function epARFreq(mode,gp) -> result  { gp = F or ep }
+  if mode = V2E { Freq -> ep }
+    M.In := 3196*gp+(36*gp+20)/41     { (F/Fmin)*2^18 }
+    call _Log2
+    result := 25*(M.Out - 18000000 + 151)/302
+  else  { ep -> Freq }
+    M.In := (302*gp+12)/25 + 6357552  { K*ep + Lg(10*Fmin) }
+    call _Exp2
+    result := M.Out
+  end if
+end function { epARFreq }
+
+{ --------------------------------------------------------------------------
+  epAtkTime(mode,T)  Engine Parameter Converter for Envelope Attack Time
+                      Time: 0.00 to 15000.00 msec  (scaled by 100)
+                       
+    epAtkTime(V2E,T) -> ep    Set FL for fast V2E
+    epAtkTime(E2V,ep) -> T    Set FE for fast E2V
+    
+    Fundamental Equation: ep = K*[Lg(T/100 + 2) - 1]
+        where K = 1000000/[(Lg(Tmax/100 + 2) - 1]  = 77682.77
+     
+      V2E computes: ep = K*Log2(T + 200)/10^6 - K*Lg(200)
+      E2V computes:  T = Exp2[10^6*ep/K + 10^6*Lg(200)] - 200 }
+
+function epAtkTime(mode,gp) -> result
+  if mode = V2E { t -> ep }
+    M.In := gp + 200
+    call _Log2
+    result := (55*M.Out+354)/708 - 593796    { ep = K*Lg(T+200) - K*Lg(200) }   
+  else { ep -> t }
+    M.In := gp*12 + (1586*gp+908)/1817 + 7643856 { ep*10^6/K + 10^6*Lg(200) }
+    call _Exp2
+    result := M.Out - 200                    { 2^[ep/K + Lg(200)] - 200 }  
+  end if
+end function { epAtkTime }
+
+{ --------------------------------------------------------------------------
+  epDAFTFreq(mode,F)  Engine Parameter Converter for DAFT filter cutoff freq
+                      Frequency: 26.0 to 35500.0 (scaled by 10) 
+                       
+    epDAFTFreq(V2E,F) -> ep    Set FL for fast V2E
+    epDAFTFreq(E2V,ep) -> F    Set FE for fast E2V 
+    
+    Fundamental Equation: ep = 10^6/K*Lg(F/Fmin)
+          where K = Lg(Fmax/Fmin) = 10.41509168 -> 552/53
+     
+      V2E computes: ep = (Log2[(F/Fmin)*2^20] - 20000000)/K
+      E2V computes:  F = Exp2[K*ep + 10^6*Lg(Fmin)] }
+      
+function epDAFTFreq(mode,gp) -> result
+  if mode = V2E { F -> ep }
+    M.In := 4032*gp+(64*gp+32)/65             { 2^20*F/Fmin }
+    call _Log2
+    result := 53*(M.Out - 20000000 + 276)/552 { 10^6/Kr*[Lg(2^20*F/Fmin - Lg(2^20)] }   
+  else { ep -> F }
+    M.In := (552*gp+26)/53 + 8022368          { K*ep + 10^6*Lg(Fmin) }
+    call _Exp2
+    result := M.Out
+  end if
+end function { epDAFTFreq }
+
+{ --------------------------------------------------------------------------
+  epDRTime(mode,t)  Engine Parameter Converter for Envelope Decay/Release
+                     Time: 0 to 25000.00 msec  (scaled by 100)
+                       
+    epDRTime(V2E,T) -> ep    Set FL for fast V2E
+    epDRTime(E2V,ep) -> T    Set FE for fast E2V 
+    
+    Fundamental Equation: ep = K*[Lg(T/100 + 2) - 1]
+        where K = 1000000/[(Lg(Tmax/100 + 2) - 1]  = 73476.704
+     
+      V2E computes: ep = K*Log2(T + 200)/10^6 - K*Lg(200)
+      E2V computes:  T = Exp2[ep*10^6/K + 10^6*Lg(200)] - 200 }
+      
+function epDRTime(mode,gp) -> result
+  if mode = V2E  { T -> ep }
+    M.In := gp + 200
+    call _Log2                               { 10^6*Lg(T + 200) }
+    result := (41*M.Out+279)/558 - 561645    { (K*Lg(T + 200) - K*Lg(200) }    
+  else { ep -> T }
+    M.In := gp*13 + (50*gp+41)/82 + 7643856  { ep*10^6/K + 10^6*Lg(200) }
+    call _Exp2                               { 2^[ep/K + Lg(200)] }
+    result := M.Out - 200                    { 2^[ep/K + Lg(200)] - 200 }  
+  end if
+end function { epDRTime }
+
+{ --------------------------------------------------------------------------
+  epEqBW(mode,bw)  Engine Par Converter for EQ Bandwidth
+                      bw: 0.30..3.00 octaves (scaled by 100)
+                     
+           epEqBW(V2E,bw) -> ep 
+           epEqBW(E2V,ep) -> bw
+    
+    Fundamental Equation: ep = 10^6*(bw - 33)/267 }
+      
+function epEqBW(mode,gp) -> result
+  if mode = V2E { bw -> ep with rounding }
+    result := (1000000*gp - 32999733)/267
+  else          { ep -> bw with rounding }
+    result := (gp*267+500000)/1000000 + 33
+  end if
+end function { epEqBW }
+
+{ --------------------------------------------------------------------------
+  epEqFreq(mode,gp)  Engine Par Converter for EQ frequency (1,2, or 3 band)
+
+                     F = frequency: 20.0 to 20000.0 Hz  (scaled by 10)
+                     
+    epEqFreq(V2E,F) -> ep    Set FL for fast V2E
+    epEqFreq(E2V,ep) -> F    Set FE for fast E2V 
+    
+    Fundamental Equation: ep = 10^6/K*Lg(F/Fmin)
+          where K = Lg(Fmax/Fmin) = 9.965784283 = 1166/117
+          
+      V2E computes: ep = (Log2[(F/Fmin)*2^21] - 21000000)/K
+      E2V computes:  F = Exp2[K*ep + 10^6*Lg(Fmin)] }
+
+function epEqFreq(mode,gp) -> result  { gp = F or ep }
+  if mode = V2E { Freq -> ep }
+    M.In := 10485*gp + (19*gp+12)/25     { 2^21*F/Fmin }
+    call _Log2    { 10^6/K*[Lg(2^21*F/Fmin) - Lg(2^21] }
+    result := 117*(M.Out - 21000000 + 583)/1166 
+  else  { ep -> Freq }
+    M.In := (1166*gp + 58)/117 + 7643856 { K*ep + 10^6*Lg(Fmin) }
+    call _Exp2
+    result := M.Out
+  end if
+end function { epEqFreq }
+
+{ --------------------------------------------------------------------------
+  epEqGain(mode,gp)  Engine Par Converter for EQ Bandwidth
+                     G: -18.0 to +18.0 db (scaled by 10)
+                     
+           epEqGain(V2E,G) -> ep
+           epEqGain(E2V,ep) -> G
+    
+    Fundamental Equation: ep = 500000*G/180 + 500000 }
+      
+function epEqGain(mode,gp) -> result
+  if mode = V2E { bw -> ep }
+    result := RoundDiv(25000*gp,9) + 500000
+  else { ep -> bw }
+    result := RoundDiv((gp-500000)*9,25000)
+  end if
+end function { epEqGain }
+
+{ --------------------------------------------------------------------------
+  epHBFreq(mode,gp)  Engine Parameter Converter for Legacy HP/BP filters
+                    including HP1, HP4, BP2, BP4, and BR4 
+                    Frequency: 36.1 to 18100.0 Hz (scaled by 10)
+                       
+   NOTE: The legacy HP2 filter has a slightly different range,
+         so use epHP2Freq for the 2-pole HP filter
+
+      epHBFreq(V2E,F) -> ep    Set FL for fast V2E
+      epHBFreq(E2V,ep) -> F    Set FE for fast E2V 
+    
+      This function is the same as epLPFreq with
+      input/output frequency scaled by 218/181
+     
+      V2E computes ep using: _LFF_to_ep
+      E2V computes  F using: _EP_to_LFF }
+      
+function epHBFreq(mode,gp) -> result  { gp = F or ep }
+  if mode = V2E { Freq -> ep }
+    M.In := (218*gp+90)/181 + 1 { +1 to keep ep >= 0 }
+    call _LFF_to_ep   { M.In=F, M.Out=ep }
+    result := M.Out
+  else  { ep -> Freq }
+    M.In := gp
+    call _EP_to_LFF   { M.In=ep, M.Out=F }
+    result := (M.Out*361+218)/436 { F*0.830275229 }
+  end if
+end function { epHBFreq }
+
+{ --------------------------------------------------------------------------
+  epHP2Freq(mode,gp)  Engine Par Converter for Legacy HP2 filter Freqency
+                     F: 37.3 to 18700.0 Hz (scaled by 10)
+
+      epHP2Freq(V2E,F) -> ep    Set FL for fast V2E
+      epHP2Freq(E2V,ep) -> F    Set FE for fast E2V 
+    
+      This function is the same as epLPFreq with
+      input/output frequency scaled by 218/187
+     
+      V2E computes ep using: _LFF_to_ep
+      E2V computes  F using: _EP_to_LFF }
+      
+function epHP2Freq(mode,gp) -> result  { gp = F or ep }
+  if mode = V2E { Freq -> ep }
+    M.In := (218*gp+93)/187 + 1 { +1 to keep ep >= 0 }
+    call _LFF_to_ep    { M.In=F, M.Out=ep }
+    result := M.Out
+  else  { ep -> Freq }
+    M.In := gp
+    call _EP_to_LFF    { M.In=ep, M.Out=Fc }
+    result := (M.Out*187+109)/218 { F*0.857798165 }
+  end if
+end function { epHP2Freq }
+
+{ --------------------------------------------------------------------------
+  epLFOFreq(mode,gp)  Engine Par Converter for LFO frequency
+  
+      This converter uses an exponential lookup table with exponential
+      interpolation to fit Kontakt's peculiar function more accurately.
+
+                F = frequency: 0.01 to 213.10 Hz  (scaled by 100)
+                     
+    epLFOFreq(V2E,Freq) -> ep   Set FL for fast V2E
+    epLFOFreq(E2V,ep) -> F      Set FE for fast E2V
+    
+    Fundamental Equations:
+             ep = N[Z] + [Log2(Freq) - LF[z]]*K   F[z] < Freq < F[z+1]
+           Freq = Exp2[LF[z] + (ep - N[z])/K]      N[z] < ep < N[z+1] 
+                
+       where LF[z] = 10^6*Lg(F[z]) and K = Kn/Kd = (N[z+1] - N[z])/(LF[z+1] - LF[z])
+              
+         To avoid arithmetic overflow:  Kn[z] < 2^31/(LF[z+1] - LF[z])
+                                  and   Kd[z] < 2^31/(N[z+1] - N[z]) }
+  
+function epLFOFreq(mode,gp) -> result 
+  declare const Zones := 19           { Number of zones/regions between anchors } 
+  declare const Anchors := Zones + 1  { Number of arbitrarily-spaced anchors }
+                                 { Anchors: (ep/freq) pairs }
+  declare N[Anchors] := (0,500568,599626,710994,741922,800079,824882,859188,873712,888891,904859, ...
+                        923583,934163,943902,954131,959175,964182,975188,991013,999979)  { ep values }
+  declare F[Anchors] := (1,150,400,1210,1640,2930,3730,5270,6080,7040,8260, ... { Corresponding freq }
+                        9980,11090,12200,13460,14140,14860,16600,19480,21310)
+                                 { Lg of Freq: LF[z] = 1000000*Lg(F[z]) }
+  declare LF[Anchors] := (0,7228819,8643856,10240791,10679480,11516685,11864960,12363587,12569856,12781360, ...
+                         13011926,13284824,13436972,13574594,13716391,13787495,13859146,14018896,14249706,14379243)
+  {   K[z] = (N[z+1] - N[z])/(LF[z+1] - LF[z]) expressed as an integer ratio Kn/Kd
+      K = 0.069246169,0.070003799,0.069738587,0.070501007,0.069465675,0.071216718,0.068800882,0.070413125,
+          0.071766928,0.069255552,0.068611707,0.069537718,0.070766414,0.072138205,0.070938634,0.069879421,
+          0.068895526,0.068562758,0.06921579 }
+  declare Kn[Zones] := (281,737,843,1645,2487,2089,1124,1709,2318,2429,3290,1957,1855,1307,1934, ...
+                        1727,1799,1943, 391)
+  declare Kd[Zones] := (4058,10528,12088,23333,35845,29333,16337,24271,32299,35073,47951,28143,...
+                         26213,18118,27263,24714,26112,28339,5649)
+  declare z  { current zone index }
+  declare j  { loop var }
+  if mode = V2E { Freq -> ep }
+    z := Zones - 1
+    for j := 0 to z  { Find F zone containing input Freq }
+      if in_range(gp,F[j],F[j+1] - 1)
+        z := j
+        j := Zones
+      end if
+    end for
+    M.In := gp       { Compute ep = N[z] + (10^6*Lg(Freq) - LF[z])*Kn/Kd }
+    call _Log2 { M.Out = 10^6*Lg(Freq)  }  
+    result := N[z] + (M.Out - LF[z])*Kn[z]/Kd[z]
+  else  { ep -> Freq }
+    z := Zones - 1
+    for j := 0 to z  { Find N zone containing input ep }
+      if in_range(gp,N[j],N[j+1] - 1)
+        z := j
+        j := Zones
+      end if
+    end for
+    M.In := LF[z] + (gp - N[z])*Kd[z]/Kn[z]
+    call _Exp2       { Compute Freq = 2^(LF[z] + (ep - N[z])*Kd/Kn }
+    result := M.Out  { Freq, scaled by 100 }
+  end if
+end function { epLFOFreq }
+
+{ --------------------------------------------------------------------------
+  epLPFreq(mode,F)  Engine Parameter Converter for Legacy LP1, LP2, LP4, LP6
+                    F = frequency: 43.6 to 21800.0 Hz  (scaled by 10)
+                       
+    epLPFreq(V2E,F) -> ep    Set FL for fast V2E
+    epLPFreq(E2V,ep) -> F    Set FE for fast E2V 
+    
+      This function uses a pair of 10-element lookup tables plus
+      logarithmic interpolation to achieve close tracking with
+      NI's peculiar LP filter function.
+     
+      V2E computes ep using: _LFF_to_ep
+      E2V computes  F using: _EP_to_LFF }
+      
+function epLPFreq(mode,gp) -> result  { gp = F or ep }
+  if mode = V2E { Freq -> ep }
+    M.In := gp
+    call _LFF_to_ep { M.In=Freq, M.Out=ep }
+    result := M.Out
+  else  { ep -> Freq }
+    M.In := gp
+    call _EP_to_LFF { M.In=ep, M.Out=Freq }
+    result := M.Out
+  end if
+end function { epLPFreq }
+
+{ -----------------------------------------------------------------------
+  epProFreq(mode,F)  Engine Par Converter for LP Pro53 and Legacy Ladder
+                     F = frequency: 26.0 to 8400.0 Hz  (scaled by 10)
+                     
+    epProFreq(V2E,F) -> ep    Set FL for fast V2E
+    epProFreq(E2V,ep) -> F    Set FE for fast E2V 
+    
+    Fundamental Equation: ep = 10^6/K*Lg(F/Fmin)
+          where K = Lg(Fmax/Fmin) = 8.335733893 = 1167/140
+
+      V2E computes: ep = (Log2[(F/Fmin)*2^22] - 22000000)/K
+      E2V computes:  F = Exp2[K*ep + 10^6*Lg(Fmin)] }
+
+function epProFreq(mode,gp) -> result { gp = F or ep }
+  if mode = V2E { Freq -> ep }
+    M.In := 16131*gp+(61*gp+32)/65      { 2^22*F/Fmin }
+    call _Log2                          { 10^6/K*[Lg(2^22*F/Fmin - Lg(2^22)] }
+    result := 140*(M.Out - 22000000 + 583)/1167 
+  else  { ep -> Freq }
+    M.In := (1167*gp+70)/140 + 8022368  { K*ep + 10^6*Lg(Fmin) }
+    call _Exp2
+    result := M.Out
+  end if
+end function { epProFreq }
+
+{ --------------------------------------------------------------------------
+  epSGEqBW(mode,Q)  Engine Par Converter for Solid G-EQ Bandwidth
+                      Q: 0.70..2.50 (scaled by 100)
+                     
+           epSGEqBW(V2E,Q) -> ep 
+           epSGEqBW(E2V,ep) -> Q 
+    
+    Fundamental Equation: ep = (50000*Q - 3500000)/9 }
+      
+function epSGEqBW(mode,gp) -> result
+  if mode = V2E { bw -> ep }
+    result := RoundDiv(50000*gp - 3500000,9) 
+  else { ep -> bw with rounding }
+    result := RoundDiv(9*gp+3500000,50000)
+  end if
+end function { epSGEqBW }
+
+{ --------------------------------------------------------------------------
+  epSGEqFreq(mode,band,F)  Engine Par Converter for Solid G-EQ Frequency
+
+             40.0 to   600.0 Hz (scaled by 10) for  LF Band
+            200.0 to  2500.0 Hz (scaled by 10) for LMF Band
+            600.0 to  7000.0 Hz (scaled by 10) for HMF Band
+           1500.0 to 22000.0 Hz (scaled by 10) for  HF Band
+            
+    epSGEqFreq(V2E,band,F) -> ep    Set FL for fast V2E
+    epSGEqFreq(E2V,band,ep) -> F    Set FE for fast E2V 
+    
+    Fundamental Equation: ep = 10^6/K*Lg(F/Fmin)
+      where K = Lg(Fmax/Fmin) = 3.906890595 = 2098/537 for LF Band
+            K = Lg(Fmax/Fmin) = 3.643856189 = 1166/117 for LMF
+            K = Lg(Fmax/Fmin) = 3.544320517 = 1166/117 for HMF
+            K = Lg(Fmax/Fmin) = 3.874469118 = 1166/117 for HF
+          
+      V2E computes: ep = (Log2[(F/Fmin)*2^27] - 27000000)/K for LF Band
+      E2V computes:  F = Exp2[K*ep + 10^6*Lg(Fmin)] }
+
+function epSGEqFreq(mode,band,gp) -> result  { gp = F or ep }
+  if mode = V2E { Freq -> ep }
+    select band
+      case LF
+        M.In := 335544*gp + (8*gp+12)/25         { 2^27*F/Fmin }
+        call _Log2        { 10^6/K*[Lg(2^27*F/Fmin) - Lg(2^27] }
+        result := 537*(M.Out - 27000000)/2098
+      case LMF
+        M.In := 67108*gp + (108*gp+62)/125       { 2^27*F/Fmin }
+        call _Log2        { 10^6/K*[Lg(2^27*F/Fmin) - Lg(2^27] }
+        result := 570*(M.Out - 27000000)/2077
+      case HMF
+        M.In := 22369*gp + (13417*gp+10797)/21594 { 2^27*F/Fmin }
+        call _Log2         { 10^6/K*[Lg(2^27*F/Fmin) - Lg(2^27] }
+        result := 564*(M.Out - 27000000)/1999
+      case HF
+        M.In := 8947*gp + (8543*gp+5034)/10068    { 2^27*F/Fmin }
+        call _Log2         { 10^6/K*[Lg(2^27*F/Fmin) - Lg(2^27] }
+        result := 470*(M.Out - 27000000)/1821
+    end select
+  else  { ep -> Freq }
+    select band
+      case LF
+        M.In := (2098*gp + 268)/537 + 8643856  { K*ep + 10^6*Lg(Fmin) }
+        call _Exp2
+        result := M.Out
+      case LMF
+        M.In := (2077*gp + 285)/570 + 10965784 { K*ep + 10^6*Lg(Fmin) }
+        call _Exp2
+        result := M.Out
+      case HMF
+        M.In := (1999*gp + 268)/564 + 12550747  { K*ep + 10^6*Lg(Fmin) }
+        call _Exp2
+        result := M.Out
+      case HF
+        M.In := (1821*gp + 235)/470 + 13872675  { K*ep + 10^6*Lg(Fmin) }
+        call _Exp2
+        result := M.Out
+    end select
+  end if
+end function { epSGEqFreq }
+
+{ --------------------------------------------------------------------------
+  epSGEqGain(mode,G)  Engine Par Converter for Solid G-EQ Gain
+                     G: -20.0 to +20.0 db (scaled by 10)
+                     
+           epSGEqGain(V2E,G) -> ep
+           epSGEqGain(E2V,ep) -> G
+    
+    Fundamental Equation: ep = 500000*G/200 + 500000 }
+      
+function epSGEqGain(mode,gp) -> result
+  if mode = V2E { bw -> ep }
+    result := 2500*gp + 500000
+  else { ep -> bw }
+    result := RoundDiv(gp-500000,2500)
+  end if
+end function { epSGEqGain }
+
+{ --------------------------------------------------------------------------
+  epSpeed(mode,S)  Engine Parameter Converter for Speed (time/beat machines)
+                    S: 0.0 to 800.0%  (scaled by 10)
+
+     epSpeed(V2E,S) -> ep     Set FL for fast V2E
+     epSpeed(E2V,ep) -> S     Set FE for fast E2V   
+    
+     Fundamental equations: S = 2^[K*(X^3 + 1) + A] - 50/3
+                            X = ([Lg(3*S + 500) - B]/K)^1/3
+              where X = (ep - 500000)/500000 
+                    K = 2.807354922,
+                    A = 7.380821784
+                    B = 11.77313921  
+               
+     V2E computes: ep = Root3[Log2(3*S+500) - 10^6*B]/(20*K^1/3)
+     E2V computes: S = Exp2[10^6*K*(X^3 + 1) + 10^6*A] - 500)/3 }
+
+function epSpeed(mode,gp) -> result  { gp = Speed or ep }
+  if mode = V2E   { S -> ep }
+    M.In := 3*gp + 500
+    call _Speed_to_ep
+    result := RoundDiv(145*M.Out,4091) + 500000   { N'/(20*K^1/3) + 500000 }
+  else { ep -> S }
+    M.In := (gp + 25)/50 - 10000  { M.In = 10000*X where X = (ep - 500000)/500000 }
+    call _EP_to_Speed
+    result := (6*M.Out - 997)/6   { S = M.Out - 50/3 }
+  end if
+end function { epSpeed }
+
+{ --------------------------------------------------------------------------
+  epSVFreq(mode,F)  Engine Parameter Converter for non-multi SV filters
+                     (including: Ladder Peak, Ladder Notch, Ladder BP2/4,
+                      Ladder HP1/2/3/4, Ladder LP1/2/3/4, SV Notch4,
+                      SV BP2/4, SV HP1/2/4, SV LP1/2/4)
+                      
+                     F = frequency: 26.0 to 19900.0 Hz  (scaled by 10)
+                     
+    epSVFreq(V2E,F) -> ep    Set FL for fast V2E
+    epSVFreq(E2V,ep) -> F    Set FE for fast E2V 
+    
+    Fundamental Equation: ep = 10^6/K*Lg(F/Fmin)
+          where K = Lg(Fmax/Fmin) = 9.580041090 = 479/50
+
+      V2E computes: ep = (Log2[(F/Fmin)*2^21] - 21000000)/K
+      E2V computes:  F = Exp2[K*ep + 10^6*Lg(Fmin)] }
+
+function epSVFreq(mode,gp) -> result  { gp = F or ep }
+  if mode = V2E { Freq -> ep }
+    M.In := 8065*gp+(63*gp+32)/65     { 2^21*F/Fmin }
+    call _Log2
+    result := 50*(M.Out - 21000000 + 239)/479 { 10^6/K*[Lg(2^21*F/Fmin - Lg(2^21)] }
+  else  { ep -> Freq }
+    M.In := (479*gp+25)/50 + 8022368  { K*ep + 10^6*Lg(Fmin) }
+    call _Exp2
+    result := M.Out
+  end if
+end function { epSVFreq }
+
+{ --------------------------------------------------------------------------
+  epSVMFreq(mode,F)  Engine Parameter Converter for SV Multi-filters
+                      (for SV Par LP/HP, SV Par BP/BP, and SV Ser LP/HP)
+                     F = frequency: 2.6 to 84400.0 Hz  (scaled by 10)
+                     
+    epSVMFreq(V2E,F) -> ep    Set FL for fast V2E
+    epSVMFreq(E2V,ep) -> F    Set FE for fast E2V 
+    
+    Fundamental Equation: ep = 10^6/K*Lg(F/Fmin)
+          where K = Lg(Fmax/Fmin) = 14.98644375 = 1109/74
+
+      V2E computes: ep = (Log2[(F/Fmin)*2^16] - 16000000)/K
+      E2V computes:  F = Exp2[K*ep + 10^6*Lg(Fmin)] }
+
+function epSVMFreq(mode,gp) -> result  { gp = F or ep }
+  if mode = V2E { Freq -> ep }
+    M.In := 2520*gp+(8*gp+6)/13        { 2^16*F/Fmin }
+    call _Log2           { 10^6/K*[Lg(2^16*F/Fmin - Lg(2^16)] }
+    result := 74*(M.Out - 16000000 + 554)/1109 
+  else  { ep -> Freq }
+    M.In := (1109*gp+37)/74 + 4700440  { K*ep + 10^6*Lg(Fmin) }
+    call _Exp2
+    result := M.Out
+  end if
+end function { epSVMFreq }
+
+{ --------------------------------------------------------------------------
+  epTune(mode,T)  Engine Parameter Converter for Tuning
+                    T: -3600 to 3600 cents
+
+                 epTune(V2E,T) -> ep
+                 epTune(E2V,ep) -> T   
+    
+     Fundamental equation: ep = 1250*T/9 + 500000 }
+
+function epTune(mode,gp) -> result  { T or ep }
+  if mode = V2E   { T -> ep }
+    result := RoundDiv(1250*gp,9) + 500000
+  else { ep -> T }
+    result := RoundDiv(9*(gp - 500000),1250)
+  end if
+end function { epTune }
+
+{ --------------------------------------------------------------------------
+  epV3x2Freq(mode,F)  Engine Parameter Converter for Multi Versatile 3x2 filter
+
+                     F = frequency: 26.0 to 15800.0 Hz  (scaled by 10)
+                     
+    epV3x2Freq(V2E,F) -> ep    Set FL for fast V2E
+    epV3x2Freq(E2V,ep) -> F    Set FE for fast E2V 
+    
+    Fundamental Equation: ep = 10^6/K*Lg(F/Fmin)
+          where K = Lg(Fmax/Fmin) = 14.98644375 = 1109/74
+
+      V2E computes: ep = (Log2[(F/Fmin)*2^21] - 21000000)/K
+      E2V computes:  F = Exp2[K*ep + 10^6*Lg(Fmin)] }
+
+function epV3x2Freq(mode,gp) -> result  { gp = F or ep }
+  if mode = V2E  { Freq -> ep }
+    M.In := 8065*gp+(63*gp+32)/65    { 2^21*F/Fmin }
+    call _Log2          { 10^6/K*[Lg(2^22*F/Fmin - Lg(2^21] }
+    result := 89*(M.Out - 21000000 + 411)/823
+  else  { ep -> Freq }
+    M.In := (823*gp+44)/89 + 8022368  { K*N + 10^6*Lg(Fmin) }
+    call _Exp2
+    result := M.Out
+  end if
+end function { epV3x2Freq }
+
+{ --------------------------------------------------------------------------
+  epVolume(mode,vol)  Engine Parameter Converter for Volume
+     Volume: Muted to 12000 mdb ( using 18db/octave curve )
+
+     epVolume(V2E,vol) -> ep     Set FL for fast V2E
+     epVolume(E2V,ep) -> vol     Set FE for fast E2V   
+    
+     Fundamental equation:  vol = 18000*Lg(ep) - 346768  
+               
+     V2E computes: ep = Exp2[(Vol + 346768)/0.018]   
+     E2V computes: vol = 0.018*Log2(ep) - 346768 }
+
+function epVolume(mode,gp) -> result  { gp = vol or ep }
+  if mode = V2E   { vol -> ep }
+    M.In := (gp + 346768)*500/9
+    call _Exp2
+    result := M.Out - 1  { include ep = 0 }
+  else { ep -> vol }
+    M.In := gp + 1       { avoid -infinity }
+    call _Log2
+    result := 9*M.Out/500 - 346768
+    if result < Muted    { clamp result to Muted }
+      result := Muted
+    end if
+  end if
+end function { epVolume }
+
+{ --------------------------------------------------------------------------
+  epVR(mode,vr)  Engine Parameter Converter for Volume Ratio
+                   vr: 0.0000 to 4.0000 (scaled by 10000)
+                       where 1.0000 = 0 db
+
+     epVR(V2E,vr) -> ep     Set FL for fast V2E
+     epVR(E2V,ep) -> vr     Set FE for fast E2V   
+    
+     Fundamental Equation: vr = 40000*(ep/1000000)^3
+
+     V2E computes: ep = Root3(25000*vr)/100   
+     E2V computes: vr = 40000*(ep/1000000)^3 }
+
+function epVR(mode,gp) -> result  { gp = vr or ep }
+  if mode = V2E   { vr -> ep }
+    M.In := 25000*gp
+    call _Root3
+    result := (M.Out + 50)/100 
+  else { ep -> vr }
+    result := (gp/25)*(gp/25)/40000*(gp/25)/40000   
+  end if
+end function { epVR }
+
+{ GetTrueEP(get_ep,set_ep)  Returns last set_ep value of Engine Parameter
+  
+       get_ep, set_ep - One-line KS functions to perform basic ep read and write
+       
+       Description: With get_ep, some pars will not return the same value
+                    as last set with the set_ep function. GetTrueEP will
+                    return the last set_ep value with a tolerence of +/-5.
+                    
+       To accomplish this, GetTrueEP requires that you provide the basic get/set
+       commands for the ep as one-line KScript functions. They should be of the
+       form: epx := get_ep()  and  set_ep(epx). For example the get/set pair for
+       LFO Freqency might be:
+       
+          function get_lfo() -> result
+            result := get_engine_par(ENGINE_PAR_INTMOD_FREQUENCY,0,find_mod(0,"LFO_SINE"),-1)
+          end function
+
+          function set_lfo(epx)
+            set_engine_par(ENGINE_PAR_INTMOD_FREQUENCY,epx,0,find_mod(0,"LFO_SINE"),-1)
+          end function }
+
+function GetTrueEP(get_ep,set_ep) -> result
+  declare gep
+  declare err
+  gep := get_ep()  
+  result := gep         { assume get_ep is correct }
+  set_ep(result)        { send it back and then }
+  err := gep - get_ep() {  note the error }
+  while abs(err) > 2    { run servo loop to drive error to min }
+    result := result + err
+    set_ep(result)
+    err := gep - get_ep()
+  end while
+end function { GetTrueEP }
+
+{ --------------------------------------------------------------------------
+  ModInt_to_ep(type,P)    Modulation Intensity Linearizer
+
+              type: One of the constants IMOD or TARG
+                 P: Modulation percent (scaled by 10000) 
+                      ie -100.0000 <= P <= 100.0000
+                 
+     Function returns the ep needed to set modulation Intensity to P/10000
+          
+          For control with ENGINE_PARAMETER_INTMOD_INTENSITY, 
+          use: ModInt_to_ep(IMOD,P)
+                     
+          For control with ENGINE_PARAMETER_MOD_TARGET_INTENSITY,
+          use: ModInt_to_ep(TARG,P)
+ 
+     Fundamental equations: P = 10^6*[(ep - 500000)/500000]^3  for IMOD
+                            P = 10^6*[ep/1000000]^2  for TARG
+    
+         IMOD Computes: ep = Root3(P)/20 + 500000
+         TARG Computes: ep = Root2(P)            
+         
+         NOTE1: In the TARG mode (which is unipolar, negative P values
+                are treated the same as their positive counterparts. If
+                you want to activate the Invert button, you must issue a
+                separate engine command. 
+               
+         NOTE2: When a modulator is assigned to control Pitch in the Source
+                Module, K4/5 displays an Intensity slider scale from 0.0 to 12.0 st
+                but the ep disp fucntion still reports this as 0.0 to 100.0% }
+
+function ModInt_to_ep(type,P) -> result
+  declare root
+  if type = IMOD
+    M.In := P
+    call _Root3
+    result := RoundDiv(M.Out,20) + 500000    
+  else { TARG }
+    M.In := abs(P)
+    call _Root2
+    result := M.Out
+  end if
+end function { ModInt_to_ep }
+
+{-------------------------------------------------------------------------------
+
+  VR_to_mdb(vr) -> vol   Converts volume ratio to mdb equivalent
+                         Set FL for fast VR_to_mdb
+                         
+                          vr: 0.0000 to 4.0000 (scaled by 10000)
+                               where 1.0000 = 0 db                    
+         
+         Fundamental Equation: Vol = 6000*Lg(vr) - 79726
+         Routine computes: 6*Log2(vr)/1000 - 79726
+         
+ NOTE: This routine performs the same function as the deprecated routine Get_db
+       except Get_db limited the input range from 0.0000 <= vr <= 1.0000 whereas
+       VR_to_mdb allows the wider input range from 0.0000 < V/V0 <= 4.0000 }
+
+function VR_to_mdb(vr) -> result
+  M.In := vr
+  call _VR_to_mdb
+  result := M.Out
+end function { VR_to_mdb }
+
+macro   Core_Routines  { EP Section Marker }
+end macro
+
+{------------------------------------------------------------------------------
+                        Fast-Math Core Routines
+-------------------------------------------------------------------------------
+    These routines are the Fast Math versions of Standard core library routines
+    and will be utilized whenever the corresponding compiler switch is included
+    in the SetMathMode option_list. }
+    
+{  FM.ALg     Fast Math Core Function for binary AntiLogs 
+
+       Z = Input, essentially a base 2 logarithm (scaled by 10^6)
+                  where 1 <= Z <= 30.999999
+       X = Output, 2^(Z/1000000) to the nearest integer
+                    ie the Base 2 Antilog of Z
+              
+        This routine first separates Z/1000000 into its integer, C, and
+        fractional component M. Then the scale of M is reduced from 1000000
+        to 20000. Thus 0 <= M < 20000, which is then used to access the
+        FM.Exp table. Both M and M+1 are used to obtain neighboring antilogs
+        (50 apart in Z) and these 2 values are interpolated to calculate X'.
+        
+        Since the FM.Exp table contains values of 2^(30 + M/20000), the
+        interpolated X' value must be scaled DOWN by right shifting 30-C bits
+        to obtain the desired result X.
+
+        A table size of 20000 was chosen as the highest even sub-multiple
+        of 1,000,000 that will fit in the 32768 element array size limit of K4.
+        However, one additional array slot is used to enable easier
+        interpolation of FM.Exp[19999] with FM.Exp[20000] }    
+  
+function FM.ALg() { M.In=Z, M.Out=X }
+  declare zi      { Integer part of Z/1000000 }
+  declare zf      { Fractional part of Z/1000000 }
+
+  zi := M.In/1000000           { Characteristic, ie even power of 2 }
+  zf := (M.In mod 1000000)/50  { Reduce scale of fractional part to 20000 }
+  { 2^(30 + zf/20000) <= X' < 2^(30 + (zf+1)/20000), interpolate between 50s }
+  M.Out :=  FM.Exp[zf] + (FM.Exp[zf+1] - FM.Exp[zf])*(M.In mod 50)/50  { M.Out = X' }
+  if zi < 30
+    M.Out := sh_right(sh_right(M.Out,29-zi)+1,1) { Round the last shift }
+  end if                       { X = X'*2^(zi-30) = 2^(Z/1000000) }  
+end function { FM.ALg }
+
+{ FM.Lg      Fast Math Core Function for binary Logs
+
+         X = Input, Positive Integer in the range 1 <= X <= MaxInt
+        M' = Output, Manitissa of Log2(X) scaled by 10^6, 0 <= M' <= 14999999
+        C' = Output, Additional Charcteristic of Log2(X) 0 <= C' <= 16
+
+             This routine uses the FM.Log array to obtain values for Log2,
+             scaled by 1000000. When 1 <= X <= 0x7FFF, the result can be
+             obtained directly from FM.Log[X-1]. For larger X, this routine
+             first reduces the input argument X until it lies within the
+             normalized range 0x4000 <= X <= 0x7FFF. The reductions are
+             performed in even powers of two and the number of such
+             'right shifts' are tallied as C' (in M.Out2). The output is
+             thus delivered in two pieces, M' (in M.Out) is a mantissa that
+             may be larger than 1000000 while C' (in M.Out2) contains the
+             corresponding additional characteristic. The rounding part
+             of normalization may result in X = 0x8000, so to avoid an
+             additional reduction step, the last FM.Log array slot is used
+             to cover this situation. See the Technical Guide Addendum
+             for details.
+             
+             Normalization is done as a decreasing binary tree because
+             this was found to be the fastest overall normalization
+             algorithm for the KSP. }
+
+function FM.Lg() { M.In=X, M.Out=M', M.Out2=C'   M.In altered }
+  call _NLZ
+  if M.Out >= 17
+    M.Out2 := 0              { no normalization needed }
+  else { normalize and round }
+    M.Out2 := 17 - M.Out     { characteristic }
+    M.In := (sh_right(M.In,M.Out2-1) + 1)/2 { normal & round M.In }
+  end if
+  M.Out := FM.Log[M.In-1]    { M' := 1000000*Log2(X) }
+end function { FM.Lg } 
+
+{ FM.Sin   Fast Math Core Function for Trig (sin/cos)
+            
+           This routine uses the FM.Trg array to directly
+           fetch the Sin(ang) and then uses the trig identity:
+           Cos(X) = Sin(1000 - X) to fetch the Cos(ang). }
+             
+function FM.Sin()  { M.In=ang, M.Out=sin, M.Out2=cos }
+  M.Out := FM.Trg[M.In]
+  M.Out2 := FM.Trg[1000 - M.In]
+end function { FM.Sin }  
+
+{----------------------------------------------------------------------------
+                       Standard-Math Core Routines
+-----------------------------------------------------------------------------
+    These routines are the 'guts' of the original, core library routines and
+    will be utilized whenever their corresponding compiler switch is NOT
+    included in the SetMathMode option_list. These are also used to populate
+    the fast-mode lookup tables during post-initialization. }
+    
+{  SM.ALg   Standard Math Core Function for binary AntiLogs
+
+             Z = Input, essentially a base 2 logarithm (scaled by 10^6)
+                        where 1 <= Z <= 30.999999
+             X = Output, 2^(Z/1000000) to the nearest integer
+                          ie the Base 2 Antilog of Z
+                    
+          This routine uses a CORDIC-Like algorithm that utilizes the same
+          Logs array as that used by the core log routine SM.Lg }    
+    
+function SM.ALg()   {M.In=Z, M.Out=X}
+  M.MakeLogsTable() { Declare LogBits (precision) and Logs array }
+  declare const Bit30 := 0x40000000  { Value of highest positive bit position }
+  declare C         { Integer part of Z, ie the characteristic }
+  declare m         { Fractonal part of Z, ie the mantissa }
+  declare n         { Iteration index }
+
+  C := M.In/1000000      { Characteristic of Z }
+  m := M.In mod 1000000  { Mantissa of Z, scaled by 10^6 }
+  M.Out := Bit30         { SX = 1.0 scaled by 2^30 }
+  if m # 0               { Skip mantissa iteration loop for even powers of two }
+    m := m*1000 + M.LSB2 { Rescale m to match table (10^9) and bias by LSB/2 }
+    n := 1
+    while n <= M.LogBits { Execute Cordic Loop to drive m -> 0.0 and SX -> 2^m }
+      if m >= M.Logs[n]
+        m := m - M.Logs[n]
+        M.Out := M.Out + sh_right(M.Out,n)  { Accumulated scaled product for SX = 2^m }
+      end if
+      inc(n)
+    end while  { SX now = 2^m * 2^30 }
+  end if 
+  { If C = 30, X = SX; else X = SX*2^(C-30) }
+  if C < 30    { Right shift SX by (30-C) with rounding }
+    M.Out := sh_right(sh_right(M.Out,29-C)+1,1) .and. 0x7FFFFFFF  
+  end if
+end function { SM.ALg } 
+
+{ SM.Lg     Standard Math Core Function for binary Logs
+  
+           X = Input, Positive Integer in the range 1 <= X <= MaxInt
+           M = Output, Manitissa of Log2(X) scaled by 10^6, 0 <= M < 1000000
+           C = Output, Charcteristic of Log2(X)
+           
+          This routine uses a CORDIC-Like algorithm that utilizes the same Logs
+          table as that used by the core exponential support routine SM.ALg. }
+
+function SM.Lg() {M.In=X, M.Out=M, M.Out2=C}
+  M.MakeLogsTable() { Declare LogBits (precision) and Logs array }
+  declare const Bit30 := 0x40000000  { Value of highest positive bit position }   
+  declare n         { Iteration index }
+  declare nx        { Normalized X, with binary point between bits 29 & 30 }
+  declare sx        { Shifted nx }
+  call _NLZ 
+  dec(M.Out)        { n-1 shifts will normalize }
+  nx := sh_left(M.In,M.Out) { nx is M.In normalized }
+  M.Out2 := 30 - M.Out      { characteristic }
+  if nx = Bit30 { nx = 1.0 }
+    M.Out := 0              { X is an integral power of 2 }
+  else { Mantissa must be calculated for 1.0 < nx < 2.0 }
+    M.Out := 1000000000 - M.LSB2 { M = 1.0 - LSB/2 for rounding, scaled by 10^9 }
+    n := 1
+    while n <= M.LogBits and nx >= 0 { More bits to go and nx not exactly 2.0 yet }
+      { Cordic loop to drive nx -> 2.0 as m -> log2(nx) }
+      sx := sh_right(nx,n)   { Next increment to make nx -> 2.0 } 
+      if (-nx - sx) < 0    
+        { Is sx + nx <= 2.0, ie can we add sx without exceeding 2.0? }
+        nx := nx + sx        { Yes, increase nx by sx }
+        M.Out := M.Out - M.Logs[n] { Continue to make M -> Log2(nx) }
+      end if
+      inc(n)
+    end while
+    M.Out := (M.Out + 500)/1000    { Downscale M from 10^9 to 10^6 } 
+  end if
+end function { SM.Lg } 
+
+{ SM.Sin   Standard Math Core Function for Trig (sin/cos)
+
+          This routine uses the binary CORDIC algorithm and a small lookup
+          table to compute both the Sine and Cosine in one pass. }
+
+function SM.Sin() {M.In=ang, M.Out=sin, M.Out2=cos}
+  declare const Ang45 := Ang90/2     { Initial 45 degree rotation }
+  declare const AngScale := 1000000  { Input Angle scaling factor }
+  declare const cK := 607252935      { Cordic K*10^9 (15 or more iterations) }
+  declare const DownScale := 100000  { Reduce scaling from 10^9 to 10^4 }
+  declare const DownRound := DownScale/2  { Half adjust scale down }
+  declare const TrigBits := 15   { Precision in bits (#of iterations ) }
+  declare AngTbl[TrigBits+1] :=  { Angle Table (dg scaled by 10^6) } ...
+    { AngTbl[n] = arctan(2^-n) and AngTbl[0] is not used } (500000000, ...
+     295167235, 155958261, 79166848,  39737049, 19887896, ...
+       9946375,   4973491,   2486783,  1243396,   621699, ...
+        310849,    155425,     77712,    38856,    19428)
+  declare dx  { Change in X resulting from current rotation }
+  declare dy  { Change in Y resulting from current rotation }  
+  declare n   { Iteration index }
+  declare x   { X-component of Cordic vector scaled by 10^9 }
+  declare y   { Y-component of Cordic vector scaled by 10^9 }
+  declare z   { Residual Cordic Angle }
+  
+  x := cK     { Pre-rotate reference vector K by 45 degrees so  }
+  y := cK     {  that iteration for n = 0 need not be performed }
+  z := (M.In - Ang45)*AngScale { Scaled input angle referenced to 500 dg } 
+  for n := 1 to TrigBits { Use 15 iterations ( about 4-digit precision }
+    dx := sh_right(y,n)  { Rotated change in current x }
+    dy := sh_right(x,n)  { Rotated change in current y }
+    if z < 0  { Rotate vector clockwise }
+      x := x + dx   { Compute new rotated X }
+      y := y - dy   { Compute new rotated Y }
+      z := z + AngTbl[n]  { Update residual angle }
+    else      { Rotate vector counter-clockwise }  
+      x := x - dx   { Compute new rotated X }
+      y := y + dy   { Compute new rotated Y }
+      z := z - AngTbl[n]  { Update residual angle } 
+    end if
+  end for
+  M.Out := (y + DownRound)/DownScale  { Reduce scale to 10^4 and round }
+  M.Out2 := (x + DownRound)/DownScale { Both are positive in 1st quadrant }
+end function { SM.Sin }
+
+macro   KS_Support_Functions  { KSE Section Marker }
+end macro
+
+{--------------------------------------------------------------------------------
+                            Fast Math Table Initialization
+---------------------------------------------------------------------------------} 
+
+{ FM.BuildExp  The FM.Exp table contains the antilogs of the 20,000
+              values from 30,000,000 to 31,000,000 (in steps of 50).
+              This is the top one million of the input argument range
+              where the most resolution is available. The FM.Alg
+              algorithm first reduces the standard X input range
+              of 0..31,000,000 to the range 0 <= n < 20,000.
+              
+              The FM.Exp table is accessed by FM.Alg using an index
+              of 0..19999 & 20000 for interpolation of the last.
+              Thus, FM.Exp[n] = 2^(30 + n/20000) for 0 <= n <= 20000.
+              Note that FM.Exp[20000] is clamped to MaxInt }
+
+function FM.BuildExp() 
+  declare n
+  for n := 0 to 20000  { Populate the FM.Exp array }
+    M.In := 30000000 + 50*n
+    SM.ALg()           { compute binary anti-log of n }
+    FM.Exp[n] := M.Out { 2^(30+n/20000) }
+    if n mod 2048 = 0
+      wait(1)          { keep KSP happy with loop }
+    end if
+  end for
+  wait(1)
+end function { FM.BuildExp }  
+ 
+{ FM.BuildLog  Since Log2(0) is not defined, only Log2(1) and up are stored in
+              the FM.Log array. Thus Log2(1) is stored at FM.Log[0], Log2(2) is stored
+              at FM.Log[1], etc. The FM.Log array is accessed to retrieve logs from
+              Log2(1) to Log2(32767) with FM.Log[0] to FM.Log[32766]. For convenience
+              the last array slot, FM.Log[32767] is used to store Lg(32767.977+).
+              This additional value allows the algorithmic code for rounding to be
+              simplified. If Log2(32768) = 15000000 would be used, MaxInt would cause
+              Log2 to output 31000000 which can cause overflow problems when XLog10
+              converts from base 2 }
+
+function FM.BuildLog() 
+  declare n
+  for n := 1 to 32767  { Populate the FM.Log array }
+    M.In := n
+    SM.Lg()            { compute binary log of n }
+    FM.Log[n-1] := M.Out + 1000000*M.Out2  { FM.Log[n-1] = 1000000*Lg(n) }
+    if n mod 2048 = 0
+      wait(1)          { keep KSP happy with loop }
+    end if
+  end for
+  FM.Log[32767] := 14999999 { 1000000*Lg(32767.977+) }
+  wait(1)
+end function { FM.BuildLog }
+
+{ FM.BuildTrg  Since Cos(X) = Sin(1000-X), and Tangent(X = Sin(X)/Cos(X),
+              all trig functions can be derived from this one table.
+              FM.Trg[n] = 10000*Sin(n) for the range 0 <= n <= 1000 }
+
+function FM.BuildTrg()
+  declare n
+  for n := 0 to 500   { Populate the FM.Trg array } 
+    M.In := n
+    SM.Sin()          { compute sin & cos of n }
+    FM.Trg[n] := M.Out
+    FM.Trg[1000-n] := M.Out2
+    { FM.Trg[n] = 10000*Sin(n) and FM.Trg[1000-n] = 10000*Cos(n)}
+  end for
+end function { FM.BuildTrg }
+
+function FM.FillTables()  { Populate the active fast-mode lookup tables }
+  if M.Opts .and. FL # 0
+    FM.BuildLog()         { If FL is active }
+  end if
+  if M.Opts .and. FE # 0
+    FM.BuildExp()         { If FE is active }
+  end if
+  if M.Opts .and. FT # 0
+    FM.BuildTrg()         { If FT is active }
+  end if
+end function { FM.FillTables } 
+
+{--------------------------------------------------------------------------------
+                               Support Table Constructors
+---------------------------------------------------------------------------------}
+ 
+function M.MakeLFTable()     { Private Table for Legacy Filter cutoff }
+                  { Krn/Krd = Lg(F[n+1)/F[n]) }
+  declare global M.Krn[11] := (181,10845,11087,14829,11160,13895, ...
+                             11133,615,15803,15821,15821)
+  declare global M.Krd[11] := (17,1112,1189,1630,1247,1578, ...
+                             1288,73,1937,2014,2014)
+end function { M.MakeLFTable }
+
+
+{ M.MakeLogsTable  Data Function to declare the Logs table used by the
+                   SM.Lg and SM.ALg core routines. Currently the Logs
+                   array elements are scaled by 10^9. 
+
+  NOTE: The Logs array contains the value Logs[n] = Lg(1+2^-n) for each n
+        from 1 to LogBits, Logs[0] is not used. Both SM.Lg and SM.ALg use
+        a rounding 'constant' named LSB2 which is set to Logs[LogBits]/2. If
+        LogBits is changed, the value of this rounding constant must also be
+        changed. Therefore, it is defined here to keep it with the Logs table. }
+
+function M.MakeLogsTable()   { Private data for cordic logs }
+  declare global const M.LogBits := 20   { Precision bits (or #of loop iterations) }
+  declare global M.Logs[M.LogBits+1] :=  { Table Lg(1+2^-n), 0 < Logs[n] < 1 } ... 
+       (1000000000, 584962501, 321928095, 169925001, 87462841, 44394119, ... 
+        22367813, 11227256, 5624549, 2815016, 1408195, 704269, 352178, ...
+        176099, 88052, 44028, 22014, 11006, 5504, 2751, 1376)
+  declare global const M.LSB2 := 688     { Rounding Bias, Logs[LogBits]/2 }
+end function { M.MakeLogsTable }
+
+{--------------------------------------------------------------------------------
+                               Library Data Definitions
+---------------------------------------------------------------------------------}
+
+function M.DefFastArrays()      { Private lookup tables }
+  declare global FM.Log[32768]  { Log2(1) to Log2(32767) + Lg(32767.977+) }
+  declare global FM.Exp[20001]  { One extra for interpolation }
+  declare global FM.Trg[1001]   { full 0 to 1000 dg argument range }
+end function { M.DefFastArrays }
+
+function M.DefMathConst()  { Public Constants }
+  { The following 4 constants are needed by the library but
+    may also be useful to scripters using the Math Library }
+  declare global const Ang90 := 1000   { Right angle (90 degrees) = 1000 dg }
+  declare global const MaxInt := 0x7FFFFFFF { 2,147,483,647 }
+  declare global const MinInt := 0x80000000 { -2,147,483,648 }
+  declare global const Muted := -180000     { currently -180 db in mdb }
+  { The next two constants are used to control format conversion direction }
+  declare global const V2E := 0   { value to ep }
+  declare global const E2V := 1   { ep to value }
+  { The next two constants are used to determine ep type for epModInt }
+  declare global const IMOD := 0  { ENGINE_PARAMETER_INTMOD_INTENSITY }
+  declare global const TARG := 1  { ENGINE_PARAMETER_MOD_TARGET_INTENSITY 
+  { The next four constants are used to select the Solid G-EQ band }
+  declare global const LF := 0
+  declare global const LMF := 1
+  declare global const HMF := 2
+  declare global const HF := 4
+  { TCM exception code generated on Math Overflow }
+  declare global const MATH_OVERFLOW := 10  
+end function { M.DefMathConst }
+
+function M.DefMathPars()  { Private Variables }
+  declare global M.In        { Input pars }
+  declare global M.In2
+  declare global M.Out       { Output pars }
+  declare global M.Out2
+  declare global @M.Str      { String par }
+  declare global M.PostInit  { One-time post-init flag }
+  declare global M.Seed := 1107155288  { Rand Seed }
+end function { M.DefMathPars }
+
+function M.DefOptionCodes()   { Public constants: option_list switches }
+  { Reserve Bit 0 for future special use }
+  declare global const FL := 2   { Use Fast Math for Logs }
+  declare global const FE := 4   { Use Fast Math for Exps }
+  declare global const FT := 8   { Use Fast Math for Trig Functions }
+end function { M.DefOptionCodes }
+
+{--------------------------------------------------------------------------------
+                               KS Support Functions
+---------------------------------------------------------------------------------} 
+function M.Normal() { Scale M.In and M.In2:M.Out2 so M.In >= 0x40000000, xt=0.55 us } 
+  { Requires that M.In > 0 on entry. This routine normalizes
+    0x40000000 <= M.In <= 0x7FFFFFFF and scales M.In2:M.Out2 by the same factor
+    in order to preserve the original ratio of X/Z }
+  call _NLZ                         { normalizing factor NF = 2^(M.Out-1) }
+  M.In := sh_left(M.In,M.Out-1)     { normalized full-word divisor }
+  M.In2 := sh_left(M.In2,M.Out-1) .or. sh_right(M.Out2,33-M.Out) .and. sh_right(MaxInt,32-M.Out)
+  M.Out2 := sh_left(M.Out2,M.Out-1) { also scale dividend M.In2:M.Out2 by NF to preserve ratio }
+end function { M.Normal }
+
+function M.NormMC() { M.Out=M,M.Out2=C   Normalize Mantissa & Characteristic }
+  if M.Opts .and. FL # 0
+    { Map FM.Lg outputs M' & C' to SM.Lg output format M & C }
+    M.Out2 := M.Out2 + M.Out/1000000 { convert C' to C < 31 } 
+    M.Out := M.Out mod 1000000       { convert M' to M < 1000000 }
+  end if
+end function { M.NormMC }
+
+function M.Qsign(x,y,z) -> result  { sign of quotient for x*y/z, xt=0.3 usec }
+  result := (sh_right(x,31)+sh_right(y,31)+sh_right(z,31)) mod 2 .or. 1
+end function { M.Qsign }
+
+function M.Ucmp(x) -> result { unsigned x for compare operations }
+  { M.Ucmp(A) > M.Ucmp(B) performs an unsigned greater-than compare }
+  result := x + MinInt { toggle sign bit of X }
+end function { M.Ucmp }
+
+function M.UDiv64() { unsigned 62/31, M.Out = M.In2:M.Out2/M.In, 2.3 to 2.6 usec, min/avg }
+  { Note: This routine assumes that M.In is normalized in the range
+          0x40000000 <= M.In <= 0x7FFFFFFF and that the quotient will
+          fit in 31 bits }
+  declare const hb := 0x10000  { half-word base }
+  declare const hm := 0xFFFF   { half-word mask }
+  declare D1  { Divisor hi half-word, D0 = M.In }
+  declare Q1  { Quotient hi half-word, Q0 = M.Out2 }
+  declare RL  { low-word of remainder, RH = M.Out2 }
+  declare XL1 { hi/lo half-words of XL register }
+  declare XL0
+  D1 := sh_right(M.In,16)     { Divisor, hi half-word, 0x7FFF max }
+  M.In := M.In .and. hm       { Divisor, lo half-word, 0xFFFF max }
+  XL1 := sh_right(M.Out2,16) .and. hm { hi half-word of XL (M.Out2) }
+  XL0 := M.Out2 .and. hm              { lo half-word of XL (M.Out2) }
+  { The maximum value of M.In2:M.Out2 from M.UMul64 is 0x3FFFFFFF00000001 }
+  Q1 := M.In2/D1              { ceiling of Q1, 0x8001 max }
+  RL := M.In2 - Q1*D1         { remainder based on Q estimate }
+  while RL < hb and (Q1 >= hb or M.Ucmp(Q1*M.In) > M.Ucmp(sh_left(RL,16)+XL1))
+    dec(Q1)                   { reduce Q and increase remainder }
+    RL := RL + D1             { until quotient digit is correct } 
+  end while
+  { compute XH:XL1 - Q1*D with 48-bit precision, leaving a 32 bit result in M.In2 }  
+  RL := Q1*M.In           { Q1*D0 = 0xFFFE0001 max }
+  M.Out2 := Q1*D1 + (sh_right(RL,16) .and. hm) { RH = 0x7FFF7FFF max }
+  RL := RL .and. hm       { 0xFFFF }
+  M.In2 := sh_left(M.In2-M.Out2+sh_right(XL1-RL,31),16)+((XL1-RL) .and. hm)
+  M.Out2 := M.In2/D1      { ceiling of Q0, 0x10002 max }
+  RL := M.In2 - M.Out2*D1 { remainder based on Q0 estimate }
+  while RL < hb and (M.Out2 >= hb or M.Ucmp(M.Out2*M.In) > M.Ucmp(sh_left(RL,16)+XL0))
+    dec(M.Out2)           { reduce Q and increase remainder }
+    RL := RL + D1         { until quotient digit is correct } 
+  end while
+  M.Out := sh_left(Q1,16)+M.Out2  { full-word quotient, Q1:Q0 }
+end function { M.UDiv64 }
+
+function M.UMul64() { unsigned 31*31 multiply, M.In2:M.Out2 = M.In2*M.Out2  xt=1.1 usec }
+  declare const hm := 0xFFFF   { half-word mask }
+  declare XH     { HI/Lo half words of X factor, M.In2  }
+  declare XL
+  declare XR     { cross-product register }
+  XH := sh_right(M.In2,16)     { factor X, hi/lo half-words }
+  XL := M.In2 .and. hm         {  XH:XL = 0x7FFFFFFF max    } 
+  M.In2 := sh_right(M.Out2,16) { factor Y, hi/lo half-words }
+  M.Out2 := M.Out2 .and. hm    {  M.In2:M.Out2 = 0x7FFFFFFF max    }
+  XR := XH*M.Out2 + XL*M.In2 + (sh_right(XL*M.Out2,16) .and. hm) { max = 0xFFFE0000 }
+  M.In2 := XH*M.In2 + (sh_right(XR,16) .and. hm)  { Form 62-bit product in M.In2:M.Out2 }
+  M.Out2 := (XL*M.Out2 .and. hm) + sh_left(XR,16) {  0x3FFFFFFF00000001 max      }
+end function { M.UMul64 }
+
+function M.Unsign(x,y,z)   { remove sign and clamp to MaxInt, xt = 0.18 usec }
+  M.In2 := Cabs(x)
+  M.Out2 := Cabs(y)
+  M.In := Cabs(z)
+end function { M.Unsign }
+
+macro   KN_Support_Functions  { KSE Section Marker }
+end macro
+{----------------------------------------------------------------------------
+                           KN-Function Support
+-----------------------------------------------------------------------------
+    These are the 'inner callable' support functions for the library.
+    
+    NOTE: All functions in this library whose names begin with an underscore
+    are intended to be 'called' as KN functions as opposed to being inline
+    expanded as KS functions. Therefore, all the following functions pass
+    values in and out via the global Math Library register set. }
+   
+function _ALg { M.In=lgx, M.Out=X }
+  if M.Opts .and. FE # 0
+    FM.ALg()
+  else
+    SM.ALg()
+  end if
+end function { _Alg }
+  
+function _ATFade { M.In=cv, M.In2=rng, M.Out=atn }
+  declare const 30K := 30000  
+  declare const 50K := 50000
+  declare const 60K := 60000
+  declare const 70K := 70000
+  declare const 280K := 280000  
+  declare cx  { Range-mapped 'cv' }
+     { node 0: c0 = 0,  a0 = -200000 mdb
+       node 1: c1 = 17, a1 = -60000 mdb
+       node 2: c2 = 50, a2 = -25000 mdb }
+         
+  cx := 127 + M.In2*(M.In - 127)/100  { Set range for cx }
+  select cx
+    case 50 to 127      { 'Working' zone, -25..0 db }
+      M.Out := (50K*(cx - 127) - 72)/154
+      { atn := a2*(127 - cx)/(127 - c2) rounded }
+    case 17 to 49       { Soft zone, -60..-25 db }
+      M.Out := -60K + (70K*(cx - 17) + 33)/66
+      {  atn := a1 + (a2 - a1)*(cx - c1)/(c2 - c1) rounded }
+    case 0 to 16        { Fade-out zone, -200..60 db }
+      M.Out := Muted + (280K*cx + 17)/34
+      { atn := a0 + (a1 - a0)*cx/c1 rounded }
+  end select
+end function { _ATFade }
+    
+{ Returns the Cosine over 180 degrees of input angle (0 to 2000 dg) }
+function _Cos180  { M.In=ang, M.Out2=Cos(ang)  M.In altered }
+  if M.In > 1000        { in quadrant 2, use supplement }
+    M.In := 2000 - M.In
+    call _SinCos
+    M.Out2 := -M.Out2   { cosine is negative in Q2 }
+  else  { in quadrant 1 }
+    call _SinCos
+  end if
+end function { _Cos180 }
+
+function _CVHex { M.In=num, M.Str=str   M.In altered}
+  declare n
+  M.Str := 'h'     { Start with suffix }
+  for n := 1 to 8  { Derive 8 digits from low to high }
+    select M.In .and. 0xF
+      case 0 to 9  { Decimal digit }
+        M.Str := M.In .and. 0xF & M.Str
+      case 10
+        M.Str := 'A' & M.Str
+      case 11
+        M.Str := 'B' & M.Str
+      case 12
+        M.Str := 'C' & M.Str
+      case 13
+        M.Str := 'D' & M.Str
+      case 14
+        M.Str := 'E' & M.Str
+      case 15
+        M.Str := 'F' & M.Str        
+    end select
+    M.In := sh_right(M.In,4) { Shift next 4-bits into view }
+  end for
+end function { _CVHex }
+
+function _DFmtVal  { M.In=val, M.In2=dd, M.Str=str   M.In2 altered }
+  declare f            { fractional part }
+  declare S            { scale factor }
+  if in_range(M.In2,1,9)
+    S := 1
+    while M.In2 > 0    { compute S = 10^dd }
+      S := 10*S
+      dec(M.In2)
+    end while
+    M.Str := abs(M.In)/S & '.'  { I. ie Integer part plus point }
+    if M.In < 0
+      M.Str := '-' & M.Str      { affix sign if needed }
+    end if
+    f := abs(M.In) mod S        { f = fractional value }
+    S := S/10
+    while f < S and S # 1       { append leading zeros after point }
+      M.Str := M.Str & '0'
+      S := S/10
+    end while
+    M.Str := M.Str & f          { append fraction, str = (-)I.f }
+  else { illegal number of decimal digits, use default formatting }
+    M.Str := '' & M.In    
+  end if
+end function { _DFmtVal }
+
+function _EP_to_LFF { M.In=N, M.Out=Fc ep to Legacy Filter Freq }
+  M.MakeLFTable()        { Kr[n] = Krn[n]/Krd[n] = 10*Lg(F0[n+1]/F0[n]) }
+  declare LgF0[11] := (8768905,9833611,10808881,11741345,12651110,13546048, ...
+                       14426593,15290956,16133422,16949271,17734822)
+  { LgF0 is a table of 10^6*Lg(10.005*F0) the extra 0.5% is to balance error }
+  M.In2 := M.In/100000   { decade index of N }
+  M.In := (M.In mod 100000)*M.Krn[M.In2]/M.Krd[M.In2] + LgF0[M.In2] { (N-N0)*Kr + LgF0 }
+  call _Exp2  { M.Out = 10*Fc = 2^[(N-N0)*Kr + 10^6*Lg(10*F0)] }
+end function { _EP_to_LFF }
+
+function _EP_to_Speed {M.In=10000*X, M.Out=S'   M.In altered}
+  M.In := M.In*((M.In*M.In + 500)/1000)/1000   { M.In = 10^6*X^3 } 
+  M.In := (991*(M.In + 1000000) + 177)/353 + 7380822 { M.In = 1000000*[K*(X^3 + 1) + A] }
+  call _Exp2   { S' = 2^[K*(X^3 + 1) + A }  
+end function { _EP_to_Speed }
+
+function _EPXFade { M.In=xv, M.In2=mv, M.Out=VR1, M.Out2=VR2}
+  call _SinCos
+  call _morph 
+end function { _EPXFade }
+
+function _Expe  { M.In=lgx, M.Out=X   M.In altered}
+  if M.In > 21487562    { lgx > Ln(MaxInt) }
+    M.Out := MaxInt
+    USE_CODE_IF(TCM_DEBUG)
+      set_exception(MATH_OVERFLOW)
+    END_USE_CODE
+  else if M.In < 405465 { X=0 if M.In < Ln(0.5), X=1 if Ln(0.5) <= M.In < Ln(1.5) }
+    M.Out := sh_right(M.In+693147,31) + 1  
+  else  { 1 <= M.In <= Ln(MaxInt), Rebase M.In = lgx/Ln(2) }
+    M.In := ((M.In/1000000)*70692057 + 25)/49 + ((M.In mod 1000000)*1649 + 571)/1143
+    call _ALg   { Compute binary antilog of re-based 1 <= lgx < 30.999998 }    
+  end if
+end function { _Expe }
+
+function _Exp2 { M.In=lgx, M.Out=X }
+  if M.In > 30999999    { lgx > Lg(MaxInt) }
+    M.Out := MaxInt
+    USE_CODE_IF(TCM_DEBUG)
+      set_exception(MATH_OVERFLOW)
+    END_USE_CODE
+  else if M.In < 584963 { X=0 if M.In < Lg(0.5), X=1 if Lg(0.5) <= M.In < Lg(1.5) }
+    M.Out := sh_right(M.In+1000000,31) + 1 
+  else { 1 <= M.In < Lg(MaxInt) }
+    call _ALg   { Compute binary antilog of 1 <= lgx <= 30.999999 }
+  end if
+end function { _Exp2 }
+
+function _Exp10 { M.In=lgx, M.Out=X   M.In altered}
+  if M.In > 9331929
+    M.Out := MaxInt
+    USE_CODE_IF(TCM_DEBUG)
+      set_exception(MATH_OVERFLOW)
+    END_USE_CODE
+  else if M.In < 176091 { X=0 if M.In < log(0.5), X=1 if log(0.5) <= M.In < log(1.5) }
+    M.Out := sh_right(M.In+301030,31) + 1
+  else  { 1 <= M.In <= log(MaxInt), Rebase M.In = lgx/log(2) }
+    M.In := ((M.In/1000000)*106301699 + 16)/32 + ((M.In mod 1000000)*2136 + 321)/643
+    call _ALg   { Compute binary antilog of re-based 1 <= lgx <= 30.999997 }
+  end if
+end function { _Exp10 }
+
+function _LFF_to_ep  { M.In=Fc, M.Out=N Legacy Filter Frequency to ep }
+  M.MakeLFTable()    { Kr[n] = Krn[n]/Krd[n] = 10*Lg(F0[n+1]/F0[n]) }
+  declare F0[10] := (436,912,1793,3422,6429,11955,22010,40070,71850,126480)
+  { F0 is 10*F for each decade of N, ie at 0, 100K, 200K, etc }
+  declare const S := 9500
+  declare const LgS := 13213711 { 10^6*Lg(S) }  
+  M.In2 := 0
+  while M.In2 < 9 and M.In >= F0[M.In2+1]
+    inc(M.In2)              { find index of F0 just below Fc }
+  end while
+  M.In := S*M.In/F0[M.In2]  { scaled ratio of input F to F0 just below it }
+  call _Log2    { M0 = 10^6*Lg(S*F/F0) }
+  M.Out := (M.Out - LgS)*M.Krd[M.In2]/M.Krn[M.In2] + M.In2*100000 { N = [Lg(F/F0)]/Kr + N0 }
+end function { _LFF_to_ep }
+
+function _Lg { M.In=X, M.Out=M, M.Out2=C   M.In altered}
+  if M.In <= 0
+    M.Out := MinInt  { log is undefined }
+    USE_CODE_IF(TCM_DEBUG)
+      set_exception(MATH_OVERFLOW)
+    END_USE_CODE
+  else   { 1 <= M.In <= MaxInt }
+    if M.Opts .and. FL # 0
+      FM.Lg  { M.Out=M', M.Out2=C' }
+    else
+      SM.Lg  { M.Out=M, M.Out2=C }
+    end if
+  end if
+end function { _Lg }  
+
+function _Loge { M.In=X, M.Out=lgx    M.In altered}
+  call _Lg  { Log2(X) as 1000000*M & C }  
+  if M.Out >= 0
+    M.NormMC  { Map fast M',C' to standard M,C }
+    { Rebase Log2(X) to Loge(X) = Log2(X)*Loge(2), then Recombine M & C }    
+    M.Out := (M.Out*1588+1145)/2291 + (M.Out2*49906597+36)/72
+  end if  
+end function { _Loge }
+
+function _Log2 { M.In=X, M.Out=lgx   M.In altered}
+  call _Lg  { Log2(X) as 1000000*M & C }
+  if M.Out >= 0
+    M.Out := M.Out + M.Out2*1000000  { Recombine M & C }
+  end if
+end function { _Log2 }
+
+function _Log10  { M.In=X, M.Out=lgx   M.In altered}
+  call _Lg  { Log2(X) as 1000000*M & C } 
+  if M.Out >= 0 { Normalize mantissa and characteristic for base conversion }
+    M.NormMC   { Map fast M',C' to standard M,C }
+    { Rebase Log10(X) = Log2(X)*Log10(2), then recombine M & C }
+    M.Out := (M.Out*1268/407*83+400)/859 + (M.Out2*70139989+116)/233  
+  end if  
+end function { _Log10 }
+
+function _morph { M.In=xv, M.In2=mv, M.Out=VR1, M.Out2=VR2}
+  { VR1 = ((1000 - mv)*VR1 + 10*xv*mv)/1000 }
+  M.Out := ((1000 - M.In2)*M.Out + 10*M.In*M.In2)/1000
+  { VR2 = ((1000 - mv)*VR2 + 10000*mv - 10*xv*mv)/1000 }
+  M.Out2 := ((1000 - M.In2)*M.Out2 + 10000*M.In2 - 10*M.In*M.In2)/1000  
+end function { _morph }
+
+function _NLZ { M.In, M.Out = Number of leading zeros 0..32 }
+              { Avg XT = 0.19 usec, M.In can be any 32-bit integer }
+  M.Out := 0  { Default case, 0x4000000..0xFFFFFFFF }
+  select M.In 
+    case 0 to 0x20-1
+      M.Out := 27   { 27..32 leading zeros }
+    case 0x20 to 0x100-1
+      M.Out := 24   { 24..26 leading zeros }
+    case 0x100 to 0x4000-1
+      M.Out := 18   { 18..23 leading zeros }
+    case 0x4000 to 0x100000-1 
+      M.Out := 12   { 12..17 leading zeros }
+    case 0x100000 to 0x4000000-1 
+      M.Out := 6    {  6..11 leading zeros }
+  end select
+  select sh_left(M.In,M.Out)  { Normalize and determine addon count from 0 to 5 }
+    { Default case 80000000 .. 0xFFFFFFFF, add nothing }
+    case 0x40000000 to 0x80000000-1
+      M.Out := M.Out + 1 
+    case 0x20000000 to 0x40000000-1
+      M.Out := M.Out + 2
+    case 0x10000000 to 0x20000000-1
+      M.Out := M.Out + 3
+    case 0x08000000 to 0x10000000-1
+      M.Out := M.Out + 4
+    case 0x00000000 to 0x08000000-1  { For all but the special M.In = 0 case, this }
+      M.Out := M.Out + 5             {  range operates as 0x4000000..0x8000000     }
+  end select  
+end function { _NLZ }
+
+function _ReduceAngle { In: M.In = ang, Out: M.In = reduced ang, 0..+90, M.In2 = Quad - 1 }
+  declare const Ang360 := 4*Ang90
+  declare const Ang180 := 2*Ang90
+  M.In := ((M.In mod Ang360) + Ang360) mod Ang360 { 0..+360 }
+  M.In2 := (M.In - 1)/Ang90  { quadrant - 1 = 0..3 }
+  M.In := M.In mod Ang180       { 0..+180 }
+  M.In := M.In + ((M.In-1)/Ang90)*(Ang180 - 2*M.In)  { 0..+90 }
+end function
+
+function _Root2 { X=M.In, M.Out = 1000*X^1/2 }
+  declare n     { next newton iteration }
+  if M.In < 2   { For X = 1 or 0, result is X itself }
+    M.Out := M.In
+  else { X > 1 }
+    dec(M.In)
+    call _NLZ  
+    n := M.Out  { leading zeros for X - 1 }
+    inc(M.In)   { restore X }
+    n := 16 - n/2         { Use lowest even power of 2 equal or above  }
+    M.Out := sh_left(1,n) {  the square root of X as the initial guess }
+    n := sh_right(M.Out + sh_right(M.In,n),1) { 1st iteration }
+    while n < M.Out       { repeat Newton iterations as needed }
+      M.Out := n          { loop body will execute a max of 5 times }
+      n := (M.Out + M.In/M.Out)/2
+    end while
+    M.Out := 1000*M.Out + 500*(M.In-M.Out*M.Out)/M.Out { add appox fractional part }
+  end if
+end function { _Root2 }
+
+function _Root3 { M.In=X, M.Out=root }
+   { Table of initial estimates. While only 16 estimates are required, some of
+    those estimates are duplicated in the table in order to simplify the code
+    required to access the table. Thus the actual array contains 28 words. }
+  declare R3Tbl[28] := (671,717,758,795,829,861,890,917,956,956, ...
+                    1002,1002,1045,1045,1084,1084,1121,1121,1156,1156, ...
+                    1204,1204,1204,1204,1263,1263,1263,1263)
+  declare S3   { Normalization, bit-trio shift counter }
+  declare m    { m = Rem/r = A/r - r*r, where Rem = A - r*r*r }
+  declare r    { temporary result, root }
+  declare sx   { save original X }
+  if M.In < -MaxInt        { Watch out for -2^31, it has no positive counterpart }
+    M.Out := -129015915    { Return pre-computed, cube root = 1290.483647 }
+  else if abs(M.In) < 2
+    M.Out := 100000*M.In   { Cube Root of 0 or +/- 1 }
+  else { 2 <= abs(X) <= MaxInt }
+    sx := M.In  { save orignal X }
+    M.In := abs(M.In)      { Force radicand to positive value 2 <= M.In <= MaxInt }
+    call _NLZ
+    S3 := (M.Out - 1)/3  { #of trio shifts required to normalize M.In so that }
+    M.In := sh_left(M.In,3*S3)        { top nibble is from 1 to 7 inclusive }
+    r := R3Tbl[sh_right(M.In,26) - 4] { Initial estimate for integer part }
+    r := (2*r + M.In/(r*r))/3         { Only one iteration needed to converge }
+    m := M.In/r - r*r                 { m = Rem/r, where -2859 < m < 3790 }
+    r := 400000*r + 400000*m/(3*r + m/r)     { Combine with fractional part }
+    M.Out := sh_right(sh_right(r,S3) + 2,2)  { Denormalize and round result }
+    if sx < 0
+      M.Out := -M.out                        { affix original sign }
+    end if
+  end if 
+end function { _Root3}
+
+function _SinCos { M.In=ang, M.Out=sin, M.Out2=cos }
+  if M.Opts .and. FT # 0
+    FM.Sin()
+  else
+    SM.Sin()
+  end if
+end function { _SinCos }
+
+function _SinCos2Tan  { In: M.Out=sin, M.Out2=cos, Out: M.Out=tan }
+  if M.Out2 = 0
+    M.Out := MaxInt
+    USE_CODE_IF(TCM_DEBUG)
+      set_exception(MATH_OVERFLOW)
+    END_USE_CODE
+  else
+    M.Out := M.Out*10000/M.Out2
+  end if  
+end function { _SinCos2Tan }
+
+function _Speed_to_ep { M.In=3*S + 500, M.Out=N'  M.In altered }
+  call _Log2     { N' = 1000000*Lg(3*S + 500) }
+  M.In := M.Out - 11773139   { u = 1000000*[Lg(3*S + 500) - B]  }
+  call _Root3    { N' = 10^7*[Lg(3*S + 50) - B]^1/3 = X*10^7*K^1/3}
+end function { _Speed_to_ep }
+
+function _S1XFade { M.In=xv, M.In2=mv, M.Out=VR1, M.Out2=VR2}
+  declare xv
+  xv := M.In      { save input xv }
+  M.In := 2*xv
+  call _Cos180    { M.Out = Cos(2*xv)   0 <= xv <= 2000 }
+  M.In := xv      { restore input xv }
+  M.Out := 5000 - M.Out2/2  { VR1 = 5000 - cos(2*xv)/2 }
+  M.Out2 := 5000 + M.Out2/2 { VR2 = 5000 + cos(2*xv)/2 }
+  call _morph
+end function { _S1XFade }
+
+function _S2XFade { M.In=xv, M.In2=mv, M.Out=VR1, M.Out2=VR2}
+  if M.In <= 500              { xv <= 500 }
+    M.Out := M.In*M.In/50     { VR1 = xv*xv/50 }
+    M.Out2 := 10000 - M.Out   { VR2 = 10000 - xv*xv/50 }
+  else
+    { VR = 5000 +/- 5000*Log(18*xv/1000 - 8) = 
+             5000 +/- 5000*Log(18*xv - 8000) -/+ 15000 }
+    M.In := 18*M.In - 8000       { Map xv -> 18*xv - 8000 }
+    call _Log10   { M.Out = lgx = 10000*Log(18*xv - 8000) }
+    M.Out2 := 20000 - M.Out/200  { VR2 = 20000 - lgx/2 } 
+    M.Out := M.Out/200 - 10000   { VR1 = lgx/2 - 10000 }
+    M.In := (M.In + 8000)/18     { restore input xv for morph }
+  end if
+  call _morph   
+end function { _S2XFade }
+
+function _S3XFade { M.In=xv, M.In2=mv, M.Out=VR1, M.Out2=VR2 }
+  if M.In <= 500  { xv <= 500 }
+    M.Out := M.In*M.In/50     { VR1 = xv*xv/50 }
+    M.Out2 := 10000 - M.Out   { VR2 = 10000 - xv*xv/50 }
+  else
+    M.Out2 := (1000 - M.In)*(1000 - M.In)/50  { VR2 = (1000-xv)^2/50 }
+    M.Out := 10000 - M.Out2                   { VR1 = 10000 - VR2 }
+  end if
+  call _morph 
+end function { _S3XFade }
+
+function _Tangent { M.In=ang, M.Out=tan }
+  call _SinCos
+  call _SinCos2Tan  
+end function { _Tangent } 
+
+function _UMulDiv { unsigned 31x31/31, M.Out=X*Y/Z,  xt=4.6 usec }
+  M.UMul64()         { M.In2:MO2 = X*Y = M.In2*MO2 }
+  if (sh_left(M.In2,1) - sh_right(M.Out2,31)) >= M.In
+    { Overflow condition, ie M.In2:M.Out2/M.In exceeds 31 bits }
+    M.Out := MaxInt  { set quotient result to max }
+    USE_CODE_IF(TCM_DEBUG)
+      set_exception(MATH_OVERFLOW)
+    END_USE_CODE
+  else  { result will fit in 31 bits }
+    M.Normal()       { adjust 0x40000000 <= M.In <= 0x7FFFFFFF }
+    M.UDiv64()       {  and then compute M.Out = M.In2:M.Out2/M.In }
+  end if
+end function { _UMulDiv }
+
+function _VR_to_mdb  { M.In=VR, M.Out=Vol  M.In altered }
+  if M.In > 40000
+    M.In := 40000    { Clamp VR to 4.0000 }
+  end if
+  if M.In <= 0
+    M.Out := Muted
+  else
+    call _Log2
+    M.Out := 6*M.Out/1000 - 79726
+  end if
+end function { _VR_to_mdb }
+
+function _XSinCos  { M.In=ang, M.Out=sin, M.Out2=cos    M.In,M.In2 altered }
+  call _ReduceAngle  { Reduce and reflect angle as needed }
+  call _SinCos       { Compute sin & cos of reduced, Q1 angle, 'ra' }
+  M.Out := M.Out*(1 - 2*(M.In2/2))  { Attach appropriate signs for quadrant }
+  M.Out2 := M.Out2*(1 - 2*((M.In2 mod 2 + M.In2/2) mod 2)) 
+end function { _XSinCos }
+ 
+function _XTangent { M.In=ang, M.Out=tan   M.In,M.In2 altered }
+  call _XSinCos
+  call _SinCos2Tan
+end function { _XTangent }

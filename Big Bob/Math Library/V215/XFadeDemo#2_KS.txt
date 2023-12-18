@@ -1,0 +1,173 @@
+{ ---------------------------------------------------------------------
+Title: Equal-Power Crossfade Demo#2 Script
+Uses: "KSPMath_V200.txt"
+Author: R.D.Villwock aka 'Big Bob'
+First Written: March 13, 2006
+Current Version: 1.02
+Last Modified: March 6, 2009
+----------------------------------------------------------------------
+  This Script illustrates how to use the KSP Math Library functions to
+  effect equal-power crossfading of two groups. This script should be used
+  in conjunction with the provided instrument file named XFadeDemo#2.nki.
+  The instrument uses only two, very short looped samples and therefore the
+  entire instrument with the samples and the script is provided in
+  monolith format with a file size of less than 10K bytes.
+  
+  The instrument has a sustained Clarinet tone (with a pitch of F3) assigned
+  to the F3 key in Group 0 (named 'Lo Vel - Clarinet'). The instrument also has
+  a sustained Trombone tone (F3) assigned to the F3 key of Group 1 (named 
+  'Hi Vel - Trombone'). Both samples are panned to the center.
+
+  To play the demo, click on the 'GroupXFade' button and move the Mod Wheel.
+  See the User's Guide for a full discussion of what this script does. }
+ 
+import "KSPMathV215_KSM.txt"
+
+on init
+  { MIDI CCs and Notes }
+  declare const Bender := 128
+  declare const CommonNote := 65  { Trombone and Clarinet Note }
+  declare const ModWheel := 1  
+  { Pseudo-Call Action Routines. NOTE: Assign these to powers of two }
+  declare const StartDemo := 1      { 2^0 }
+  declare const UpdateVolume := 2   { 2^1 }
+  { Display Captions }
+  declare @XVcap 
+    XVCap := '  XFade Variable'
+  declare @X0cap
+    X0cap := ' Group[0]  Level'
+  declare @X1cap
+    X1cap := ' Group[1]  Level'
+  declare @XMVcap
+    XMVcap := '   Master Fader'
+  { Control Panel Components }  
+  declare ui_button Demo
+    set_text(Demo,'GroupXFade')
+    move_control(Demo,1,1) 
+  declare ui_label XV (1,2)
+    move_control(XV,2,1)
+    set_text(XV,XVcap)
+  declare ui_label X0 (1,2)
+    move_control(X0,3,1)
+    set_text(X0,X0cap)
+  declare ui_label X1 (1,2)
+    move_control(X1,4,1)
+    set_text(X1,X1cap)
+  declare ui_label XMV (1,2)
+    move_control(XMV,5,1)
+    set_text(XMV,XMVcap)  
+  declare ui_knob Range (0,100,1)
+    set_text(Range,'VolRange')
+    set_knob_unit(Range,KNOB_UNIT_PERCENT)
+    move_control(Range,6,1)  
+    Range := 25
+  { Simple Variables }    
+  declare Actions   { List of actions to be performed at pseudo-call handler }
+  declare CallActv  { Semaphore to allow only one pseudo call at a time }
+  declare Call_id   { Event id for pseudo-call note }
+  declare MWV       { ModWheel value }
+  declare XFV       { XFade control variable }
+  { Common Note parameters }
+  declare 0db       { Amount in mdb to restore reference level of test note }
+  declare xid       { ID for test note }
+  { Remember These Settings }
+  make_persistent(Range)
+  make_persistent(MWV)
+  { Clear K2 Status Line }
+  message('')
+end on { init }
+
+on note
+  ignore_event(EVENT_ID) { No keyboard notes used }
+end on { note }
+
+on release
+  XEQ_Call  { If this is a pseudo-call, execute action routine(s) }
+end on { release }
+
+on controller
+  if (CC_NUM = ModWheel)
+    MWV := %CC[ModWheel]  { Update Mod Wheel Value }
+    Call(UpdateVolume)    { Execute a Volume Update  }
+  end if
+end on { controller }
+
+on ui_control (Demo) { Start Demo#2 }
+  note_off(ALL_EVENTS)  { Abort all demo notes in process }
+  if Demo = 1
+    0db := 0
+    Call(StartDemo+UpdateVolume)
+  end if   
+end on { StartTest Button }
+
+on ui_control (Range) { Change 'hot zone' range of Master Fader }
+  Call(UpdateVolume)  { Force an update of volume accordingly }
+end on { Fader Range Knob }
+
+{--------------------- Pseudo-Call and Handler Functions ------------------}
+
+function Call(cmd)  { Pseudo-Call process }
+  if CallActv = 0   { Only allow if currently inactive }
+    CallActv := 1   { Lock out any more calls until completed }
+    Actions := cmd  { Action List for XEQ_Call }
+    Call_id := play_note(0,1,0,1) { Play a very short MIDI Note 0 }
+  end if            {  to force-trigger an RCB }
+end function { Call }
+
+function XEQ_Call  { Execute Calls when Call_id occurs }
+  if EVENT_ID = Call_id  { Do nothing unless RCB invoked by Call_id event }
+    if (Actions .and. StartDemo # 0)
+      NewDemo    { Start a new demo per state of Demo Buttons }
+    end if
+    if (Actions .and. UpdateVolume # 0)
+      NewVolume  { Update Volume per control settings }
+    end if
+    CallActv := 0  { Ready for another pseudo Call }
+  end if  
+end function { XEQ_Call }
+
+{------------- Action Routines for the Pseudo-Call Handler ---------------}
+
+function NewDemo  { Starts a new demo }
+  xid := play_note(CommonNote,1,0,0)
+end function { NewDemo }
+
+function NewVolume  { Updates volume of Group 0 and Group 1 }
+  declare n       { For-Loop index }
+  declare EPV     { Engine Parameter for Group volume }
+  declare VR[2]   { VR Volume levels for groups }
+  declare MVol    { Master Volume level per MWV and Range }
+  
+  XFV := Ang90*MWV/127       { Map Mod Wheel to XFV = 0..1000 }
+  ATFade(MWV,Range,MVol)     { Control master volume of common note with Mod Wheel }
+  change_vol(xid,0db+MVol,1)
+  0db := -MVol
+  SinCos(XFV,VR[1],VR[0])    { Get XFade volume levels per XFV }
+  for n := 0 to 1
+    VR_to_ep(VR[n],EPV)      { Convert VR% to ep }
+    _set_engine_par(ENGINE_PAR_VOLUME,EPV,n,-1,-1)
+  end for
+  ShowData(MVol)           { Display control values }  
+end function { NewVolume }
+
+function ShowData(mvol)    { Display control values }
+  set_text(XV,XVcap)       { XFade variable 0..1000 }
+  add_text_line(XV,'          ' & XFV)
+  ShowGroupAtn(0,X0,X0Cap) { Group 0 Volume }
+  ShowGroupAtn(1,X1,X1Cap) { Group 1 Volume }
+  ShowAtn(mvol,XMV,XMVCap) { Master Fader Volume }
+end function { ShowData }
+
+function ShowGroupAtn(group,win,cap)
+  set_text(win,cap)
+  add_text_line(win,' Volume = ' & _get_engine_par_disp(ENGINE_PAR_VOLUME,group,-1,-1))
+end function { ShowGroupAtn }
+
+function ShowAtn(atn,win,cap)
+  set_text(win,cap)
+  if atn = Muted
+    add_text_line(win,'      Muted')
+  else
+    add_text_line(win,'    ' & atn & ' mdb')
+  end if
+end function { ShowAtn }

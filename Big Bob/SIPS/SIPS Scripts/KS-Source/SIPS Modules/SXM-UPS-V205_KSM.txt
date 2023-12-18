@@ -1,0 +1,458 @@
+{************************** SIPS Module **************************
+Module: User Preset Support V2, SXM-UPS
+Author: R.D.Villwock aka 'Big Bob'
+First Written: September 18, 2006
+Current Version: 2.05
+Last Modified: June 1, 2008
+******************************************************************}
+{ ---------------- Data Constructor Functions ---------------- }
+function on_init_Add_UserMenu   { Add User Presets & Commands to Menu }
+                    { Preset Menu Indices/Commands }
+  declare const User0   := 50 { 0..49 for Built-Ins, 50..59 for User Presets }
+  declare const Rename  := -2 { Open the User Preset Rename Dialog }
+  declare const Save_As := -3 { Main Panel is to be saved to a User Preset }
+  declare const Import  := -4 { Set Script to receive from another like script }
+  declare const Export  := -5 { Export the next selected User Preset }
+  { ---------------- Save As Command ----------------- }
+  add_menu_item (Preset,' -- Save As --',Save_As)
+  { ----------------- User Presets ------------------- }
+  add_menu_item(Preset, UP_Name[0],User0 +  0)
+  add_menu_item(Preset, UP_Name[1],User0 +  1)
+  add_menu_item(Preset, UP_Name[2],User0 +  2)
+  add_menu_item(Preset, UP_Name[3],User0 +  3)
+  add_menu_item(Preset, UP_Name[4],User0 +  4)
+  add_menu_item(Preset, UP_Name[5],User0 +  5)
+  add_menu_item(Preset, UP_Name[6],User0 +  6)
+  add_menu_item(Preset, UP_Name[7],User0 +  7)
+  add_menu_item(Preset, UP_Name[8],User0 +  8)
+  add_menu_item(Preset, UP_Name[9],User0 +  9)
+  { --------------- Commands ---------------- }
+  add_menu_item (Preset,' -- Rename --',Rename)
+  add_menu_item (Preset,' -- Export --',Export)
+  add_menu_item (Preset,' -- Import --',Import)
+end function { on_init_AddUser }
+
+function on_init_CharSet  { Initialize the numeric to Char mapping array }
+  declare !char[CharSetSize] { Allocate mapping array  }
+    char[0] := ' '  { Space }
+    char[1] := 'A'  { Upper-case Letters }
+    char[2] := 'B'
+    char[3] := 'C'
+    char[4] := 'D'
+    char[5] := 'E'
+    char[6] := 'F'
+    char[7] := 'G'
+    char[8] := 'H'
+    char[9] := 'I'
+    char[10] := 'J'
+    char[11] := 'K'
+    char[12] := 'L'
+    char[13] := 'M'
+    char[14] := 'N'
+    char[15] := 'O'
+    char[16] := 'P'
+    char[17] := 'Q'
+    char[18] := 'R'
+    char[19] := 'S'
+    char[20] := 'T'
+    char[21] := 'U'
+    char[22] := 'V'
+    char[23] := 'W'
+    char[24] := 'X'
+    char[25] := 'Y'
+    char[26] := 'Z'
+    char[27] := '0'  { Digits }
+    char[28] := '1'
+    char[29] := '2'
+    char[30] := '3'
+    char[31] := '4'
+    char[32] := '5'
+    char[33] := '6'
+    char[34] := '7'
+    char[35] := '8'
+    char[36] := '9'
+    char[37] := '#'  { Symbol set }
+    char[38] := '<'
+    char[39] := '>'
+    char[40] := '+'
+    char[41] := '-'  { Codes 42..46 available for more symbols }
+  declare const TopSymbol := 41
+  declare const LC_Ofst := 46  { Upper to Lower-Case Offset }
+    char[47] := 'a'  { Lower-case letters }
+    char[48] := 'b'
+    char[49] := 'c'
+    char[50] := 'd'
+    char[51] := 'e'
+    char[52] := 'f'
+    char[53] := 'g'
+    char[54] := 'h'
+    char[55] := 'i'
+    char[56] := 'j'
+    char[57] := 'k'
+    char[58] := 'l'
+    char[59] := 'm'
+    char[60] := 'n'
+    char[61] := 'o'
+    char[62] := 'p'
+    char[63] := 'q'
+    char[64] := 'r'
+    char[65] := 's'
+    char[66] := 't'
+    char[67] := 'u'
+    char[68] := 'v'
+    char[69] := 'w'
+    char[70] := 'x'
+    char[71] := 'y'
+    char[72] := 'z'
+end function { on_init_CharSet }
+
+function on_init_RenPanel  { Build the Panel to Rename User Presets }
+  declare const CloseEdit := 3  { Command to exit rename panel }
+  declare CP                  { Character Pointer for Edit Bfr }
+  declare EditActv  { Flag denoting that the Name Edit Panel is active }
+  declare EditBfr[NameChars]  { Name Edit Buffer, numeric format }
+  declare EditCmd   { Command code to be executed by Edit_Name routine } 
+  declare RenSub_Map[9] := { Rename Edit subpanel Map } ( ...
+              tNameDsp,       xxx,        xxx, ...
+               uBackSp,    uAlpha,    uEntChr, ...
+                uErase,       xxx,    uLoCase)
+  declare RenPanel_Map[36] := (xxx)  { Start out with a blank panel }
+    RenPanel_Map[23] := uPreset      { Add the Preset Button at 6,4 }
+    RenPanel_Map[29] := uCancel      { Add Cancel button at 6,5 }
+    AddSubPanel(RenPanel_Map,RenSub_Map,3,2,3)  { Add the Edit subpanel }
+  declare @AlphaCap0         { Alpha Knob Captions }
+    AlphaCap0 := ' Space'    { Space character }
+  declare @AlphaCap1A
+    AlphaCap1A := '  A - Z'  { Upper-case Alphabet zone }
+  declare @AlphaCap1B
+    AlphaCap1B := '  a - z'  { Lower-case Alphabet zone }
+  declare @AlphaCap2
+    AlphaCap2 := '  0 - 9'   { Digits zone }
+  declare @AlphaCap3
+    AlphaCap3 := '# < > + -' { Symbols zone }
+  declare ui_knob Alpha (0,TopSymbol,1)  { Alpha Knob }
+    move_control(Alpha,0,0)  
+  declare ui_button BackSpace
+    move_control(BackSpace,0,0)  
+    set_text(BackSpace,'<<  Backspace')
+  declare ui_button EnterChar
+    move_control(EnterChar,0,0)  
+    set_text(EnterChar,'   Enter Char  >>')   
+  declare ui_button LowerCase
+    move_control(LowerCase,0,0)  
+    set_text(LowerCase,'   Lower Case')
+  declare ui_button EraseName
+    move_control(EraseName,0,0)  
+    set_text(EraseName,' Erase All Chars')
+  declare @NameCap
+    NameCap := ' Enter Name (15 chars max): '
+  declare ui_label NameDisplay (3,1)  { New User Preset Name Display }
+    move_control(NameDisplay,0,0)  
+  declare ui_button CancelRename
+    move_control(CancelRename,0,0)  
+    set_text(CancelRename,'Cancel  Rename')
+end function { on_init_RenPanel }
+
+function on_init_Set_UserLimits
+  declare const MaxParms := 51     { Max #of parameters for a User Preset }
+  declare const NameChars := 15    { Max #of characters in a User Preset Name }
+  declare const CharSetSize := 73  { Max #of characters in encoded naming set }
+  declare const UserPresets := 10  { #of UserPresets, was 20 in prior versions }
+ { UserSize := UserPresets*MaxParms  Must not exceed 512 }
+  declare const PresetBfrSize := (MaxParms+7)/3*3  { Parms + header rounded up }
+  declare PresetBfr[PresetBfrSize]    { Import/Export Buffer for one preset }
+  { Sized as smallest multiple of 3 with at least MaxParms + 5 header words }   
+end function { on_init_Set_UserLimits }
+
+function on_init_UserPresets
+  declare ImpActv        { Flag denoting that Import Block is being received }
+  declare PresetParms[512]       { Legacy array, for V105 auto-update import }
+    _read_persistent_var(PresetParms)          { Recover Prior Presets, V105 }
+  declare UserParms[512]          { Persistent array, never make any smaller }
+    _read_persistent_var(UserParms)     { Recover Prior Presets, V110 and up }
+  declare !UP_Name[UserPresets]  { Allocate char array for User Preset Names }
+  { WARNING: This array is persistent, never make it any smaller }
+  declare UPNames[10*15] := ... 
+    { 'My Preset #1'} (13,71,0,16,64,51,65,51,66,0,37,28,0,0,0, ...
+    { 'My Preset #2'}  13,71,0,16,64,51,65,51,66,0,37,29,0,0,0, ...
+    { 'My Preset #3'}  13,71,0,16,64,51,65,51,66,0,37,30,0,0,0, ...
+    { 'My Preset #4'}  13,71,0,16,64,51,65,51,66,0,37,31,0,0,0, ...
+    { 'My Preset #5'}  13,71,0,16,64,51,65,51,66,0,37,32,0,0,0, ...
+    { 'My Preset #6'}  13,71,0,16,64,51,65,51,66,0,37,33,0,0,0, ...
+    { 'My Preset #7'}  13,71,0,16,64,51,65,51,66,0,37,34,0,0,0, ...
+    { 'My Preset #8'}  13,71,0,16,64,51,65,51,66,0,37,35,0,0,0, ...
+    { 'My Preset #9'}  13,71,0,16,64,51,65,51,66,0,37,36,0,0,0, ...
+    { 'My Preset #10'} 13,71,0,16,64,51,65,51,66,0,37,28,27,0,0)
+    _read_persistent_var(UPNames)  { Restore last-saved UPNames if any }
+  XfrUPNames                  { Convert numeric UPNames to char format }
+end function { on_init_UserPresets }
+
+{ ------------------- User Preset Support Routines --------------------- }
+function Back_Space  { Move cursor left to edit prior character }
+  if CP > 0    { If not at left margin, back up one char }
+    dec(CP)    { Move cursor left }
+    if CP = 0
+      LowerCase := false  { If at left margin set for Caps }
+      Set_Zone            { Update zone caption }
+    end if
+  end if
+end function { Back_Space }
+
+function Do_Edit
+{ This routine acts as an interface between the Preset Menu
+  handler and the Name Editing routine. Do_Edit allows the 
+  Preset Menu handler to open and close the Name Edit Panel } 
+  if EditActv = true        { Edit Panel already open }
+    if Command # Rename     { Preset selected or new command }
+      EditCmd := CloseEdit  { Start Edit Panel closure }
+    end if
+  else if Command = Rename  { Rename request (Edit Panel not open yet) }
+    Edit_Name               { Open Edit Panel to allow name entry }
+  end if
+end function { Do_Edit }
+
+function Do_Export(upx) { Send User Preset upx to Importing Script }
+  declare i
+  declare nx
+  declare px
+  declare Packet[3]
+  declare reply
+  
+  { First Compose the preset block in PresetBfr }
+  PresetBfr[0] := Version[vPFC]   { Header PFC tag }
+  PresetBfr[1] := upx             { Preset index }
+  nx := upx * NameChars
+  for i := 0 to 2 { Pack 15-character name as 3 integers }
+    Pack5(nx + 5*i,PresetBfr[2 + i])
+  end for
+  px := upx * MaxParms 
+  for i := 0 to MaxParms - 1      { Copy the preset parms }
+    PresetBfr[5 + i] := UserParms[px + i]
+  end for
+  { Now send the entire PresetBfr to first script with same SID }
+  for px := 0 to MaxParms+4 step 3
+    for i := 0 to 2  { Send 3 integers at a time }
+      Packet[i] := PresetBfr[px+i]
+    end for
+    SendMsg(HostSID,import_block,mda(Packet),mr0(reply))
+    if reply # mrOK  { Check for handshake }
+      StatMsg := "Can't find Import script"
+      MsgFlag := true
+      px := MaxParms + 5   { Force loop exit }
+    end if
+  end for
+end function { Do_Export }
+
+function Do_Import  { Receive preset and update arrays if data OK }
+  declare i
+  declare px
+  
+  if ImpActv = false  { New preset import starting }
+    ImpActv := true
+    px := 0
+  end if
+  for i := 0 to 2     { Unpack the 3 integers sent with msg }
+    PresetBfr[px+i] := EVENT_PAR[i] 
+  end for
+  px := px + 3
+  if px >= PresetBfrSize  { All PresetBfrSize integers are assembled }
+    XfrPreset             { Verify preset format and xfr if OK }
+    ImpActv := false      { Ready for next Preset block }     
+  end if
+end function { Do_Import }
+
+function Edit_Name
+{ This name editor is implemented as a Finite State Machine to reduce
+  a lot of 'in-line expansion' of some fairly large routines. This way
+  the biggest routines are only expanded once (in the loop of the FSM) }
+  declare const BlinkTime := 300000
+    { Public Edit Commands }
+  declare const Idle := 0
+    { Private Edit Commands }
+  declare const OpenEdit := 1
+    { Executable Action Routines } 
+  declare const XFlash := 0
+  declare const XPanel := 1
+    { Private variables }
+  declare EditRtn
+  
+  EditActv := true      { Activate the FSM with an initial  }
+  EditCmd := OpenEdit   {  command to open the editor panel }
+  Erase_Name            { Erase Name String Display, set CP = 0 }
+  Alpha := 1            { Initialize Alpha Knob to 'A' }
+  Show_Alpha
+  while EditActv = true { Start FSM loop }
+    select EditCmd      { Find handler for current command }
+      case OpenEdit     { Open Rename Panel Popup }
+        DrawPanel := RenPanel
+        EditRtn := XPanel
+        EditCmd := Idle { After opening, maintain cursor blink }
+      case CloseEdit    { Close Rename Panel Popup }
+        DrawPanel := StdPanel
+        EditRtn := XPanel
+        EditActv := false { Deactivate and exit the FSM }
+    end select
+    select EditRtn        { Find action routine for current command }
+      case XFlash
+        Show_EditBfr      { Display current EditBfr string with cursor }
+      case XPanel         { Display StdPanel or RenPanel }
+        Call(UpdatePanel,none,none)
+    end select
+    if EditCmd = Idle     { If not executing an Open/Close command, }
+      EditRtn := XFlash   { Continue with the Flash action routine }
+      wait(BlinkTime)     { Wait for blink interval before re-cycling }
+    end if
+  end while
+end function { Edit_Name }
+
+function Enter_Char
+{ Put selected char in EditBfr and advance the cursor }
+  
+  if CP < NameChars       { If EditBfr not full, }
+    EditBfr[CP] := Alpha  { Add selected char to buffer }    
+    if in_range(Alpha,1,26) and LowerCase = true
+      EditBfr[CP] := Alpha + LC_Ofst  { Adjust for Case }
+    end if
+    if CP = 0             { Moving to 2nd char position }
+      LowerCase := true   { Assume lower case likely }
+      Set_Zone            { Zone may need updating }
+    end if
+    inc(CP)               { Advance cursor }
+  end if
+end function { Enter_Char }
+
+function Erase_Name
+{ Clear Preset Name Entry string }
+  CP := 0               { Set cursor to left margin }
+  LowerCase := false    { Assume upper case char will be desired }
+  Set_Zone              { Update zone caption if need be }   
+end function { Erase_Name }
+
+function LoadParm(control,offset)
+{ Update Control unless Parm is the undefined token }
+  if PresetBfr[offset] # NoParm
+    control := PresetBfr[offset]
+  end if
+end function { LoadParm }
+
+function Pack5(unx,pc5)
+{ Packs 5 numerically-encoded chars from UPNames[unx] into pc5 (an integer).
+  Since 73^5 < 2^31 and 74^5 > 2^31, char codes are limited to a range of
+  0..72 max, ie CharSetSize = 73 max (to fit 5 chars into a positive integer)}
+  declare i
+  
+  pc5 := 0
+  for i := unx to unx + 4
+    pc5 := pc5 * CharSetSize + UPNames[i]
+  end for
+end function { Pack5 }
+
+function Set_Zone
+{ Displays zone for the selected Alpha Knob character }
+  declare @ZoneCap  { Zone caption }
+  
+  select Alpha
+    case 0
+      ZoneCap := AlphaCap0
+    case 1 to 26   { A..Z or a..z zone }
+      if LowerCase = false
+        ZoneCap := AlphaCap1A  { A..Z zone }
+      else
+        ZoneCap := AlphaCap1B  { a..z zone }
+      end if
+    case 27 to 36
+      ZoneCap := AlphaCap2     { 0..9 zone }
+    case 37 to TopSymbol
+      ZoneCap := AlphaCap3     { Symbol Set zone }
+  end select
+  set_text(Alpha,ZoneCap)      { Knob zone label  }
+end function { Set_Zone }
+
+function Show_Alpha { Display char in knob's data window }
+  set_knob_label(Alpha,'      ' & char[Alpha])
+  Set_Zone  { Update Zone caption }
+end function { Show_Alpha }
+
+function Show_EditBfr
+{ Display the current EditBfr as a char string }
+  declare Blink
+  declare i
+  declare @Name
+  
+  Name := NameCap    { Prefix caption for entered name }
+  for i := 0 to CP   { Add characters ahead of cursor }
+    if i = CP             { At CP, add blinking cursor unless }
+      if i < NameChars    {  max chars already entered        }
+        if Blink = true 
+          Name := Name & '_'
+        else
+          Name := Name & ' '
+        end if
+      end if
+    else  { Bfr slot is ahead of cursor position }
+      Name := Name & char[EditBfr[i]] { Add this char }
+    end if
+  end for
+  set_text(NameDisplay,Name)    { Display the full string }
+  Blink := (Blink + 1) .and. 1  { Toggle the Blink flag   }
+end function { Show_EditBfr }
+
+function Unpack5(unx,pc5)
+{ Unpacks pc5 and as 5 numerically-encoded chars in UPNames[unx] }
+  declare i
+  
+  for i := unx + 4 downto unx
+    UPNames[i] := pc5 mod CharSetSize
+    pc5 := pc5 / CharSetSize
+  end for
+end function { Unpack5 }
+
+function Update_Name(upx)
+{ Transfers the user-entered name from the EditBfr to UPNames array }
+  declare i
+  declare namebase
+  
+  namebase := upx * NameChars   { Use index to compute start address }
+  for i := 0 to CP - 1          { Transfer all the entered characters }
+    UPNames[namebase + i] := EditBfr[i]
+  end for
+  for i := CP to NameChars - 1  { Pad remaining name char } 
+    UPNames[namebase + i] := 0  {  positions with blanks  }
+  end for
+end function { Update_Name }
+
+function XfrPreset  { Move preset from PresetBfr to destination }
+  declare i
+  declare npx
+  declare px  
+  declare upx  
+  
+  if PresetBfr[0] = Version[vPFC] { Preset formats match? }
+    px := PresetBfr[1]     { Get destination preset index }
+    npx := px * NameChars  { Start of 5-char name in name array }
+    for i := 0 to 2        { Unpack name from buffer }
+      Unpack5(npx + 5*i,PresetBfr[2 + i])
+    end for        
+    upx := px * MaxParms   { Start of destination preset }
+    for i := 0 to MaxParms - 1  { Copy parms from buffer }
+      UserParms[upx + i] := PresetBfr[5 + i]
+    end for
+    StatMsg := 'Import Done' { Report successful completion }
+  else
+    StatMsg := 'Preset Format Mismatch' { Preset format mismatch } 
+  end if
+  BlinkStatMsg(5)         { Blink message, there's always a message }
+end function { XfrPreset } 
+
+function XfrUPNames
+{ Initialize UP_Name char array from numeric UPNames array }
+  declare i
+  declare j
+  
+  for i := 0 to UserPresets - 1
+    UP_Name[i] := ''  { Build each name string char by char }
+    for j := 0 to NameChars - 1
+      UP_Name[i] := UP_Name[i] & char[UPNames[i*NameChars + j]]
+    end for
+  end for
+end function {XfrUPNames }

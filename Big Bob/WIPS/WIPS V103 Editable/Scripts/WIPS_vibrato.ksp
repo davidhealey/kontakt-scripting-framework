@@ -1,0 +1,1803 @@
+on init
+declare $fmt__val
+declare $fmt__div
+declare $Ns
+declare $vib_amod
+declare $vib_hold
+declare $vib_pace
+declare $vib_period
+declare $vib_rate
+message("")
+make_perfview
+SET_CONDITION(NO_SYS_SCRIPT_PEDAL)
+SET_CONDITION(NO_SYS_SCRIPT_RLS_TRIG)
+declare !ui__sfx[7]
+declare $ui__cx
+declare %ui__id[65] := (0)
+declare %ui__vs[65] := (0)
+declare %ui__ax[65] := (0)
+declare $ui__px := -1
+declare %ui__psets[90] := (-1)
+declare $ui__active_panel := 0
+declare $ui__height
+declare $ui__lock := 1
+declare $ui__lock__btn := 0
+declare $ui__lock__1
+declare $ui__lock__2
+declare $ui__modal := 0
+declare $ui__kx
+declare $ui__p1
+declare $ui__p2
+declare @ui__txt
+declare $ui__pinit := 1
+!ui__sfx[0] := ""
+!ui__sfx[1] := " dB"
+!ui__sfx[2] := " Hz"
+!ui__sfx[3] := " %"
+!ui__sfx[4] := " ms"
+!ui__sfx[5] := " oct"
+!ui__sfx[6] := " st"
+declare $rg__ax
+declare %rg__cx[5]
+declare %rg__last[5]
+make_persistent(%rg__last)
+declare $ns__ax
+declare %ns__alt[5]
+declare %ns__cx[5]
+declare %ns__div[5]
+declare %ns__vmin[5]
+declare %ns__vrng[5]
+declare %ns__x0[5]
+declare %ns__y0[5]
+declare %ns__span[5]
+declare !ns__sfx[5]
+make_persistent(%ns__alt)
+pgs_create_key(UI__PINIT,1)
+pgs_set_key_val(UI__PINIT,0,0)
+set_script_title("WIPS Vibrato")
+$ui__height := 204
+set_ui_height_px($ui__height)
+declare $art_preset
+declare $bypass
+declare $last_preset
+declare $user0_px
+declare $vib_px
+declare %meta__Last[64] := (0)
+declare $art_mks
+declare @User
+declare !Dgts[14]
+declare !OnOffTxt[2]
+declare @click_to_save
+declare @choose_user
+@User := "User Preset "
+!Dgts[0] := "1  "
+!Dgts[1] := "2  "
+!Dgts[2] := "3  "
+!Dgts[3] := "4  "
+!Dgts[4] := "5  "
+!Dgts[5] := "6  "
+!Dgts[6] := "7  "
+!Dgts[7] := "8  "
+!Dgts[8] := "9  "
+!Dgts[9] := "10  "
+!Dgts[10] := "11  "
+!Dgts[11] := "12  "
+!Dgts[12] := "13  "
+!Dgts[13] := "14  "
+!OnOffTxt[0] := "Off"
+!OnOffTxt[1] := "On"
+@click_to_save := "Click to Save As"
+@choose_user := "Choose User Preset >>"
+pgs_create_key(WIPS__HOLD_CC,1)
+pgs_create_key(WIPS__IRANGE,3)
+pgs_create_key(WIPS__META,2)
+pgs_create_key(WIPS__NGRPS,6)
+pgs_create_key(WIPS__NGTKT,1)
+pgs_create_key(WIPS__GMUTE,1)
+pgs_create_key(WIPS__SLOTS,15)
+pgs_create_key(WIPS__NOPLAY,1)
+pgs_create_key(WIPS__ARTIC,2)
+set_listener($NI_SIGNAL_TIMER_MS,1000000)
+declare %Rm[13] := (100, 1, 95, 105, 2, 90, 110, 3, 80, 120)
+declare %Vm[13] := (100, 4, 80, 120, 5, 80, 120, 8, 60, 150)
+declare %Pm[13] := (100, 3, 80, 120, 4, 80, 120, 5, 70, 130)
+declare @modulation_txt
+declare @phase_txt
+declare @style_txt
+declare @meta_txt
+declare @style_suffix_txt
+declare !Tip[18]
+@modulation_txt := " modulation component of the vibrato (that can occur if the" & " Vibrato Amount knob is at 100%)."
+@phase_txt := "Sets the relative Phase of Volume versus Pitch modulation to "
+@style_txt := "Enable the random Drift effect with a "
+@meta_txt := " This button can be controlled as a keyswitch meta function."
+@style_suffix_txt := " This drift effect simulates the subtle variations in both" & " Vibrato rate and intensity due to human fatigue and other" & " imperfections that we expect to hear during a sustained" & " Vibrato." & @meta_txt
+!Tip[0] := "Sets the maximum Pitch" & @modulation_txt
+!Tip[1] := "Sets the maximum Volume" & @modulation_txt
+!Tip[2] := "Sets the Nominal Vibrato Rate in cycles per second from 1.0 to 10.0." & " Below 1.0 Hz, this knob selects the key-pacing modes, KSW or AT." & " In these modes, you control the vibrato rate (and optionally the" & " Vibrato Amount) from your keyboard."
+!Tip[3] := "Sets the Vibrato onset Delay when starting a new phrase or playing a" & " Detached note."
+!Tip[4] := "Sets the Vibrato onset Delay when playing a Legato-connected note."
+!Tip[5] := "Sets the overall intensity of the Vibrato effect."
+!Tip[6] := "Use this dropdown menu to recall any built-in or previously-saved" & " User Preset."
+!Tip[7] := @phase_txt & "180 degrees (out of phase)." & @meta_txt
+!Tip[8] := @phase_txt & "0 degrees (in phase)." & @meta_txt
+!Tip[9] := "Turns Off the random Drift effect" & @meta_txt
+!Tip[10] := @style_txt & "fairly narrow drift range" & @style_suffix_txt
+!Tip[11] := @style_txt & "moderate drift range" & @style_suffix_txt
+!Tip[12] := @style_txt & "wider drift range" & @style_suffix_txt
+!Tip[13] := "Use this dropdown menu to save the current panel settings to one" & " of your User Presets."
+!Tip[14] := "This switch enables/disables articulation control of Vibrato User Presets."
+!Tip[15] := " When On, this switch will disable the vibrato effect entirely."
+!Tip[16] := "Displays Current Articulation as Active/Next where 'Active' is the" & " currently playing articulation and 'Next' is the pending articulation" & " that will be used for the next note played."
+!Tip[17] := "Sets the range over which the Vibrato Amount can be influenced" & " by KSW Velocity or AT Pressure during pacing. At 0%, the KSW/AT" & " has no effect on Amount and at 100% it can swing Amount from zero to" & " the maximum set by the panel knob."
+declare $M__In
+declare $M__In2
+declare $M__Out
+declare $M__Out2
+declare @M__Str
+declare $M__PostInit
+declare %FM__Trg[1001]
+pgs_create_key(M__PINIT,1)
+$M__PostInit := 1
+pgs_set_key_val(M__PINIT,0,1)
+declare ui_switch $About
+$ui__lock__btn := get_ui_id($About)
+move_control_px($About,0,$ui__height-21)
+set_control_par($ui__lock__btn,$CONTROL_PAR_WIDTH,64)
+set_control_par($ui__lock__btn,$CONTROL_PAR_HEIGHT,18)
+set_control_par_str(get_ui_id($About),$CONTROL_PAR_PICTURE,"rdvClr_Skin")
+set_control_par($ui__lock__btn,$CONTROL_PAR_FONT_TYPE,6)
+set_control_par($ui__lock__btn,$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_text($About,"About")
+declare ui_label $SVSBkg(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($SVSBkg)
+move_control_px($SVSBkg,0,30)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,632)
+if ($ui__height-32>=0)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,$ui__height-32)
+end if
+declare $SVSBkg__cx
+$SVSBkg__cx := $ui__cx
+set_text($SVSBkg,"")
+set_control_par_str(get_ui_id($SVSBkg),$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(get_ui_id($SVSBkg),$CONTROL_PAR_PICTURE_STATE,20)
+inc($ui__cx)
+declare ui_label $SVSBkg__2(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($SVSBkg__2)
+move_control_px($SVSBkg__2,60,0)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,572)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,30)
+set_text($SVSBkg__2,"")
+set_control_par_str(get_ui_id($SVSBkg__2),$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(get_ui_id($SVSBkg__2),$CONTROL_PAR_PICTURE_STATE,20)
+inc($ui__cx)
+$ui__p1 := 216
+$ui__p2 := ($ui__height-145)/2
+inc($ui__cx)
+declare ui_label $AboutDlg__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($AboutDlg__border)
+move_control_px($AboutDlg__border,$ui__p1,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,200)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,145)
+set_text($AboutDlg__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,22)
+dec($ui__cx)
+declare ui_label $AboutDlg(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($AboutDlg)
+move_control_px($AboutDlg,$ui__p1+2,$ui__p2+2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,196)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,141)
+declare $AboutDlg__cx
+$AboutDlg__cx := $ui__cx
+set_text($AboutDlg,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,2)
+declare $AboutDlg__nc := 2
+$ui__cx := $ui__cx+2
+set_control_par(get_ui_id($AboutDlg),$CONTROL_PAR_FONT_TYPE,17)
+set_control_par(get_ui_id($AboutDlg),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$AboutDlg__nc := 5
+declare ui_button $AboutDlg__OK
+%ui__id[$ui__cx] := get_ui_id($AboutDlg__OK)
+move_control_px($AboutDlg__OK,$ui__p1+100-30,$ui__p2+145-27)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,60)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+set_text($AboutDlg__OK,"OK")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$AboutDlg__OK := 1
+inc($ui__cx)
+declare ui_button $AboutDlg__TLock1
+%ui__id[$ui__cx] := get_ui_id($AboutDlg__TLock1)
+move_control_px($AboutDlg__TLock1,$ui__p1,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,12)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,12)
+set_text($AboutDlg__TLock1,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvClr_Skin")
+inc($ui__cx)
+declare ui_button $AboutDlg__TLock2
+%ui__id[$ui__cx] := get_ui_id($AboutDlg__TLock2)
+move_control_px($AboutDlg__TLock2,$ui__p1+200-12,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,12)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,12)
+set_text($AboutDlg__TLock2,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvClr_Skin")
+inc($ui__cx)
+set_text($AboutDlg,"WIPS Version 1.04")
+add_text_line($AboutDlg,"Vibrato Script   V130")
+add_text_line($AboutDlg,"Last Modified: 1-23-14")
+add_text_line($AboutDlg,"----------------------------")
+add_text_line($AboutDlg,"Scripting by Robert D. Villwock")
+add_text_line($AboutDlg,"October 10, 2011")
+add_text_line($AboutDlg,"Contact rdvillwock@msn.com")
+declare ui_label $Hdr(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($Hdr)
+move_control_px($Hdr,225,4)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,170)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+declare $Hdr__cx
+$Hdr__cx := $ui__cx
+set_text($Hdr,"WIPS Vibrato Script")
+set_control_par(get_ui_id($Hdr),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($Hdr),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_control_par(get_ui_id($Hdr),$CONTROL_PAR_FONT_TYPE,16)
+set_control_par(get_ui_id($Hdr),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+declare ui_label $Logo(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($Logo)
+move_control_px($Logo,25,33)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,55)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,155)
+declare $Logo__cx
+$Logo__cx := $ui__cx
+set_text($Logo,"")
+inc($ui__cx)
+set_control_par_str(%ui__id[$Logo__cx],$CONTROL_PAR_PICTURE,"rdvLogo_Vib")
+declare ui_label $HBar(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($HBar)
+move_control_px($HBar,110,145)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,493)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,1)
+declare $HBar__cx
+$HBar__cx := $ui__cx
+set_text($HBar,"")
+inc($ui__cx)
+set_control_par_str(get_ui_id($HBar),$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(get_ui_id($HBar),$CONTROL_PAR_PICTURE_STATE,2)
+declare ui_switch $NoVib
+%ui__id[$ui__cx] := get_ui_id($NoVib)
+move_control_px($NoVib,528,164)
+declare $NoVib__cx
+$NoVib__cx := $ui__cx
+set_text($NoVib,"Bypass Vibrato")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+inc($ui__cx)
+set_control_par(get_ui_id($NoVib),$CONTROL_PAR_WIDTH,75)
+set_control_par(get_ui_id($NoVib),$CONTROL_PAR_HEIGHT,18)
+set_control_par_str(%ui__id[$NoVib__cx],$CONTROL_PAR_PICTURE,"rdvRedBtn")
+inc($ui__cx)
+declare ui_label $ModBox__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ModBox__border)
+move_control_px($ModBox__border,105,25)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,306)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,111)
+set_text($ModBox__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,3)
+dec($ui__cx)
+declare ui_label $ModBox(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($ModBox)
+move_control_px($ModBox,107,27)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,302)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,107)
+declare $ModBox__cx
+$ModBox__cx := $ui__cx
+set_text($ModBox,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,23)
+$ui__cx := $ui__cx+2
+declare ui_label $PmodCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($PmodCap)
+move_control_px($PmodCap,110,27)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,95)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+declare $PmodCap__cx
+$PmodCap__cx := $ui__cx
+set_text($PmodCap,"Pitch Modulation")
+set_control_par(get_ui_id($PmodCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($PmodCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_knob $Pmod(0, 50, 1) 
+%ui__id[$ui__cx] := get_ui_id($Pmod)
+move_control_px($Pmod,113,42)
+declare $Pmod__cx
+$Pmod__cx := $ui__cx
+set_text($Pmod,"Vib Width")
+set_knob_defval($Pmod,10)
+$Pmod := 10
+inc($ui__cx)
+declare ui_label $VmodCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($VmodCap)
+move_control_px($VmodCap,207,27)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,95)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+declare $VmodCap__cx
+$VmodCap__cx := $ui__cx
+set_text($VmodCap,"Volume Modulation")
+set_control_par(get_ui_id($VmodCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($VmodCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_knob $Vmod(0, 200, 10) 
+%ui__id[$ui__cx] := get_ui_id($Vmod)
+move_control_px($Vmod,210,42)
+declare $Vmod__cx
+$Vmod__cx := $ui__cx
+set_text($Vmod,"Tremolo")
+set_knob_defval($Vmod,30)
+$Vmod := 30
+set_knob_unit($Vmod,1)
+inc($ui__cx)
+declare ui_label $RateCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($RateCap)
+move_control_px($RateCap,310,27)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,95)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+declare $RateCap__cx
+$RateCap__cx := $ui__cx
+set_text($RateCap,"Vibrato Rate")
+set_control_par(get_ui_id($RateCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($RateCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_knob $Rate(0, 106, 10) 
+%ui__id[$ui__cx] := get_ui_id($Rate)
+move_control_px($Rate,313,42)
+declare $Rate__cx
+$Rate__cx := $ui__cx
+set_text($Rate,"LFO Rate")
+set_knob_defval($Rate,45)
+$Rate := 45
+set_knob_unit($Rate,2)
+inc($ui__cx)
+declare ui_label $ZoneCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ZoneCap)
+move_control_px($ZoneCap,307,51)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,30)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,30)
+declare $ZoneCap__cx
+$ZoneCap__cx := $ui__cx
+set_text($ZoneCap,"")
+inc($ui__cx)
+set_control_par_str(get_ui_id($ZoneCap),$CONTROL_PAR_PICTURE,"rdvRedBlu_Ring")
+declare ui_label $PaceCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($PaceCap)
+move_control_px($PaceCap,300,78)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,110)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+declare $PaceCap__cx
+$PaceCap__cx := $ui__cx
+set_text($PaceCap,"Paced By    Ksw    AT")
+set_control_par(get_ui_id($PaceCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($PaceCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_control_par(get_ui_id($PaceCap),$CONTROL_PAR_TEXT_ALIGNMENT,2)
+declare ui_label $PaceDots(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($PaceDots)
+move_control_px($PaceDots,298,78)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,110)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+declare $PaceDots__cx
+$PaceDots__cx := $ui__cx
+set_text($PaceDots,"")
+inc($ui__cx)
+set_control_par_str(get_ui_id($PaceDots),$CONTROL_PAR_PICTURE,"rdvRedBlu_Dots")
+declare ui_label $PhaseCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($PhaseCap)
+move_control_px($PhaseCap,106,94)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,102)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+declare $PhaseCap__cx
+$PhaseCap__cx := $ui__cx
+set_text($PhaseCap,"Pitch/Volume Phase")
+set_control_par(get_ui_id($PhaseCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($PhaseCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+%rg__last[$rg__ax] := $ui__cx
+%rg__cx[$rg__ax] := $ui__cx
+inc($rg__ax)
+declare ui_switch $PhaseNeg
+%ui__id[$ui__cx] := get_ui_id($PhaseNeg)
+move_control_px($PhaseNeg,114,109)
+declare $PhaseNeg__cx
+$PhaseNeg__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($PhaseNeg)
+set_text($PhaseNeg,"-")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+declare ui_switch $PhasePos
+%ui__id[$ui__cx] := get_ui_id($PhasePos)
+move_control_px($PhasePos,156,109)
+declare $PhasePos__cx
+$PhasePos__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($PhasePos)
+set_text($PhasePos,"+")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+set_control_par(get_ui_id($PhaseNeg),$CONTROL_PAR_WIDTH,45)
+set_control_par(get_ui_id($PhaseNeg),$CONTROL_PAR_HEIGHT,18)
+set_control_par(get_ui_id($PhasePos),$CONTROL_PAR_WIDTH,45)
+set_control_par(get_ui_id($PhasePos),$CONTROL_PAR_HEIGHT,18)
+declare ui_label $StyleCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($StyleCap)
+move_control_px($StyleCap,211,94)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,190)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+declare $StyleCap__cx
+$StyleCap__cx := $ui__cx
+set_text($StyleCap,"")
+set_control_par(get_ui_id($StyleCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($StyleCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+%rg__last[$rg__ax] := $ui__cx
+%rg__cx[$rg__ax] := $ui__cx
+inc($rg__ax)
+declare ui_switch $StyleOff
+%ui__id[$ui__cx] := get_ui_id($StyleOff)
+move_control_px($StyleOff,213,109)
+declare $StyleOff__cx
+$StyleOff__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($StyleOff)
+set_text($StyleOff,"Off")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+declare ui_switch $StyleTight
+%ui__id[$ui__cx] := get_ui_id($StyleTight)
+move_control_px($StyleTight,258,109)
+declare $StyleTight__cx
+$StyleTight__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($StyleTight)
+set_text($StyleTight,"Tight")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+declare ui_switch $StyleMod
+%ui__id[$ui__cx] := get_ui_id($StyleMod)
+move_control_px($StyleMod,303,109)
+declare $StyleMod__cx
+$StyleMod__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($StyleMod)
+set_text($StyleMod,"Moderate")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+declare ui_switch $StyleLoose
+%ui__id[$ui__cx] := get_ui_id($StyleLoose)
+move_control_px($StyleLoose,354,109)
+declare $StyleLoose__cx
+$StyleLoose__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($StyleLoose)
+set_text($StyleLoose,"Loose")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+set_control_par(get_ui_id($StyleOff),$CONTROL_PAR_WIDTH,48)
+set_control_par(get_ui_id($StyleOff),$CONTROL_PAR_HEIGHT,18)
+set_control_par(get_ui_id($StyleTight),$CONTROL_PAR_WIDTH,48)
+set_control_par(get_ui_id($StyleTight),$CONTROL_PAR_HEIGHT,18)
+set_control_par(get_ui_id($StyleMod),$CONTROL_PAR_WIDTH,54)
+set_control_par(get_ui_id($StyleMod),$CONTROL_PAR_HEIGHT,18)
+set_control_par(get_ui_id($StyleLoose),$CONTROL_PAR_WIDTH,48)
+set_control_par(get_ui_id($StyleLoose),$CONTROL_PAR_HEIGHT,18)
+declare ui_slider $Intensity(0, 100) 
+%ui__id[$ui__cx] := get_ui_id($Intensity)
+move_control_px($Intensity,218,109)
+declare $Intensity__cx
+$Intensity__cx := $ui__cx
+%ui__ax[$ui__cx] := $ns__ax
+%ns__cx[$ns__ax] := $ui__cx
+%ns__vmin[$ns__ax] := 0
+%ns__vrng[$ns__ax] := 100
+%ns__div[$ns__ax] := 1
+!ns__sfx[$ns__ax] := !ui__sfx[3]
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_MOUSE_BEHAVIOUR,2500)
+set_knob_defval($Intensity,0)
+$Intensity := 0
+%ns__span[$ns__ax] := 69
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvSliderU2")
+%ns__span[$ns__ax] := 159
+%ns__x0[$ns__ax] := 199
+%ns__y0[$ns__ax] := 90
+inc($ui__cx)
+declare ui_button $Intensity__2
+%ui__id[$ui__cx] := get_ui_id($Intensity__2)
+set_control_par_str(get_ui_id($Intensity__2),$CONTROL_PAR_PICTURE,"rdvFloat_Caption")
+set_control_par(get_ui_id($Intensity__2),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+set_control_par(get_ui_id($Intensity__2),$CONTROL_PAR_FONT_TYPE,12)
+set_control_par(get_ui_id($Intensity__2),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,53)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+inc($ui__cx)
+inc($ns__ax)
+declare ui_label $AmtCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($AmtCap)
+move_control_px($AmtCap,468,15)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,95)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+declare $AmtCap__cx
+$AmtCap__cx := $ui__cx
+set_text($AmtCap,"Vibrato Amount")
+set_control_par(get_ui_id($AmtCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($AmtCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_knob $Amount(0, 100, 1) 
+%ui__id[$ui__cx] := get_ui_id($Amount)
+move_control_px($Amount,471,30)
+declare $Amount__cx
+$Amount__cx := $ui__cx
+set_text($Amount," Amount")
+set_knob_defval($Amount,35)
+$Amount := 35
+set_knob_unit($Amount,3)
+inc($ui__cx)
+declare ui_label $DlyCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($DlyCap)
+move_control_px($DlyCap,445,72)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,145)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+declare $DlyCap__cx
+$DlyCap__cx := $ui__cx
+set_text($DlyCap,"-- Vibrato Onset Delay --")
+set_control_par(get_ui_id($DlyCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($DlyCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_knob $PDelay(0, 2000, 1) 
+%ui__id[$ui__cx] := get_ui_id($PDelay)
+move_control_px($PDelay,425,88)
+declare $PDelay__cx
+$PDelay__cx := $ui__cx
+set_text($PDelay,"Detached")
+set_knob_defval($PDelay,500)
+$PDelay := 500
+set_knob_unit($PDelay,4)
+inc($ui__cx)
+declare ui_knob $LDelay(0, 2000, 1) 
+%ui__id[$ui__cx] := get_ui_id($LDelay)
+move_control_px($LDelay,518,88)
+declare $LDelay__cx
+$LDelay__cx := $ui__cx
+set_text($LDelay," Legato")
+set_knob_defval($LDelay,500)
+$LDelay := 500
+set_knob_unit($LDelay,4)
+inc($ui__cx)
+declare ui_label $GrayDelay(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($GrayDelay)
+move_control_px($GrayDelay,423,74)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,186)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,56)
+declare $GrayDelay__cx
+$GrayDelay__cx := $ui__cx
+set_text($GrayDelay,"")
+inc($ui__cx)
+set_control_par_str(get_ui_id($GrayDelay),$CONTROL_PAR_PICTURE,"rdvGrayedDelay")
+inc($ui__cx)
+declare ui_label $ArtBox__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtBox__border)
+move_control_px($ArtBox__border,110,156)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,70)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,32)
+set_text($ArtBox__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,3)
+dec($ui__cx)
+declare ui_label $ArtBox(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($ArtBox)
+move_control_px($ArtBox,112,158)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,66)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,28)
+declare $ArtBox__cx
+$ArtBox__cx := $ui__cx
+set_text($ArtBox,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,7)
+$ui__cx := $ui__cx+2
+set_text($ArtBox,"Articulation")
+set_control_par(get_ui_id($ArtBox),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+declare ui_label $ArtData(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtData)
+move_control_px($ArtData,110,170)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,70)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $ArtData__cx
+$ArtData__cx := $ui__cx
+set_text($ArtData,"")
+set_control_par(get_ui_id($ArtData),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($ArtData),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_control_par(get_ui_id($ArtData),$CONTROL_PAR_FONT_TYPE,17)
+set_control_par(get_ui_id($ArtData),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+declare ui_button $ArtHelp
+%ui__id[$ui__cx] := get_ui_id($ArtHelp)
+move_control_px($ArtHelp,110,156)
+declare $ArtHelp__cx
+$ArtHelp__cx := $ui__cx
+set_text($ArtHelp,"")
+set_control_par(get_ui_id($ArtHelp),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+inc($ui__cx)
+set_control_par(get_ui_id($ArtHelp),$CONTROL_PAR_WIDTH,70)
+set_control_par(get_ui_id($ArtHelp),$CONTROL_PAR_HEIGHT,32)
+set_control_par_str(get_ui_id($ArtHelp),$CONTROL_PAR_PICTURE,"rdvClr_Skin")
+inc($ui__cx)
+declare ui_label $PreBox__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($PreBox__border)
+move_control_px($PreBox__border,212,153)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,284)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,40)
+set_text($PreBox__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,2)
+dec($ui__cx)
+declare ui_label $PreBox(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($PreBox)
+move_control_px($PreBox,213,154)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,282)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,38)
+declare $PreBox__cx
+$PreBox__cx := $ui__cx
+set_text($PreBox,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,10)
+$ui__cx := $ui__cx+2
+declare ui_label $PreCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($PreCap)
+move_control_px($PreCap,222,155)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,90)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $PreCap__cx
+$PreCap__cx := $ui__cx
+set_text($PreCap,"- Recall Preset -")
+set_control_par(get_ui_id($PreCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($PreCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_menu $PresetMenu
+%ui__id[$ui__cx] := get_ui_id($PresetMenu)
+move_control_px($PresetMenu,222,168)
+declare $PresetMenu__cx
+$PresetMenu__cx := $ui__cx
+inc($ui__cx)
+set_control_par(get_ui_id($PresetMenu),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(get_ui_id($PresetMenu),$CONTROL_PAR_WIDTH,90)
+set_control_par(get_ui_id($PresetMenu),$CONTROL_PAR_HEIGHT,18)
+declare %VibCX[9]
+declare %DefUser[9] := (15, 30, 56, 750, 500, 33, 0, 0, 2)
+declare %VibPars[216] := (19, 20, 54, 500, 500, 37, 0, 1, 1, 20, 25, 51, 500, 500, 39, 0, 0, 1, 15, 30, 56, 750, 500, 33, 0, 0, 2, 13, 28, 52, 750, 766, 26, 0, 1, 2, 15, 26, 53, 500, 500, ...
+40, 0, 1, 1, 21, 35, 55, 500, 500, 41, 0, 1, 2, 24, 30, 52, 500, 680, 35, 0, 1, 1, 20, 12, 50, 500, 680, 46, 0, 0, 1, 21, 19, 51, 817, 843, 35, 0, 0, 2)
+add_menu_item($PresetMenu,"Current Setup  ",-1)
+add_menu_item($PresetMenu,"-------------",-3)
+add_menu_item($PresetMenu,"Alto Sax  ",0)
+add_menu_item($PresetMenu,"Bassoon  ",1)
+add_menu_item($PresetMenu,"Clarinet  ",2)
+add_menu_item($PresetMenu,"French Horn  ",3)
+add_menu_item($PresetMenu,"Oboe  ",4)
+add_menu_item($PresetMenu,"Tenor Sax  ",5)
+add_menu_item($PresetMenu,"Trombone  ",6)
+add_menu_item($PresetMenu,"Trumpet  ",7)
+add_menu_item($PresetMenu,"Tuba  ",8)
+declare $_n12
+$_n12 := 1
+while ($_n12<=14)
+add_menu_item($PresetMenu,@User & !Dgts[$_n12-1],9+$_n12)
+inc($_n12)
+end while
+add_menu_item($PresetMenu,"-------------",-4)
+add_menu_item($PresetMenu," * Bypassed *  ",-2)
+%VibCX[0] := $Pmod__cx
+%VibCX[1] := $Vmod__cx
+%VibCX[2] := $Rate__cx
+%VibCX[3] := $PDelay__cx
+%VibCX[4] := $LDelay__cx
+%VibCX[5] := $Amount__cx
+%VibCX[6] := $Intensity__cx
+%VibCX[7] := $PhaseNeg__cx
+%VibCX[8] := $StyleOff__cx
+declare $_m3
+declare $_n14
+$_n14 := 0
+while ($_n14<=14)
+$_m3 := 0
+while ($_m3<9)
+%VibPars[9*(9+$_n14)+$_m3] := %DefUser[$_m3]
+inc($_m3)
+end while
+inc($_n14)
+end while
+declare ui_label $ArtCtlCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtCtlCap)
+move_control_px($ArtCtlCap,319,155)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,70)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+declare $ArtCtlCap__cx
+$ArtCtlCap__cx := $ui__cx
+set_text($ArtCtlCap,"Artic Control")
+set_control_par(get_ui_id($ArtCtlCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($ArtCtlCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_switch $ArtCtl
+%ui__id[$ui__cx] := get_ui_id($ArtCtl)
+move_control_px($ArtCtl,322,168)
+declare $ArtCtl__cx
+$ArtCtl__cx := $ui__cx
+set_text($ArtCtl,"On")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+inc($ui__cx)
+$ArtCtl := 1
+set_control_par(get_ui_id($ArtCtl),$CONTROL_PAR_WIDTH,64)
+set_control_par(get_ui_id($ArtCtl),$CONTROL_PAR_HEIGHT,18)
+declare ui_label $SaveCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($SaveCap)
+move_control_px($SaveCap,396,155)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,90)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+declare $SaveCap__cx
+$SaveCap__cx := $ui__cx
+set_text($SaveCap,"Save Settings")
+set_control_par(get_ui_id($SaveCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($SaveCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_menu $SaveMenu
+%ui__id[$ui__cx] := get_ui_id($SaveMenu)
+move_control_px($SaveMenu,396,168)
+declare $SaveMenu__cx
+$SaveMenu__cx := $ui__cx
+inc($ui__cx)
+set_control_par(get_ui_id($SaveMenu),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(get_ui_id($SaveMenu),$CONTROL_PAR_WIDTH,90)
+set_control_par(get_ui_id($SaveMenu),$CONTROL_PAR_HEIGHT,18)
+add_menu_item($SaveMenu,"Save Setup As  ",-2)
+add_menu_item($SaveMenu,"-------------",-1)
+$_n12 := 1
+while ($_n12<=14)
+add_menu_item($SaveMenu,@User & !Dgts[$_n12-1],0+$_n12)
+inc($_n12)
+end while
+$ui__p1 := 201
+$ui__p2 := ($ui__height-50)/2
+inc($ui__cx)
+declare ui_label $ErrDlg__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ErrDlg__border)
+move_control_px($ErrDlg__border,$ui__p1,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,230)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,50)
+set_text($ErrDlg__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,2)
+dec($ui__cx)
+declare ui_label $ErrDlg(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($ErrDlg)
+move_control_px($ErrDlg,$ui__p1+2,$ui__p2+2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,226)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,46)
+declare $ErrDlg__cx
+$ErrDlg__cx := $ui__cx
+set_text($ErrDlg,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,10)
+declare $ErrDlg__nc := 2
+$ui__cx := $ui__cx+2
+set_control_par(get_ui_id($ErrDlg),$CONTROL_PAR_FONT_TYPE,17)
+set_control_par(get_ui_id($ErrDlg),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$ErrDlg__nc := 3
+declare ui_button $ErrDlg__OK
+%ui__id[$ui__cx] := get_ui_id($ErrDlg__OK)
+move_control_px($ErrDlg__OK,$ui__p1+115-30,$ui__p2+50-27)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,60)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+set_text($ErrDlg__OK,"OK")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$ErrDlg__OK := 1
+inc($ui__cx)
+set_control_par(get_ui_id($ErrDlg),$CONTROL_PAR_FONT_TYPE,16)
+$ui__p1 := 166
+$ui__p2 := ($ui__height-75)/2
+inc($ui__cx)
+declare ui_label $SuiteErr__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($SuiteErr__border)
+move_control_px($SuiteErr__border,$ui__p1,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,300)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,75)
+set_text($SuiteErr__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,22)
+dec($ui__cx)
+declare ui_label $SuiteErr(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($SuiteErr)
+move_control_px($SuiteErr,$ui__p1+2,$ui__p2+2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,296)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,71)
+declare $SuiteErr__cx
+$SuiteErr__cx := $ui__cx
+set_text($SuiteErr,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,6)
+declare $SuiteErr__nc := 2
+$ui__cx := $ui__cx+2
+set_control_par(get_ui_id($SuiteErr),$CONTROL_PAR_FONT_TYPE,17)
+set_control_par(get_ui_id($SuiteErr),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$SuiteErr__nc := 2
+set_text($SuiteErr,"SCRIPT MISSING OR BYPASSED")
+add_text_line($SuiteErr,"***************************")
+add_text_line($SuiteErr,"This Script requires both the Articulation Script and")
+add_text_line($SuiteErr,"the Legato Script in the two prior slots")
+$ui__p1 := 178
+$ui__p2 := ($ui__height-75)/2
+inc($ui__cx)
+declare ui_label $SetupWarn__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($SetupWarn__border)
+move_control_px($SetupWarn__border,$ui__p1,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,276)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,75)
+set_text($SetupWarn__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,22)
+dec($ui__cx)
+declare ui_label $SetupWarn(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($SetupWarn)
+move_control_px($SetupWarn,$ui__p1+2,$ui__p2+2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,272)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,71)
+declare $SetupWarn__cx
+$SetupWarn__cx := $ui__cx
+set_text($SetupWarn,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,6)
+declare $SetupWarn__nc := 2
+$ui__cx := $ui__cx+2
+set_control_par(get_ui_id($SetupWarn),$CONTROL_PAR_FONT_TYPE,17)
+set_control_par(get_ui_id($SetupWarn),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$SetupWarn__nc := 2
+set_text($SetupWarn,"CAUTION")
+add_text_line($SetupWarn,"***********")
+add_text_line($SetupWarn,"Articulation Script is in SETUP/AUDITION mode")
+add_text_line($SetupWarn,"It must be in PLAY mode to use the Vibrato effect")
+$ui__p1 := 216
+$ui__p2 := ($ui__height-50)/2
+inc($ui__cx)
+declare ui_label $Sure__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($Sure__border)
+move_control_px($Sure__border,$ui__p1,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,200)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,50)
+set_text($Sure__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,23)
+dec($ui__cx)
+declare ui_label $Sure(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($Sure)
+move_control_px($Sure,$ui__p1+2,$ui__p2+2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,196)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,46)
+declare $Sure__cx
+$Sure__cx := $ui__cx
+set_text($Sure,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,7)
+declare $Sure__nc := 2
+$ui__cx := $ui__cx+2
+set_control_par(get_ui_id($Sure),$CONTROL_PAR_FONT_TYPE,17)
+set_control_par(get_ui_id($Sure),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$Sure__nc := 4
+declare ui_button $Sure__OK
+%ui__id[$ui__cx] := get_ui_id($Sure__OK)
+move_control_px($Sure__OK,$ui__p1+100-30,$ui__p2+50-27)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,60)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+set_text($Sure__OK,"OK")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$Sure__OK := 1
+inc($ui__cx)
+set_control_par(%ui__id[$ui__cx-1],$CONTROL_PAR_POS_X,$ui__p1+100-70)
+declare ui_button $Sure__NO
+%ui__id[$ui__cx] := get_ui_id($Sure__NO)
+move_control_px($Sure__NO,$ui__p1+100+10,$ui__p2+50-27)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,60)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+set_text($Sure__NO,"Cancel")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$Sure__NO := 1
+inc($ui__cx)
+set_control_help($Pmod,!Tip[0])
+set_control_help($Vmod,!Tip[1])
+set_control_help($Rate,!Tip[2])
+set_control_help($PDelay,!Tip[3])
+set_control_help($LDelay,!Tip[4])
+set_control_help($Amount,!Tip[5])
+set_control_help($PresetMenu,!Tip[6])
+set_control_help($PhaseNeg,!Tip[7])
+set_control_help($PhasePos,!Tip[8])
+set_control_help($StyleOff,!Tip[9])
+set_control_help($StyleTight,!Tip[10])
+set_control_help($StyleMod,!Tip[11])
+set_control_help($StyleLoose,!Tip[12])
+set_control_help($SaveMenu,!Tip[13])
+set_control_help($ArtCtl,!Tip[14])
+set_control_help($NoVib,!Tip[15])
+set_control_help($ArtHelp,!Tip[16])
+set_control_help($Intensity,!Tip[17])
+declare $VibPanel
+inc($ui__px)
+inc($ui__px)
+$VibPanel := $ui__px
+$ui__p1 := $SVSBkg__cx
+while ($ui__p1<($SVSBkg__cx+2))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+$ui__p1 := $Hdr__cx
+while ($ui__p1<($SaveMenu__cx+1))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+declare $AboutPanel
+inc($ui__px)
+inc($ui__px)
+$AboutPanel := $ui__px
+$ui__p1 := $SVSBkg__cx
+while ($ui__p1<($AboutDlg__cx+$AboutDlg__nc))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+declare $SurePanel
+inc($ui__px)
+inc($ui__px)
+$SurePanel := $ui__px
+$ui__p1 := $SVSBkg__cx
+while ($ui__p1<($SVSBkg__cx+2))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+if ($Sure__nc<2)
+%ui__psets[$ui__px] := $Sure__cx
+inc($ui__px)
+else
+$ui__p1 := $Sure__cx
+while ($ui__p1<($Sure__cx+$Sure__nc))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+end if
+declare $WarnPanel
+inc($ui__px)
+inc($ui__px)
+$WarnPanel := $ui__px
+$ui__p1 := $SVSBkg__cx
+while ($ui__p1<($SVSBkg__cx+2))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+if ($SetupWarn__nc<2)
+%ui__psets[$ui__px] := $SetupWarn__cx
+inc($ui__px)
+else
+$ui__p1 := $SetupWarn__cx
+while ($ui__p1<($SetupWarn__cx+$SetupWarn__nc))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+end if
+declare $SuiteErrPanel
+inc($ui__px)
+inc($ui__px)
+$SuiteErrPanel := $ui__px
+$ui__p1 := $SVSBkg__cx
+while ($ui__p1<($SVSBkg__cx+2))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+if ($SuiteErr__nc<2)
+%ui__psets[$ui__px] := $SuiteErr__cx
+inc($ui__px)
+else
+$ui__p1 := $SuiteErr__cx
+while ($ui__p1<($SuiteErr__cx+$SuiteErr__nc))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+end if
+make_persistent($Amount)
+make_persistent($ArtCtl)
+make_persistent($LDelay)
+make_persistent($PDelay)
+make_persistent($Pmod)
+make_persistent($PresetMenu)
+make_persistent($Rate)
+make_persistent(%VibPars)
+make_persistent($Vmod)
+make_persistent($Intensity)
+declare $_mfn
+declare $_last_time2
+declare $_pace_time2
+declare $_active
+declare $_dP
+declare $_dP0
+declare $_dV
+declare $_dV0
+declare $_id2
+declare $_first
+declare $_nid
+declare $_phase
+declare $_Td
+declare $_Ts := 500
+declare $_Vib
+declare $_Vol
+declare $_n17
+declare @_rate_str
+declare $_n16
+declare $_pp2
+declare $_rstep
+declare $_styx
+declare $_last_period
+declare $_n15
+declare $_pp
+declare $_last_time
+declare $_pace_time
+declare $_peak
+declare $_vale
+declare $_state
+declare $_saved
+declare $_n13
+declare $_f2
+declare $_S
+declare $_n9
+declare %_AngTbl[16] := (500000000, 295167235, 155958261, 79166848, 39737049, 19887896, 9946375, 4973491, 2486783, 1243396, 621699, 310849, 155425, 77712, 38856, 19428)
+declare $_dx
+declare $_dy2
+declare $_n6
+declare $_x
+declare $_y2
+declare $_z2
+declare $_F
+declare $_frac
+declare $_cx2
+declare $_T
+end on
+function _ReduceAngle
+$M__In := ($M__In mod 4000+4000) mod 4000
+$M__In2 := ($M__In-1)/1000
+$M__In := $M__In mod 2000
+$M__In := $M__In+(($M__In-1)/1000*(2000-(2*$M__In)))
+end function
+function _SinCos
+$M__Out := %FM__Trg[$M__In]
+$M__Out2 := %FM__Trg[1000-$M__In]
+end function
+function _XSinCos
+call _ReduceAngle
+call _SinCos
+$M__Out := $M__Out*(1-(2*($M__In2/2)))
+$M__Out2 := $M__Out2*(1-(2*(($M__In2 mod 2+($M__In2/2)) mod 2)))
+end function
+function update_period
+$_pace_time2 := $ENGINE_UPTIME
+$vib_period := $_pace_time2-$_last_time2
+$_last_time2 := $_pace_time2
+end function
+function show_art
+set_text($ArtData,pgs_get_key_val(WIPS__ARTIC,0)+1 & "/" & (pgs_get_key_val(WIPS__ARTIC,1)+1))
+end function
+function format
+if ($fmt__div=0)
+@ui__txt := "" & (sh_right($fmt__val-1,31) .or. 1)
+else
+$_F := 1
+while ($fmt__div>$_F and ($_F<1000))
+$_F := $_F*10
+end while
+while (2000000000/$_F<abs($fmt__val))
+$_F := $_F/10
+end while
+$fmt__val := ($fmt__val*$_F+($fmt__val*$_F mod $fmt__div))/$fmt__div
+$_frac := abs($fmt__val) mod $_F
+@ui__txt := "" & ($fmt__val/$_F)
+if ($fmt__val/$_F=0 and ($fmt__val<0))
+@ui__txt := "-" & @ui__txt
+end if
+if ($_F=1000 and ($_frac<10))
+@ui__txt := @ui__txt & ".00" & $_frac
+else
+if ($_F=1000 and in_range($_frac,10,99) or ($_F=100 and ($_frac<10)))
+@ui__txt := @ui__txt & ".0" & $_frac
+else
+if ($_F=1000 and ($_frac>=100) or ($_F=100 and ($_frac>=10)) or ($_F=10))
+@ui__txt := @ui__txt & "." & $_frac
+end if
+end if
+end if
+end if
+end function
+function NI_Slider
+if (get_control_par(%ui__id[$ui__kx],$CONTROL_PAR_KEY_ALT)=1)
+%ns__alt[%ui__ax[$ui__kx]] := 1
+else
+if (get_control_par(%ui__id[$ui__kx],$CONTROL_PAR_KEY_SHIFT)=1)
+%ns__alt[%ui__ax[$ui__kx]] := 0
+end if
+end if
+$fmt__div := %ns__div[%ui__ax[$ui__kx]]
+$fmt__val := get_control_par(%ui__id[$ui__kx],$CONTROL_PAR_VALUE)
+call format
+@ui__txt := @ui__txt & !ns__sfx[%ui__ax[$ui__kx]]
+set_control_par_str(%ui__id[$ui__kx+1],$CONTROL_PAR_TEXT,@ui__txt)
+set_control_par(%ui__id[$ui__kx+1],$CONTROL_PAR_POS_X,($fmt__val-%ns__vmin[%ui__ax[$ui__kx]])*%ns__span[%ui__ax[$ui__kx]]/%ns__vrng[%ui__ax[$ui__kx]]+%ns__x0[%ui__ax[$ui__kx]])
+set_control_par(%ui__id[$ui__kx+1],$CONTROL_PAR_POS_Y,%ns__y0[%ui__ax[$ui__kx]])
+set_control_par(%ui__id[$ui__kx+1],$CONTROL_PAR_HIDE,$HIDE_PART_NOTHING)
+if ($_T<=0)
+$_cx2 := $ui__kx
+$_T := 20
+while ($_T>0)
+wait(100000)
+dec($_T)
+end while
+set_control_par(%ui__id[$_cx2+1],$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+else
+if ($ui__kx # $_cx2)
+set_control_par(%ui__id[$_cx2+1],$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+$_cx2 := $ui__kx
+end if
+$_T := 20
+end if
+end function
+function _on_radio
+set_control_par(%ui__id[$ui__p1],$CONTROL_PAR_VALUE,1)
+if ($ui__p1 # %rg__last[%ui__ax[$ui__p1]])
+set_control_par(%ui__id[%rg__last[%ui__ax[$ui__p1]]],$CONTROL_PAR_VALUE,0)
+%rg__last[%ui__ax[$ui__p1]] := $ui__p1
+end if
+end function
+function _DFmtVal
+if (in_range($M__In2,1,9))
+$_S := 1
+while ($M__In2>0)
+$_S := 10*$_S
+dec($M__In2)
+end while
+@M__Str := abs($M__In)/$_S & "."
+if ($M__In<0)
+@M__Str := "-" & @M__Str
+end if
+$_f2 := abs($M__In) mod $_S
+$_S := $_S/10
+while ($_f2<$_S and ($_S # 1))
+@M__Str := @M__Str & "0"
+$_S := $_S/10
+end while
+@M__Str := @M__Str & $_f2
+else
+@M__Str := "" & $M__In
+end if
+end function
+function set_rate_knob
+if ($Rate>15)
+$_n17 := $StyleOff__cx
+while ($_n17<=$StyleLoose__cx)
+set_control_par(%ui__id[$_n17],$CONTROL_PAR_HIDE,$HIDE_PART_NOTHING)
+inc($_n17)
+end while
+$_n17 := $DlyCap__cx
+while ($_n17<=$LDelay__cx)
+set_control_par(%ui__id[$_n17],$CONTROL_PAR_HIDE,$HIDE_PART_NOTHING)
+inc($_n17)
+end while
+set_control_par(get_ui_id($Intensity),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+set_text($StyleCap,"-- Humanizing Style --")
+$M__In := $Rate-6
+$M__In2 := 1
+call _DFmtVal
+@_rate_str := @M__Str
+set_text($Rate,"LFO Rate")
+set_knob_unit($Rate,$KNOB_UNIT_HZ)
+set_knob_label($Rate,"  " & @_rate_str)
+else
+$_n17 := $StyleOff__cx
+while ($_n17<=$StyleLoose__cx)
+set_control_par(%ui__id[$_n17],$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+inc($_n17)
+end while
+$_n17 := $DlyCap__cx
+while ($_n17<=$LDelay__cx)
+set_control_par(%ui__id[$_n17],$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+inc($_n17)
+end while
+set_control_par(%ui__id[$GrayDelay__cx],$CONTROL_PAR_HIDE,$HIDE_PART_NOTHING)
+set_control_par(get_ui_id($Intensity),$CONTROL_PAR_HIDE,$HIDE_PART_NOTHING)
+set_text($StyleCap,"Velocity/Pressure Vib-Amt Modulation")
+set_text($Rate,"  Paced")
+set_knob_unit($Rate,0)
+if ($Rate<7)
+set_knob_label($Rate,"    AT")
+else
+set_knob_label($Rate,"   Ksw")
+end if
+end if
+end function
+function load_vibrato_preset
+$_pp := 9*$vib_px
+$_n15 := 0
+while ($_n15<=6)
+set_control_par(%ui__id[%VibCX[$_n15]],$CONTROL_PAR_VALUE,%VibPars[$_pp+$_n15])
+inc($_n15)
+end while
+$ui__p1 := %VibPars[$_pp+7]+%rg__cx[%ui__ax[%VibCX[7]]]
+call _on_radio
+$ui__p1 := %VibPars[$_pp+8]+%rg__cx[%ui__ax[%VibCX[8]]]
+call _on_radio
+set_knob_label($Pmod," " & $Pmod & " cts")
+call set_rate_knob
+end function
+function save_vibrato_preset
+$_pp2 := 9*$vib_px
+$_n16 := 0
+while ($_n16<=6)
+%VibPars[$_pp2+$_n16] := get_control_par(%ui__id[%VibCX[$_n16]],$CONTROL_PAR_VALUE)
+inc($_n16)
+end while
+%VibPars[$_pp2+7] := %rg__last[%ui__ax[%VibCX[7]]]-%rg__cx[%ui__ax[%VibCX[7]]]
+%VibPars[$_pp2+8] := %rg__last[%ui__ax[%VibCX[8]]]-%rg__cx[%ui__ax[%VibCX[8]]]
+end function
+function hide_panel
+$ui__p1 := $ui__active_panel
+while (%ui__psets[$ui__p1]>=0)
+%ui__vs[%ui__psets[$ui__p1]] := get_control_par(%ui__id[%ui__psets[$ui__p1]],$CONTROL_PAR_HIDE)
+set_control_par(%ui__id[%ui__psets[$ui__p1]],$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+inc($ui__p1)
+end while
+end function
+function show_panel
+$ui__p1 := $ui__active_panel
+while (%ui__psets[$ui__p1]>=0)
+set_control_par(%ui__id[%ui__psets[$ui__p1]],$CONTROL_PAR_HIDE,%ui__vs[%ui__psets[$ui__p1]])
+inc($ui__p1)
+end while
+end function
+function exit_sure
+if ($ui__active_panel=$SurePanel and ($ui__modal>=1) and (2>$ui__modal))
+$ui__modal := $ui__modal-1
+call hide_panel
+$ui__active_panel := %ui__psets[$SurePanel-1]
+call show_panel
+end if
+$Sure__OK := 1
+$Sure__NO := 1
+$SaveMenu := -2
+end function
+on note
+if (get_event_par($EVENT_ID,$EVENT_PAR_0)=2)
+$art_preset := get_event_par($EVENT_ID,$EVENT_PAR_1)/16 mod 16
+$art_mks := sh_right(get_event_par($EVENT_ID,$EVENT_PAR_1),14)
+if ($ArtCtl=1)
+if ($art_mks=3)
+$vib_px := 9
+call load_vibrato_preset
+$PresetMenu := $user0_px
+$_saved := 0
+else
+if ($art_mks # 2)
+if ($art_mks=1)
+$_saved := 0
+end if
+else
+if ($_saved=0)
+$vib_px := 9
+call save_vibrato_preset
+$user0_px := $PresetMenu
+$_saved := 1
+end if
+end if
+if ($art_preset # 0)
+if ($art_preset<15)
+$vib_px := $art_preset+9
+call load_vibrato_preset
+$PresetMenu := $vib_px
+else
+$PresetMenu := -2
+end if
+else
+if ($art_mks=1 and ($PresetMenu=-2))
+$PresetMenu := -1
+end if
+end if
+end if
+$bypass := 1-(1+sh_right(abs($PresetMenu--2)-1,31)) .or. $NoVib
+$last_preset := $PresetMenu
+end if
+if ($bypass=0)
+$_Ts := 500
+$_nid := $EVENT_ID
+if ($_active=0)
+$_active := 1
+$_id2 := $_nid
+$_nid := 0
+$Ns := 0
+$_Td := $ENGINE_UPTIME+$PDelay
+$_first := 1
+while ($_first=1 or ($PLAYED_VOICES_INST # 0) or ($_nid # 0))
+$_first := 0
+if ($Ns mod 2000=0)
+if ($_nid # 0)
+$_id2 := $_nid
+$_nid := 0
+$Ns := 0
+$_Td := $ENGINE_UPTIME+$LDelay
+end if
+$vib_rate := $Rate-6
+if ($Ns=0)
+$_dP0 := 0
+$_dV0 := 0
+%Rm[0] := 100
+%Vm[0] := 100
+%Pm[0] := 100
+else
+$_styx := (%rg__last[%ui__ax[$StyleOff__cx]]-%rg__cx[%ui__ax[$StyleOff__cx]])*3-2
+if ($_styx>0)
+$_rstep := (2*random(0,1)-1)*%Rm[$_styx]
+%Rm[0] := %Rm[0]+$_rstep
+if (not in_range(%Rm[0],%Rm[$_styx+1],%Rm[$_styx+2]))
+%Rm[0] := %Rm[0]-$_rstep
+end if
+end if
+$_styx := (%rg__last[%ui__ax[$StyleOff__cx]]-%rg__cx[%ui__ax[$StyleOff__cx]])*3-2
+if ($_styx>0)
+$_rstep := (2*random(0,1)-1)*%Vm[$_styx]
+%Vm[0] := %Vm[0]+$_rstep
+if (not in_range(%Vm[0],%Vm[$_styx+1],%Vm[$_styx+2]))
+%Vm[0] := %Vm[0]-$_rstep
+end if
+end if
+$_styx := (%rg__last[%ui__ax[$StyleOff__cx]]-%rg__cx[%ui__ax[$StyleOff__cx]])*3-2
+if ($_styx>0)
+$_rstep := (2*random(0,1)-1)*%Pm[$_styx]
+%Pm[0] := %Pm[0]+$_rstep
+if (not in_range(%Pm[0],%Pm[$_styx+1],%Pm[$_styx+2]))
+%Pm[0] := %Pm[0]-$_rstep
+end if
+end if
+end if
+if ($vib_rate<10)
+if ($vib_pace # 0)
+$vib_hold := 0
+if ($vib_pace>0)
+$_Ts := ($vib_period+$_last_period)*43/20
+else
+$_Ts := $vib_period*43/10
+$_last_period := $vib_period
+end if
+if ($_Ts<250)
+$_Ts := 250
+else
+if ($_Ts>2500)
+$_Ts := 1000
+$_last_period := 200
+$Ns := $Ns+($Ns mod 4000)
+if ($vib_pace<0)
+$vib_hold := 1
+end if
+end if
+end if
+$vib_pace := 0
+else
+$vib_hold := 1
+end if
+%Vm[0] := $Intensity*$vib_amod/127+100-$Intensity
+%Pm[0] := %Vm[0]
+else
+$_Ts := 250*%Rm[0]/$vib_rate
+end if
+$_phase := 2*(%rg__last[%ui__ax[$PhaseNeg__cx]]-%rg__cx[%ui__ax[$PhaseNeg__cx]])-1
+$_Vol := $_phase*($Vmod*$Amount*%Vm[0]+10)/20
+$_Vib := ($Pmod*$Amount*%Pm[0]+2)/5
+end if
+$M__In := $Ns
+call _XSinCos
+$_dP := $M__Out
+$_dV := ($_Vol*$_dP+($_Vol*$_dP mod 50000))/50000
+$_dP := ($_Vib*$_dP+($_Vib*$_dP mod 20000))/20000
+change_tune($_id2,$_dP-$_dP0,1)
+change_vol($_id2,$_dV-$_dV0,1)
+$_dP0 := $_dP
+$_dV0 := $_dV
+wait($_Ts)
+if ($vib_rate>=10 and ($ENGINE_UPTIME>=$_Td) or ($vib_rate<10 and ($vib_hold=0)))
+$Ns := $Ns+10
+end if
+end while
+$_active := 0
+end if
+end if
+end if
+end on
+on controller
+if ($CC_NUM=$VCC_MONO_AT)
+if ($vib_rate<1)
+select ($_state)
+case 0
+if (%CC[$VCC_MONO_AT]>$_peak)
+$_peak := %CC[$VCC_MONO_AT]
+else
+call update_period
+$vib_pace := 1
+$vib_amod := $_peak
+$_vale := %CC[$VCC_MONO_AT]
+$_state := 1
+end if
+case 1
+if (%CC[$VCC_MONO_AT]<$_vale)
+$_vale := %CC[$VCC_MONO_AT]
+else
+call update_period
+$vib_pace := -1
+$_peak := %CC[$VCC_MONO_AT]
+$_state := 0
+end if
+end select
+end if
+end if
+end on
+on pgs_changed
+if ($M__PostInit=1)
+$M__PostInit := -1
+$_n9 := 0
+while ($_n9<=500)
+$M__In := $_n9
+$_x := 607252935
+$_y2 := 607252935
+$_z2 := ($M__In-500)*1000000
+$_n6 := 1
+while ($_n6<=15)
+$_dx := sh_right($_y2,$_n6)
+$_dy2 := sh_right($_x,$_n6)
+if ($_z2<0)
+$_x := $_x+$_dx
+$_y2 := $_y2-$_dy2
+$_z2 := $_z2+%_AngTbl[$_n6]
+else
+$_x := $_x-$_dx
+$_y2 := $_y2+$_dy2
+$_z2 := $_z2-%_AngTbl[$_n6]
+end if
+inc($_n6)
+end while
+$M__Out := ($_y2+50000)/100000
+$M__Out2 := ($_x+50000)/100000
+%FM__Trg[$_n9] := $M__Out
+%FM__Trg[1000-$_n9] := $M__Out2
+inc($_n9)
+end while
+$M__PostInit := 0
+end if
+if ($ui__pinit # 0)
+$ui__pinit := 0
+$ui__p1 := 0
+while ($ui__p1<$rg__ax)
+set_control_par(%ui__id[%rg__last[$ui__p1]],$CONTROL_PAR_VALUE,1)
+inc($ui__p1)
+end while
+if ($ui__lock__btn # 0)
+set_control_par($ui__lock__btn,$CONTROL_PAR_WIDTH,49+(15*$ui__lock))
+end if
+$ui__p1 := 0
+while ($ui__p1<$ui__cx)
+%ui__vs[$ui__p1] := get_control_par(%ui__id[$ui__p1],$CONTROL_PAR_HIDE)
+set_control_par(%ui__id[$ui__p1],$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+inc($ui__p1)
+end while
+$ui__active_panel := $VibPanel
+%ui__psets[$VibPanel-1] := $VibPanel
+call show_panel
+set_knob_label($Pmod," " & $Pmod & " cts")
+call set_rate_knob
+set_text($ArtCtl,!OnOffTxt[$ArtCtl])
+$last_preset := $PresetMenu
+call show_art
+end if
+$_n13 := 0
+while ($_n13<=4)
+pgs_set_key_val(WIPS__SLOTS,10+$_n13,$CURRENT_SCRIPT_SLOT)
+inc($_n13)
+end while
+if (pgs_get_key_val(WIPS__META,0) .and. 64 # 0)
+$_mfn := pgs_get_key_val(WIPS__META,0) .and. 63
+select ($_mfn)
+case 16 to 17
+if (pgs_get_key_val(WIPS__META,0) .and. 128=0)
+%meta__Last[$_mfn] := %rg__last[%ui__ax[$PhaseNeg__cx]]-%rg__cx[%ui__ax[$PhaseNeg__cx]]
+$ui__p1 := $_mfn-16+%rg__cx[%ui__ax[$PhaseNeg__cx]]
+call _on_radio
+else
+$ui__p1 := %meta__Last[$_mfn]+%rg__cx[%ui__ax[$PhaseNeg__cx]]
+call _on_radio
+end if
+case 18
+if (pgs_get_key_val(WIPS__META,0) .and. 128=0)
+%meta__Last[$_mfn] := %rg__last[%ui__ax[$PhaseNeg__cx]]-%rg__cx[%ui__ax[$PhaseNeg__cx]]
+$ui__p1 := 1-(%rg__last[%ui__ax[$PhaseNeg__cx]]-%rg__cx[%ui__ax[$PhaseNeg__cx]])+%rg__cx[%ui__ax[$PhaseNeg__cx]]
+call _on_radio
+else
+$ui__p1 := %meta__Last[$_mfn]+%rg__cx[%ui__ax[$PhaseNeg__cx]]
+call _on_radio
+end if
+case 19 to 22
+if (pgs_get_key_val(WIPS__META,0) .and. 128=0)
+%meta__Last[$_mfn] := %rg__last[%ui__ax[$StyleOff__cx]]-%rg__cx[%ui__ax[$StyleOff__cx]]
+$ui__p1 := $_mfn-19+%rg__cx[%ui__ax[$StyleOff__cx]]
+call _on_radio
+else
+$ui__p1 := %meta__Last[$_mfn]+%rg__cx[%ui__ax[$StyleOff__cx]]
+call _on_radio
+end if
+case 23 to 24
+if (pgs_get_key_val(WIPS__META,0) .and. 128=0)
+%meta__Last[$_mfn] := get_control_par(%ui__id[$ArtCtl__cx],$CONTROL_PAR_VALUE)
+set_control_par(%ui__id[$ArtCtl__cx],$CONTROL_PAR_VALUE,1-$_mfn+23)
+else
+set_control_par(%ui__id[$ArtCtl__cx],$CONTROL_PAR_VALUE,%meta__Last[$_mfn])
+end if
+set_control_par_str(%ui__id[$ArtCtl__cx],$CONTROL_PAR_TEXT,!OnOffTxt[get_control_par(%ui__id[$ArtCtl__cx],$CONTROL_PAR_VALUE)])
+case 25
+if (pgs_get_key_val(WIPS__META,0) .and. 128=0)
+%meta__Last[$_mfn] := get_control_par(%ui__id[$ArtCtl__cx],$CONTROL_PAR_VALUE)
+set_control_par(%ui__id[$ArtCtl__cx],$CONTROL_PAR_VALUE,1-$ArtCtl)
+else
+set_control_par(%ui__id[$ArtCtl__cx],$CONTROL_PAR_VALUE,%meta__Last[$_mfn])
+end if
+set_control_par_str(%ui__id[$ArtCtl__cx],$CONTROL_PAR_TEXT,!OnOffTxt[get_control_par(%ui__id[$ArtCtl__cx],$CONTROL_PAR_VALUE)])
+case 26 to 27
+if (pgs_get_key_val(WIPS__META,0) .and. 128=0)
+%meta__Last[$_mfn] := get_control_par(%ui__id[$NoVib__cx],$CONTROL_PAR_VALUE)
+set_control_par(%ui__id[$NoVib__cx],$CONTROL_PAR_VALUE,1-$_mfn+26)
+else
+set_control_par(%ui__id[$NoVib__cx],$CONTROL_PAR_VALUE,%meta__Last[$_mfn])
+end if
+case 28
+if (pgs_get_key_val(WIPS__META,0) .and. 128=0)
+%meta__Last[$_mfn] := get_control_par(%ui__id[$NoVib__cx],$CONTROL_PAR_VALUE)
+set_control_par(%ui__id[$NoVib__cx],$CONTROL_PAR_VALUE,1-$NoVib)
+else
+set_control_par(%ui__id[$NoVib__cx],$CONTROL_PAR_VALUE,%meta__Last[$_mfn])
+end if
+case 29
+if (in_range($vib_rate,1,9))
+$_pace_time := $ENGINE_UPTIME
+$vib_period := $_pace_time-$_last_time
+$_last_time := $_pace_time
+if (pgs_get_key_val(WIPS__META,0) .and. 128=0)
+$vib_pace := 1
+$vib_amod := pgs_get_key_val(WIPS__META,1)
+else
+$vib_pace := -1
+end if
+end if
+end select
+end if
+call show_art
+end on
+on listener
+if ($NI_SIGNAL_TYPE=$NI_SIGNAL_TIMER_MS)
+if (pgs_get_key_val(WIPS__SLOTS,0+$CURRENT_SCRIPT_SLOT)=($CURRENT_SCRIPT_SLOT+-2) and (pgs_get_key_val(WIPS__SLOTS,5+$CURRENT_SCRIPT_SLOT)=($CURRENT_SCRIPT_SLOT+-1)))
+if ($ui__active_panel=$SuiteErrPanel and ($ui__modal>=2) and (4>$ui__modal))
+$ui__modal := $ui__modal-2
+call hide_panel
+$ui__active_panel := %ui__psets[$SuiteErrPanel-1]
+call show_panel
+end if
+else
+if ($ui__active_panel # $SuiteErrPanel and (2>$ui__modal))
+$ui__modal := $ui__modal+2
+call hide_panel
+%ui__psets[$SuiteErrPanel-1] := $ui__active_panel
+$ui__active_panel := $SuiteErrPanel
+call show_panel
+end if
+end if
+if (pgs_get_key_val(WIPS__NOPLAY,0)=1)
+if ($ui__active_panel # $WarnPanel and (1>$ui__modal))
+$ui__modal := $ui__modal+1
+call hide_panel
+%ui__psets[$WarnPanel-1] := $ui__active_panel
+$ui__active_panel := $WarnPanel
+call show_panel
+end if
+else
+if ($ui__active_panel=$WarnPanel and ($ui__modal>=1) and (2>$ui__modal))
+$ui__modal := $ui__modal-1
+call hide_panel
+$ui__active_panel := %ui__psets[$WarnPanel-1]
+call show_panel
+end if
+end if
+pgs_set_key_val(WIPS__SLOTS,0+$CURRENT_SCRIPT_SLOT,-10)
+pgs_set_key_val(WIPS__SLOTS,5+$CURRENT_SCRIPT_SLOT,-10)
+end if
+end on
+on ui_control($AboutDlg__TLock1)
+$AboutDlg__TLock1 := 0
+if ($ui__lock__2 # 0)
+$ui__lock := 1-$ui__lock
+set_control_par($ui__lock__btn,$CONTROL_PAR_WIDTH,49+(15*$ui__lock))
+end if
+$ui__lock__1 := 1
+wait(2000000)
+$ui__lock__1 := 0
+end on
+on ui_control($AboutDlg__TLock2)
+$AboutDlg__TLock2 := 0
+if ($ui__lock__1 # 0)
+$ui__lock := 1-$ui__lock
+set_control_par($ui__lock__btn,$CONTROL_PAR_WIDTH,49+(15*$ui__lock))
+end if
+$ui__lock__2 := 1
+wait(2000000)
+$ui__lock__2 := 0
+end on
+on ui_control($PhaseNeg)
+$ui__p1 := $PhaseNeg__cx
+call _on_radio
+$PresetMenu := -1
+$last_preset := -1
+end on
+on ui_control($PhasePos)
+$ui__p1 := $PhasePos__cx
+call _on_radio
+$PresetMenu := -1
+$last_preset := -1
+end on
+on ui_control($StyleOff)
+$ui__p1 := $StyleOff__cx
+call _on_radio
+$PresetMenu := -1
+$last_preset := -1
+end on
+on ui_control($StyleTight)
+$ui__p1 := $StyleTight__cx
+call _on_radio
+$PresetMenu := -1
+$last_preset := -1
+end on
+on ui_control($StyleMod)
+$ui__p1 := $StyleMod__cx
+call _on_radio
+$PresetMenu := -1
+$last_preset := -1
+end on
+on ui_control($StyleLoose)
+$ui__p1 := $StyleLoose__cx
+call _on_radio
+$PresetMenu := -1
+$last_preset := -1
+end on
+on ui_control($Intensity)
+$ui__kx := $Intensity__cx
+$PresetMenu := -1
+$last_preset := -1
+call NI_Slider
+end on
+on ui_control($About)
+$About := 0
+if ($ui__active_panel # $AboutPanel and ($ui__modal=0))
+call hide_panel
+%ui__psets[$AboutPanel-1] := $ui__active_panel
+$ui__active_panel := $AboutPanel
+call show_panel
+end if
+end on
+on ui_control($AboutDlg__OK)
+$AboutDlg__OK := 1
+if ($ui__active_panel=$AboutPanel and ($ui__modal=0))
+call hide_panel
+$ui__active_panel := %ui__psets[$AboutPanel-1]
+call show_panel
+end if
+end on
+on ui_control($Amount)
+$PresetMenu := -1
+$last_preset := -1
+message($amount)
+end on
+on ui_control($ArtCtl)
+set_text($ArtCtl,!OnOffTxt[$ArtCtl])
+end on
+on ui_control($LDelay)
+$PresetMenu := -1
+$last_preset := -1
+end on
+on ui_control($PDelay)
+$PresetMenu := -1
+$last_preset := -1
+end on
+on ui_control($Pmod)
+set_knob_label($Pmod," " & $Pmod & " cts")
+$PresetMenu := -1
+$last_preset := -1
+end on
+on ui_control($PresetMenu)
+if ($PresetMenu<0)
+$PresetMenu := $last_preset
+else
+$vib_px := $PresetMenu
+call load_vibrato_preset
+$last_preset := $PresetMenu
+end if
+end on
+on ui_control($Rate)
+$PresetMenu := -1
+$last_preset := -1
+call set_rate_knob
+end on
+on ui_control($SaveMenu)
+if ($SaveMenu>=0)
+set_text($Sure,"OK to overwrite User Preset " & $SaveMenu & "?")
+if ($ui__active_panel # $SurePanel and (1>$ui__modal))
+$ui__modal := $ui__modal+1
+call hide_panel
+%ui__psets[$SurePanel-1] := $ui__active_panel
+$ui__active_panel := $SurePanel
+call show_panel
+end if
+else
+$SaveMenu := -2
+end if
+end on
+on ui_control($Sure__OK)
+$vib_px := $SaveMenu+9
+call save_vibrato_preset
+call exit_sure
+end on
+on ui_control($Sure__NO)
+call exit_sure
+end on
+on ui_control($Vmod)
+$PresetMenu := -1
+$last_preset := -1
+end on

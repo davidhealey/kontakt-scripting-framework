@@ -1,0 +1,127 @@
+{ SIPS-SuperBender, Version 100 7-17-08 }
+on init
+declare ui_menu $PWMode
+add_menu_item($PWMode,"Normal Bender",1)
+add_menu_item($PWMode,"Super Bender",2)
+add_menu_item($PWMode,"Controller Only",3)
+$PWMode := 1
+move_control($PWMode,1,2)
+make_persistent($PWMode)
+declare ui_value_edit $BendRange(1, 12, 1) 
+set_text($BendRange,"Set Range")
+$BendRange := 1
+move_control($BendRange,2,2)
+make_persistent($BendRange)
+declare ui_label $SuperState(1, 1) 
+declare ui_label $PWModeCap(2, 1) 
+set_text($PWModeCap,"Pitch Wheel Mode  -  Range or Status")
+move_control($PWModeCap,1,1)
+declare $PortMode := 0
+declare $SwitchOK := 1
+set_controller(122,0)
+set_controller(124,0)
+_read_persistent_var($PWMode)
+declare $LastPWMode
+$LastPWMode := $PWMode
+select ($PWMode)
+case 1
+move_control($BendRange,2,2)
+move_control($SuperState,0,2)
+case 2
+move_control($BendRange,0,2)
+move_control($SuperState,2,2)
+if ($PortMode=1)
+set_text($SuperState,"Portamento Bend")
+else
+set_text($SuperState,"   Legato Bend")
+end if
+case 3
+move_control($BendRange,0,2)
+move_control($SuperState,0,2)
+end select
+declare $InstTune
+$InstTune := _get_engine_par($ENGINE_PAR_TUNE,-1,-1,-1)
+set_controller(21,96)
+set_controller(25,0)
+set_controller(23,0)
+message("")
+end on
+
+on ui_update
+set_controller(122,0)
+if (%CC[128]=0)
+$InstTune := _get_engine_par($ENGINE_PAR_TUNE,-1,-1,-1)
+end if
+end on
+
+on ui_control($PWMode)
+if (%CC[128] # 0 or ($PLAYED_VOICES_INST # 0))
+$PWMode := $LastPWMode
+else
+$LastPWMode := $PWMode
+$SwitchOK := 1
+$PortMode := 0
+set_controller(21,96)
+select ($PWMode)
+case 1
+move_control($BendRange,2,2)
+move_control($SuperState,0,2)
+case 2
+move_control($BendRange,0,2)
+move_control($SuperState,2,2)
+if ($PortMode=1)
+set_text($SuperState,"Portamento Bend")
+else
+set_text($SuperState,"   Legato Bend")
+end if
+case 3
+move_control($BendRange,0,2)
+move_control($SuperState,0,2)
+end select
+end if
+end on
+
+on controller
+if ($CC_NUM=128 and ($PWMode # 3))
+if ($PWMode=2)
+ignore_controller
+if (%CC[128]<0)
+if ($SwitchOK=1)
+if (%CC[21]<127)
+set_controller(21,127)
+$PortMode := 1
+else
+set_controller(21,96)
+$PortMode := 0
+end if
+$SwitchOK := 0
+select ($PWMode)
+case 1
+move_control($BendRange,2,2)
+move_control($SuperState,0,2)
+case 2
+move_control($BendRange,0,2)
+move_control($SuperState,2,2)
+if ($PortMode=1)
+set_text($SuperState,"Portamento Bend")
+else
+set_text($SuperState,"   Legato Bend")
+end if
+case 3
+move_control($BendRange,0,2)
+move_control($SuperState,0,2)
+end select
+end if
+if ($PortMode=1)
+set_controller(23,abs(%CC[128])*127/8191)
+end if
+else
+$SwitchOK := 1
+set_controller(25,abs(%CC[128])*127/8191)
+end if
+else
+_set_engine_par($ENGINE_PAR_TUNE,%CC[128]*13889*$BendRange/8191+$InstTune,-1,-1,-1)
+end if
+end if
+end on
+

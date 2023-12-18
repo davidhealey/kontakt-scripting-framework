@@ -1,0 +1,659 @@
+{*****************************************************************************
+Title: SIPS-Vibrato V2
+Author: R.D.Villwock aka 'Big Bob'
+First Written: Feb 20, 2006
+Current Version: 2.05
+Last Modified: July 9, 2008 
+
+This is the KS source code for the SIPS Vibrato Script, SVS. This script is part
+of the new V2 series of SIPS. If you are updating from the V1 series of SIPS and
+want to keep your control panels and/or User Presets, you will first have to run
+the V2 Updater before you can update to this script. The V2 series of scripts can
+only auto-import from the V2 series itself (or the from the V2 Updater). The V2
+Updater can accept any of the V1 series scripts and convert them to an interim
+format which can then be updated to the V2 series. See the V2.0 User's Guide for
+more detailed information about the updating process.
+
+*******************************************************************************
+NOTE: To compile this source code, you should use V1.25.6 or higher of Nils
+Liberg's KScript Editor. Use the semi-compact output mode with code optimization
+turned on. This is important because SIPS 2 uses the conditional compilation
+features of the optimization mode to greatly reduce code size. Also, since this
+modularized version of SIPS uses the 'import' feature of the KS Editor, you will
+need the KSM source text files for all the 'External Modules' (in appropriately
+named sub-folders) to recompile this script.
+*******************************************************************************
+External SIPS Modules Needed: In Sub-Folder named 'SIPS Modules'
+  SXM-GSR     General Support Routines for the SIPS suite
+  SXM-SVS     Common SIPS Routines and Data types, Customized for the SVS
+  SXM-UIC     Loads ui_control callbacks common to SIPS suite
+  SXM-UPS     User Preset Support for the SIPS suite
+Other External Modules Needed: In Sub-Folder named 'Support Modules'
+  ISCS_V215   Inter-Script Communication System 
+-------------------------------------------------------------------------------}  
+  
+import "SIPS Modules\SXM-GSR-V205_KSM.txt"
+import "SIPS Modules\SXM-SVS-V205_KSM.txt"
+import "SIPS Modules\SXM-UPS-V205_KSM.txt"
+import "Support Modules\ISCS-V215_KSM.txt"
+ 
+on init
+{  make_perfview }
+                 { Special CCs, Event Marks, and Limits Used by SIPS }
+  declare const AfterTouch := 124    { Proxy CC# for channel pressure }
+  declare const MaxNote := 127       { Currently no reserve notes on high end }
+  declare const MinNote := 2         { Reserve MIDI notes 0..1 for special stuff }
+  declare const ModWheel := 1        { Standard MIDI Mod Wheel code }
+  declare const NoteMark := MARK_26  { Mark for new notes prior to zero crossing sync }
+  declare const PitchWheel := 128    { KSP CC# for pitch bender wheel }
+  declare const ProgChange := 125    { Proxy CC# for program change }
+  declare const StartSIPS := 122     { CC used to startup SIPS 2, formerly KSP+ Timer }   
+  declare const SyncMark := MARK_27  { Mark for synchronized notes }
+  declare const TopCC := 119         { SIPS assignable CC range is 0..TopCC }
+  declare const NoSyncID := by_marks(NoteMark) { ID for notes not yet synced }
+  declare const SyncID := by_marks(SyncMark)   { ID for synced notes }
+  declare const VelCC := 150         { Pseudo CC# used for Velocity control }  
+   
+  { ----------------- SIPS ID and Version Parameters ------------------ }
+  declare const SAS_ID := 1000 { ISCS Registered SID for the SAS Script }
+  declare const SLS_ID := 1001 { ISCS Registered SID for the SLS Script }
+  declare const SVS_ID := 1002 { ISCS Registered SID for the SVS Script }
+  declare const V2UP   := 103  { Updater for Version 2 }
+  declare const V200   := 104  { User Preset Format Code for V200 }
+  declare const SID := SVS_ID  { Script ID Code for this Script }
+  declare const PFC := V200    { Preset Format Code for this script }
+  on_init_VerIR  { Default or 'prior' version plus Instrument Range *GSR* }    
+  
+  {------------------------- ISCS Interface Block ---------------------------}
+                     { No Omni Messages sent from SVS }  
+                   { Acceptable Omni Messages from SAS } 
+  declare const new_inst_range  := 1   { Inst Range:  EP[0], EP[1] = low, top }
+  declare const new_prefs       := 2   { Updated Preferences in low 16 bits of EP0 }
+                         { UserPrefs Bit Masks }
+  declare const NoPedal  := 0x01    { CC64 is controller only, no sustain function }
+  declare const NoMenus  := 0x02    { Disable SAS MIDI Menu control }
+  declare const PC128    := 0x04    { Kybd inputs PC = 1..128 to send 0..127 }
+  declare const 3SecRT   := 0x08    { Play release samples for 3 seconds only }
+  declare const ResetFCR := 0x10    { Reset random seed for each new articulation } 
+                      { Acceptable Client Messages }
+  declare const import_block := 1   { Import Preset if sender is also SVS }
+                       { Local Subroutine Indices } 
+  declare const OpenMenu := 1       { Execute OpenMenu_ }
+  declare const SetMKnobs := 2      { Execute SetMKnobs_ }
+  declare const UpdatePanel := 3    { Execute UpdatePanel_ }
+                         { Local Task Indices } 
+  declare const AddVibrato  := 1    { Modulates all active notes } 
+  
+  on_init_ISCS(SVS_ID,1,1)          { Generate ISCS data, startup, 1 Task *ISCS* }  
+  {--------------------- End of ISCS Interface Block ------------------------}  
+    
+  { ------------------------ Preset Limits --------------------------- }
+  declare const KeyParms := 15     { #of parameters for a Built-in Preset }
+  declare const MainPresets := 10  { Number of Main (ie Built-In) presets }
+  declare const MainSize := MainPresets * KeyParms  { Must not exceed 512 }
+  on_init_Set_UserLimits           { Establish User Preset Limits, *UPS* }
+
+                         { SVSMode Menu Indices }
+  declare const Amt_and_Env := 1  { Menu Index, Efx-Amt + Envelope }
+  declare const Amt_Only    := 2  { Menu Index, Efx-Amt knob only }
+  declare const SVS_Off     := 3  { Menu Index, disable the SVS }
+                          { PanelDraw Indices }
+  declare const NoDraw    := 0    { Don't Draw or Redraw any Panel }
+  declare const StdPanel  := 1    { Draw the Standard Performance Panel }
+  declare const RenPanel  := 2    { Draw the Rename Preset Panel }
+                            { Defaults }
+  declare const DefBal := 0       { Default Vib/Trem Balance }
+  declare const DefEfx := 100     { Default Effect Amount }
+  declare const No_Cmd  := -1     { Preset Idle, negative values used for commands }
+                          { Control Limits }
+  declare const MaxAmt := 100     { Max Effect Amount in percent }
+  declare const MaxBal := 100
+  declare const MaxDecay := 100   { Max Effect Envelope decay in cycles }
+  declare const MaxOnset := 25    { Max Effect Onset delay in cycles }
+  declare const MaxRise := 20     { Slowest Effect rise time in cycles }
+  declare const MaxShape := 90    { Almost a square wave }
+  declare const MaxSpdDrft := 30  { Maximum effect speed drift in per cent }
+                                  { CAUTION: Must be less than 100 }
+  declare const MaxSpeed := 600   { Fastest Effect Speed, 6.00 Hz }
+  declare const MaxTrem := 500    { Maximum Tremolo 5.00 db }  
+  declare const MaxVar := 30      { Max Vib/Trem Variation as decimal percent }
+  declare const MaxVib := 3000    { Maximum Pitch Modulation, 30.00 cents }
+  declare const MinBal := -100
+  declare const MinSpeed := 200   { Slowest Effect Speed, 2.00 Hz }
+                                  { CAUTION: Must be greater than zero }
+                           { Miscellaneous }
+  declare const Full_Env := 1000  { Full or unity Envelope }
+  declare const NoID := 0         { Impossible ID }
+  declare const NoParm := -100000 { Used as a token for 'undefined' parameter }  
+  declare const false := 0        { Boolean False }
+  declare const true := 1         { Boolean True }
+  declare const Tick := 100       { Staircase step time in usec }
+
+  { -------- Envelope Generator States ---------- }
+  declare const Restart := 0
+  declare const Onset_Delay := 1
+  declare const Ramp_To_Full := 2
+  declare const Diminuendo := 3
+
+  { -------------- String Stuff --------------- }
+  declare @LowCap            { Caption for low key in IR }
+  LowCap := ' Low Key: '
+  declare @TopCap            { Caption for high key in IR }
+  TopCap := ' High Key: '
+    
+  { ------------------- String Array Constants --------------------- }
+  on_init_CCNames      { Allocate and intialize MIDI CC menu names, *GSR* }
+  on_init_CharSet      { Allocate and initialize User Name Character Set, *UPS* }
+  on_init_ScaleTones   { Allocate and initialize the Scale Tone array, *GSR* }
+  on_init_MCMenu       { Build MIDI Controller Menu, *GSR* }
+  
+  { ---------------------- General Variables ---------------------- }
+  declare 0db         { Boost needed to get to original level }
+  declare 0tune       { Drop in pitch needed to restore initial tuning } 
+  declare Bending     { Set while legato script using tuning function }
+  declare Command := No_Cmd { Preset Menu Active Command }
+  declare DrawPanel   { Draw/Re-Draw Panel Index, 0 = NoDraw }   
+  declare Env_State   { Current state of the Envelope Generator }
+  declare LastCC := NoCC    { Last CC moved }
+  declare MenuActv    { Flag set while a BtnMenu is open }
+  declare MsgFlag     { Flag denoting that StatusMsg needs to be blinked }  
+  declare NCCV[129]   { Normalized value of current CC triggering the CCB, thread-safe }
+  declare New_Note    { Latest note played }
+  declare Pitch_Step  { Vibrato tuning needed per tick in mcents }
+  declare UserPrefs   { Current settings of User Preferences, in low 16 bits }
+  declare SPedal      { CC# for sustain pedal, either 64 or NoCC }
+  declare VCV         { Pseudo Velocity Controller value }    
+  declare Vol_Step    { Tremolo volume change needed per tick in mdb } 
+
+  { ------------------------ Panel System -------------------------- }
+  declare PMap[36]    { Current Control Panel layout map }  
+  on_init_Set_UIX     { Assign an index to each UI control, *SVS* }
+  
+  { ------------------------- Main Presets ------------------------ }  
+  declare MainParms[MainSize] := ...    
+                         { Presets by BB } ...
+    {Inst 0}(  0, 300,400,33, 0, 0, 0, 0, 1, 1, 1,100,100, 0,2, ...
+    {Inst 1}  62, 200,400,33,15,15,10,20,10, 5,35, 55,100, 0,1, ...
+                         { Presets by TK } ...
+    {Inst 2}   0, 750,483,32,16, 0, 3,11, 1, 5,35, 42,100, 0,1, ...
+    {Inst 3}  10, 992,381,13,12,11,10,10, 1, 3,71, 66,100, 0,1, ...
+                         { Presets by AK } ...
+    {Inst 4}  62, 908,460,29,15,15,10,20, 4, 3,35, 55,100, 0,1, ...
+    {Inst 5}  62, 752,400,33,15,15,10,20, 1, 2,35, 55,100, 0,1, ...
+    {Inst 6} 124,1688,400,22, 9, 9,10,20, 1, 3,35, 55,100, 0,1, ...
+                         { Presets by MN } ...
+    {Inst 7}  75,1251,425,20,12,15, 7,18, 2, 3, 5, 65,100, 0,1, ...
+    {Inst 8}  80,1600,400,37,15,15, 9,15, 2, 3, 4, 70,100, 0,1, ...
+    {Inst 9}  80,1000,350,25,15,15, 8,20, 2, 3, 5, 65,100, 0,1)
+  { -------------------------- User Presets -------------------------- }
+  on_init_UserPresets  { Build default or restore saved User Presets, *UPS* }
+  
+  { --------------- Main Control Panel, Presets --------------- }
+  declare ui_menu Preset        { Instrument Preset Menu Button }
+    move_control(Preset,0,0)
+    add_menu_item (Preset,' -- Presets --',No_Cmd)   { Menu Hdr }
+    Preset := No_Cmd    { Default Preset to display Menu Header }
+    { ------------------- Main Presets ------------------------ }
+    add_menu_item (Preset,'* Basic Setup *',           0) { Default Inst }
+    add_menu_item (Preset,'Bassoon               AK7', 4)  
+    add_menu_item (Preset,'Clarinet 1              BB',1) 
+    add_menu_item (Preset,'Clarinet 2             AK8',5)  
+    add_menu_item (Preset,'Soft Flute            TK12',2)
+    add_menu_item (Preset,'French Horn          MN3',  9)
+    add_menu_item (Preset,'Trombone 1           TK13', 3)
+    add_menu_item (Preset,'Trombone 2           MN2',  8)  
+    add_menu_item (Preset,'Trumpet 1             MN1', 7)
+    add_menu_item (Preset,'Trumpet 2            AK9',  6)      
+  { -------------------- User Presets ----------------------- }
+  on_init_Add_UserMenu   { Add User Presets and Commands to Menu, *UPS* }
+  { ------------------ End Preset Menu ---------------------- }
+  
+  { ---------------- Main Panel, Column 1 ----------------- }
+  declare ui_knob Vibrato (0,MaxVib,100) { Pitch Modulation in cents }
+    move_control(Vibrato,0,0)
+    set_text(Vibrato,'Vib (cts)')
+    Vibrato := MainParms[uVib]  { Default Instrument Vibrato }
+  declare ui_label ModCap (2,1) { Modulation Limits Caption }
+    move_control(ModCap,0,0)
+    set_text(ModCap,'Vibrato  - Modulation Limits - Tremolo') 
+        
+  { ---------------- Main Panel, Column 2 ----------------- }    
+  declare ui_knob Tremolo (0,MaxTrem,100)
+    move_control(Tremolo,0,0)
+    set_text(Tremolo,'Tremolo')           { Name the Tremolo Knob and }  
+    set_knob_unit(Tremolo,KNOB_UNIT_DB)   {  set unit display to db   }
+        
+  { ---------------- Main Panel, Column 3 ----------------- }
+  declare ui_knob Shape (0,MaxShape,1)  { percent }
+    move_control(Shape,0,0)
+    set_text(Shape,' Shape')
+    set_knob_unit(Shape,KNOB_UNIT_PERCENT)
+    Shape := MainParms[uShape]    { Default Instrument Shape }  
+  declare ui_label WaveCap (1,1)  { Waveform Caption }
+    move_control(WaveCap,0,0)  
+    set_text(WaveCap,' Mod.  Waveform')
+        
+  { --------------- Main Panel, Column 4 ------------------ }
+  declare ui_label VarCap (1,1) { Randomization Caption }
+    move_control(VarCap,0,0)
+    set_text(VarCap,'Random Variation')
+  declare ui_value_edit VibVar (0,MaxVar,1) { Vibrato variation in percent }
+    move_control(VibVar,0,0)
+    set_text(VibVar,'Vibrato')
+    VibVar := MainParms[uVibVar]     { Default Instrument Vibrato variation }
+  declare ui_value_edit TremVar (0,MaxVar,1) { Tremolo variation in percent }
+    move_control(TremVar,0,0)
+    set_text(TremVar,'Tremolo')
+    TremVar := MainParms[uTremVar]   { Default Instrument Tremolo variation } 
+  declare ui_value_edit WavDrift (0,MaxVar,1)  { Max Shape drift in percent }
+    move_control(WavDrift,0,0)
+    set_text(WavDrift,'Shape Drift')
+    WavDrift := MainParms[uWavDrft]
+  declare ui_value_edit SpdDrift (0,MaxSpdDrft,1)
+    move_control(SpdDrift,0,0)
+    set_text(SpdDrift,'Speed Drift')
+    SpdDrift := MainParms[uSpdDrft]  { Max Speed drift in percent }  
+  declare ui_label About (2,1)
+    move_control(About,0,0)
+    set_text(About,'  SIPS 2   Vibrato Script         by RDV')
+    
+  { ----------------- Main Panel, Column 5 ---------------- }
+  declare ui_label EnvCap (1,1)
+    move_control(EnvCap,0,0)
+    set_text(EnvCap,'Envelope Settings')
+  declare ui_value_edit Onset (1,MaxOnset,1)  { in cycles }
+    move_control(Onset,0,0)
+    set_text(Onset,'Onset')
+    Onset := MainParms[uOnset]  { Default Instrument Onset }
+  declare ui_value_edit Rise (1,MaxRise,1)      { in cycles }
+    move_control(Rise,0,0)
+    set_text(Rise,'Rise')
+    Rise := MainParms[uRise]    { Default Instrument Rise } 
+  declare ui_value_edit Decay (1,MaxDecay,1)    { in cycles }
+    move_control(Decay,0,0)
+    set_text(Decay,'Decay')
+    Decay := MainParms[uDecay]  { Default Instrument Decay }
+  declare ui_value_edit Sustain (0,100,1)  { percent }
+    move_control(Sustain,0,0)
+    set_text(Sustain,'Sustain')
+    Sustain := MainParms[uSustain] { Default Instrument Sustain }
+    
+  { ---------------- Main Panel, Column 6 ---------------- }  
+  declare ui_label IRCap (1,1)
+    move_control(IRCap,0,0)
+    set_text(IRCap,'Instrument Range')
+  declare @LowKey      { String version of LowIR }
+  declare @TopKey      { String version of TopIR }  
+  declare ui_label IR_Box (1,2)
+    move_control(IR_Box,0,0)
+
+  { ------------ Other Main Panel Controls & Labels --------------- }
+  on_init_Mode     { Build the SVSMode Menu   *SVS* } 
+  on_init_MBtns    { Build MIDI CC Buttons and MIDI Knobs   *SVS* }
+
+  { ------------ Standard and Rename Panel Templates -------------- }   
+  on_init_Std_PanelMap  { Build the StdPanel_Map, *SVS* }      
+  on_init_RenPanel      { Declare and initialize Rename-Panel, *UPS* }
+
+  { --------- Save/Restore the following with preset/patch ---------- }
+  make_persistent(Vibrato)    { Column 1 }
+  make_persistent(MKnob.Amt)
+  
+  make_persistent(Tremolo)    { Column 2 }
+  make_persistent(MKnob.Bal)  
+  
+  make_persistent(Shape)      { Column 3 }
+  make_persistent(MKnob.Speed)
+  
+  make_persistent(VibVar)     { Column 4 }
+  make_persistent(TremVar)
+  make_persistent(WavDrift)
+  make_persistent(SpdDrift)  
+  
+  make_persistent(Onset)      { Column 5 }
+  make_persistent(Rise)
+  make_persistent(Decay)
+  make_persistent(Sustain)
+
+  make_persistent(LowIR)      { Column 6 }
+  make_persistent(TopIR)
+  make_persistent(Preset)
+  make_persistent(SVSMode)
+  
+  make_persistent(Version)      { Version Info array }
+  make_persistent(UserParms)    { User Presets }
+  make_persistent(UPNames)      { User Preset Names, numeric }  
+  make_persistent(MBtn.CC)      { Array of assigned CCs }
+  make_persistent(MBtn.CCV)     { Last value of assigned CCs }  
+  make_persistent(MBtn.State)   { Array of Button states }
+  make_persistent(MKnob.Kmin)   { Array of Knob's CC range min }
+  make_persistent(MKnob.Kmax)   { Array of Knob's CC range max }
+  
+  on_init_BigLabel { Prompting Panel that precedes standard panel *GSR* }
+  Update_Format    { If version upgrade, re-format presets, *UPS* }
+  message('')      { Clear K2's status area }
+end on { init }
+
+on note
+  ISCS_NCB(MsgHandler,OmniHandler)
+  if not in_range(EVENT_NOTE,LowIR,TopIR)  
+    exit  { Don't process out-of-range notes }
+  end if
+  set_event_mark(EVENT_ID,NoteMark)  { Ready for next zero crossing }
+  if EVENT_VELOCITY # VCV  { Update Velocity value }
+    VCV := EVENT_VELOCITY
+    Call(SetMKnobs,cp2(VelCC,VCV),none)  { Update cv change & associated knob }
+  end if   
+  Env_State := Restart { Reset the Envelope Generator }
+  RunTask(AddVibrato)  { Start Vibrato Loop if not already running }
+end on { note }
+
+on release
+  ISCS_RCB(NOP,CallHandler,TaskHandler)
+end on { release }
+
+on controller
+  ISCS_CCB(Startup)  { Run Startup function after first CC event }
+  if CC_NUM = PitchWheel    { Normalize the current CC value in NCCV }
+    NCCV[CC_NUM] := abs(CC[PitchWheel])*127/8191    { Map PW to 0..127 range }
+  else
+    NCCV[CC_NUM] := CC[CC_NUM]
+    if CC_NUM <= TopCC      { If in valid CC range 0..119 }
+      LastCC := CC_NUM      { Remember for 'Last Moved' menu option }
+    end if
+  end if  
+  if CC_NUM = MBtn.CC[mMode]
+    select CC[CC_NUM]       { Mode change request }
+    case 0
+      SVSMode := SVS_Off
+    case 1 to 126
+      SVSMode := Amt_Only
+    case 127
+      SVSMode := Amt_and_Env
+    end select
+    Env_State := Restart    { Reset envelope generator }
+    Call(UpdatePanel,none,none)
+    exit
+  end if
+  { If CC is assigned, update btns/knobs }
+  Call(SetMKnobs,cp2(CC_NUM,NCCV[CC_NUM]),none)
+end on { controller }
+
+{ ------------------------ UI Callbacks ---------------------- }
+                     { Assign or De-assign MIDI CCs }
+on ui_control (MBtn.Amt) { Assign Effect Amount CC }
+  SetCC(mAmt)
+end on { Amt CC Btn }
+                     
+on ui_control (MBtn.Bal)  { Assign Balance CC }
+  SetCC(mBal)
+end on { Balance CC Btn }
+
+on ui_control (MBtn.Mode)
+  SetCC(mMode)
+end on { Mode CC Btn } 
+
+on ui_control (MBtn.Speed)  { Assign Speed CC }
+  SetCC(mSpeed)
+end on { Speed CC Btn }
+                         { Set Panel Knobs }
+on ui_control (MKnob.Amt)    { User has changed the Amt Knob directly }
+  SetMRange(mAmt,MKnob.Amt)
+end on { Amt Knob }
+                         
+on ui_control (MKnob.Bal)    { User has changed the Balance Knob directly }
+  SetMRange(mBal,MKnob.Bal)
+  ShowBalKnob 
+end on { Bal Knob }
+
+on ui_control (MKnob.Speed)  { User has changed the Speed Knob directly }
+  SetMRange(mSpeed,MKnob.Speed)
+end on { Speed Knob }
+
+{ ---------- Preset Menu and Misc UI Control Callbacks ------------- }
+on ui_control (SVSMode)  { Change the SVS mode }
+  Env_State := Restart   { Reset envelope generator }
+  Call(UpdatePanel,none,none)
+end on { SVSMode }
+
+on ui_control (Preset) { Process Preset Menu selection }
+  Do_Preset
+end on { Preset Menu }
+
+import "SIPS Modules\SXM-UIC-V205_KSM.txt"  { UI Callbacks for Rename & BtnMenus *Ren* }
+
+{ ------------------------ ISCS Handlers ---------------------- }
+function CallHandler(fn)  { SVS Subroutine Dispatcher }
+  select fn
+    case OpenMenu
+      OpenMenu_(InParm[0],OutParm[0])
+    case SetMKnobs
+      SetMKnobs_(InParm[0],InParm[1])
+    case UpdatePanel
+      UpdatePanel_       
+  end select
+end function { CallHandler }
+
+function MsgHandler(sender,msgtype,reply)
+  if sender = HostSID and msgtype = import_block and Preset = Import
+    Do_Import  { OK to receive Preset Import }
+    reply := mrOK
+  end if
+end function { MsgHandler }
+
+function OmniHandler(sender,msgtype)
+  select sender
+    case SAS_ID
+      SAS_OmniHandler(msgtype)
+  end select
+end function { OmniHandler }
+
+function SAS_OmniHandler(msgtype)  { Decode SLS Omni-messages }
+  declare n
+
+  select msgtype
+    case new_inst_range
+      if EVENT_PAR[0] # LowIR or EVENT_PAR[1] # TopIR
+        LowIR := EVENT_PAR[0] { Update Inst Range }
+        TopIR := EVENT_PAR[1] 
+        ShowIR                { Display new Instrument Range }
+      end if
+    case new_prefs
+      UserPrefs := EVENT_PAR[0] { Update SVS copy of UserPrefs }      
+  end select
+end function { SAS_OmniHandler }
+
+function TaskHandler(fn)  { SVS Subroutine Dispatcher }
+  select fn
+    case AddVibrato
+      AddVibrato_
+      fn := AddVibrato
+  end select
+end function { TaskHandler }
+
+{ ----------------------- End ISCS Handlers ------------------------- }
+
+{ --------------------- SVS-Specific Routines ----------------------- }
+function AddVibrato_
+{ Modulates the active notes in pitch and volume to simulate Vibrato }
+  declare const PollTime := 1000  { 1ms }
+  declare ShapeDrift
+  declare Env
+  declare PeakPitch
+  declare PeakVol
+  declare SpeedDrift
+  declare TicksPerCycle
+  declare TicksPerFlat
+  declare TicksPerRamp
+  declare LoopActv
+  
+  LoopActv := true
+  while LoopActv = true
+    { Continue effect except when SVS is disabled }
+    if SVSMode # SVS_Off
+      Do_Envelope(Env,SpeedDrift,ShapeDrift)
+      if SVSMode = Amt_Only
+        Env := Full_Env  { Envelope to have no effect, set it to 100% }
+      end if
+      Env := Env*MKnob.Amt/100   { Combine Efx-Amt with Env }
+      SpeedDrift := SpeedDrift + random(-SpdDrift,SpdDrift)/2
+      { Random drift can be up to one-half maximum per cycle }
+      if abs(SpeedDrift) > SpdDrift  { Clamp accumulated Speed drift }
+        SpeedDrift := SpdDrift*abs(SpeedDrift)/SpeedDrift 
+      end if
+      { Compute the number of clock ticks for each full }
+      {  cycle of the waveform at the drifted speed     }
+      TicksPerCycle := 1000000*(100 + SpeedDrift)/MKnob.Speed/Tick
+      ShapeDrift := ShapeDrift + random(-WavDrift,WavDrift)/2
+      { Random drift can be up to one-half maximum per cycle }
+      if abs(ShapeDrift) > WavDrift  { Clamp accumulated Shape drift }
+        ShapeDrift := WavDrift*abs(ShapeDrift)/ShapeDrift 
+      end if
+      { Compute the #of clocks for the flat top & bottom of the waveform }
+      TicksPerFlat := (TicksPerCycle*Shape*(100 + ShapeDrift) + 10000)/20000
+      { Compute the remaining ticks for the 4 ramps of the waveform }
+      TicksPerRamp := (TicksPerCycle - 2*TicksPerFlat + 2)/4
+      PeakPitch := (100 + random(-VibVar,VibVar))*Vibrato/10
+      PeakVol := (100 + random(-TremVar,TremVar))*Tremolo/10
+      if MKnob.Bal < 0  { Set vibrato/tremolo balance }
+        PeakVol := PeakVol*(100 + MKnob.Bal)/100
+      else
+        PeakPitch := PeakPitch*(100 - MKnob.Bal)/100
+      end if
+      Pitch_Step := PeakPitch*Env/Full_Env/TicksPerRamp
+      Vol_Step := PeakVol*Env/Full_Env/TicksPerRamp
+      { Synchronize all new notes to zero-crossing of Vibrato cycle }
+      set_event_mark(NoSyncID,SyncMark) 
+      { Now, generate one vibrato cycle with all active notes }
+      Do_Cycle(TicksPerRamp,TicksPerFlat)
+    else { SVS is disabled, but keep looping while there are active notes }
+      Env_State := Restart  { Reset Envelope Generator for restart }    
+      TWait(PollTime)       { Re-check for re-enablement, once per ms }
+    end if
+    if PLAYED_VOICES_INST = 0 
+      LoopActv := false     { Abort loop when no more notes are active }
+      0tune := 0  { These should end up being zero but just in case ...  }
+      0db := 0
+    end if
+  end while
+end function  { AddVibrato_ }
+
+function Do_Cycle(ramp_ticks,flat_ticks)
+{ Generates one vibrato cycle of the active note. Since most of 
+  the time in this routine is spent 'waiting', note callbacks can
+  continue to process new notes. Do_Cycle has zero net effect on
+  tuning and volume before and after it runs. }
+  Ramp_Up(0,ramp_ticks)  { Segment #1 }
+  Stay_Flat(flat_ticks)  { Segment #2 }
+  Ramp_Down(ramp_ticks,-ramp_ticks)  { Segments #3 and #4 }
+  Stay_Flat(flat_ticks)  { Segment #5 }
+  Ramp_Up(-ramp_ticks,0) { Segment #6 }
+end function { Do_Cycle }
+
+function Do_Envelope(env,Speed_drift,Shape_drift)
+{ Generates the vibrato effect intensity envelope in steps of one-cycle
+  each. The envelope (if enabled) is zero for the initial onset Delay
+  interval and then ramps up to Full_Env. Then, the envelope slowly
+  declines to Min_Env over the Decay interval. Each interval is some
+  integral #of cycles. NOTE: This routine is also used to reset
+  Speed and Shape drift when the Env_State is Restart }
+  declare Decay_Step
+  declare Min_Env
+  declare Onset_Countdown
+  declare Ramp_Step
+  
+  select Env_State
+    case Restart
+      env := 0   { Set the envelope to zero and initialize parms }
+      Onset_Countdown := Onset
+      Min_Env := Full_Env*Sustain/100
+      Decay_Step := (Full_Env - Min_Env)/Decay
+      Ramp_Step := Full_Env/Rise
+      0db := 0
+      Shape_drift := 0
+      Speed_drift := 0
+      Env_State := Onset_Delay  { Begin Onset_Delay next cycle }
+    case Onset_Delay
+      dec(Onset_Countdown)      { When Delay cycles are completed, }
+      if Onset_Countdown <= 0   {  begin Ramp_To_Full next cycle   }
+        Env_State := Ramp_To_Full
+      end if
+    case Ramp_To_Full
+      env := env + Ramp_Step    { Ramp env from zero to Full_Env   }
+      if env >= Full_Env        { in increments of Ramp_Step. Then }
+        env := Full_Env         { begin Diminuendo state after the }
+        Env_State := Diminuendo { next cycle.                      }
+      end if
+    case Diminuendo
+      env := env - Decay_Step   { Reduce env from Full_Env to  }
+      if env < Min_Env          {  Min_Env in increments of    }
+        env := Min_Env          { Decay_Step. Then keep Env at }
+      end if                    { Min_Env until Do_Envelope    }
+  end select                    { is restarted.                }
+end function { Do_Envelope }
+
+function Ramp_Down(vx1,vx2)
+{ Generates falling ramp of pitch & volume from Pitch_Step*(vx1-1) to
+  Pitch_Step*vx2.  Pitch stepping occurs before each 100 usec Tick
+  and concurrently with each Pitch_Step is a corresponding Vol_Step }
+  declare Atn
+  declare tune_amt
+  declare vx
+  
+  vx := vx1
+  while vx  > vx2 
+    dec(vx)
+    tune_amt := Pitch_Step*vx
+    change_tune(SyncID,tune_amt - 0tune,1)
+    0tune := tune_amt
+    Atn := Vol_Step*vx
+    change_vol(SyncID,0db - Atn,1)
+    0db := Atn
+    TWait(Tick)
+  end while
+end function { Ramp_Down }
+
+function Ramp_Up(vx1,vx2)
+{ Generates rising ramp of pitch & volume from Pitch_Step*(vx1+1) to 
+  Pitch_Step*vx2. Pitch stepping occurs before each 100 usec Tick 
+  and concurrently with each Pitch_Step is a corresponding Vol_Step }
+  declare Atn
+  declare tune_amt
+  declare vx
+  
+  vx := vx1
+  while vx < vx2
+    inc(vx)
+    tune_amt := Pitch_Step*vx    
+    change_tune(SyncID,tune_amt - 0tune,1)
+    0tune := tune_amt
+    Atn := Vol_Step*vx
+    change_vol(SyncID,0db - Atn,1)
+    0db := Atn 
+    TWait(Tick)
+  end while
+end function { Ramp_Up }
+
+function ShowBalKnob { Display custom Balance Knob value }
+  if MKnob.Bal > 0       { 100..0% Vibrato, Tremolo = 100% }
+    set_knob_label(MKnob.Bal,(100 - MKnob.Bal)/10 & '.' & ...
+                  (100 - MKnob.Bal) mod 10 & '/10')
+  else if MKnob.Bal < 0  { 0..100% Tremolo, Vibrato = 100% }
+    set_knob_label(MKnob.Bal,'10/' & (100 + MKnob.Bal)/10 & ...
+                  '.' & (100 + MKnob.Bal) mod 10)
+  else { 100% of each }
+    set_knob_label(MKnob.Bal,' 10/10')
+  end if
+end function { ShowBalKnob }
+
+function Stay_Flat(ticks)
+{ Hold last pitch and volume for 'ticks' clock cycles }
+  declare vx
+  
+  vx := 0
+  while vx < ticks
+    inc(vx)
+    TWait(Tick)
+  end while
+end function { Stay_Flat }
+

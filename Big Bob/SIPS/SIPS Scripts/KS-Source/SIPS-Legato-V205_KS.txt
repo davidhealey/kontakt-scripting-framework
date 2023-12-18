@@ -1,0 +1,1146 @@
+{-------------------------------------------------------------------------------
+Title: SIPS-Legato Script V2
+Author: R.D.Villwock aka 'Big Bob'
+First Written: Feb 20, 2006
+Current Version: 2.05
+Last Modified: July 9, 2008 
+
+This is the KS source code for the SIPS Legato Script, SLS. This script is part
+of the new V2 series of SIPS. If you are updating from the V1 series of SIPS and
+want to keep your control panels and/or User Presets, you will first have to run
+the V2 Updater before you can update to this script. The V2 series of scripts can
+only auto-import from the V2 series itself (or the from the V2 Updater). The V2
+Updater can accept any of the V1 series scripts and convert them to an interim
+format which can then be updated to the V2 series. See the V2.0 User's Guide for
+more detailed information about the updating process.
+
+Notes originating from the SAS are EP3-Tagged with TKT Offset, 3 flags, and the
+SAS_ID code. The 3 flags are AudGroup, RTGroups, and DFDGroups. When the SLS
+receives an SAS-tagged note, the TKT Offset and the flags are extracted from EP3
+and EP3 is then set to zero as a safeguard against K2 interpreting it as a
+control flag.
+
+*******************************************************************************
+NOTE: To compile this source code, you should use V1.25.6 or higher of Nils
+Liberg's KScript Editor. Use the semi-compact output mode with code optimization
+turned on. This is important because SIPS 2 uses the conditional compilation
+features of the optimization mode to greatly reduce code size. Also, since this
+modularized version of SIPS uses the 'import' feature of the KS Editor, you will
+need the KSM source text files for all the 'External Modules' (in appropriately
+named sub-folders) to recompile this script.
+*******************************************************************************
+External SIPS Modules Needed: In Sub-Folder named 'SIPS Modules'
+  SXM-GSR     General Support Routines for the SIPS suite
+  SXM-SLS     Common SIPS Routines and Data types, Customized for the SLS
+  SXM-UIC     Loads ui_control callbacks common to SIPS members
+  SXM-UPS     User Preset Support for the SIPS suite
+Other External Modules Needed: In Sub-Folder named 'Support Modules'
+  ISCS-V215   Inter-Script Communication System
+  Math-V205   KSP Math Library 
+-------------------------------------------------------------------------------}
+
+import "SIPS Modules\SXM-GSR-V205_KSM.txt"
+import "SIPS Modules\SXM-SLS-V205_KSM.txt" 
+import "SIPS Modules\SXM-UPS-V205_KSM.txt"
+import "Support Modules\ISCS-V215_KSM.txt"
+import "Support Modules\KSPMathV205_KSM.txt"
+
+on init
+{  make_perfview }
+  SET_CONDITION(NO_SYS_SCRIPT_PEDAL)
+  SET_CONDITION(NO_SYS_SCRIPT_RLS_TRIG)   
+            { Special CCs, Marks, and IR limits Used by SIPS }
+  declare const AfterTouch := 124 { Proxy CC# for channel pressure }
+  declare const ALL_HELD := MARK_28  { ID Mark used for pedal-held thru notes }  
+  declare const ArtCC := 126      { K2 group-start, Articulation CC }
+  declare const ArtSCC := 127     { Sub-Articulation CC }   
+  declare const MaxNote := 127    { Currently no reserve notes on high end }
+  declare const MaxPoly := 10     { Maximum polyphony of Thru-Notes (SIPS_Off mode) }
+  declare const MinNote := 2      { Reserve MIDI notes 0..1 for special stuff }
+  declare const ModWheel := 1     { Standard MIDI Mod Wheel code }
+  declare const NoArt := 99       { Undefined Articulation Index }
+  declare const PitchWheel := 128 { KSP CC# for pitch bender wheel }  
+  declare const ProgChange := 125 { Proxy CC# for program change }
+  declare const SPedal := 64      { CC# for Sustain pedal }
+  declare const StartAll := 90    { ArtCC value that enables all formatted Groups }
+  declare const StartSIPS := 122  { CC used to startup SIPS 2, formerly KSP+ Timer }   
+  declare const TopCC := 119      { SIPS assignable CC range is 0..TopCC } 
+  declare const VelCC := 150      { Pseudo CC# used for Velocity control }    
+  
+  { ----------------- SIPS ID and Version Parameters ------------------ }
+  declare const SAS_ID := 1000 { ISCS Registered SID for the SAS Script }
+  declare const SLS_ID := 1001 { ISCS Registered SID for the SLS Script }
+  declare const SVS_ID := 1002 { ISCS Registered SID for the SVS Script }
+  declare const V2UP   := 103  { Updater for Version 2 }
+  declare const V200   := 104  { User Preset Format Code for V200 }
+  declare const SID := SLS_ID  { Script ID Code for this Script }
+  declare const PFC := V200    { Preset Format Code for this script }
+  on_init_VerIR  { Default or 'prior' version plus Instrument Range *GSR* } 
+  
+  {------------------------- ISCS Interface Block ---------------------------}
+                    { No Omni Messages sent by SLS }
+                   { Omni Messages accepted from SAS }
+  declare const new_inst_range  := 1 { Instrument Range:  EP[0], EP[1] = low, top }
+  declare const new_prefs       := 2 { Updated Preferences in low 16 bits of EP0 }
+                         { UserPrefs Bit Masks }
+  declare const NoPedal  := 0x01    { CC64 is controller only, no sustain function }
+  declare const NoMenus  := 0x02    { Disable SAS MIDI Menu control }
+  declare const PC128    := 0x04    { Kybd inputs PC = 1..128 to send 0..127 }
+  declare const 3SecRT   := 0x08    { Play release samples for 3 seconds only }
+  declare const ResetFCR := 0x10    { Reset random seed for each new articulation }
+                     { Acceptable Client Messages }
+  declare const import_block   := 1  { Import Preset if Sender is also SLS }
+                      { Local Subroutine Indices } 
+  declare const NewMode     := 1     { Execute NewMode_ }
+  declare const OpenMenu    := 2     { Execute OpenMenu_ }
+  declare const SetMKnobs   := 3     { Execute SetMKnobs_ }
+  declare const UpdatePanel := 4     { Execute UpdatePanel_ }
+                            { Task Indices } 
+  declare const SeekPitch   := 1     { Seek target pitch }
+  declare const EndPhrase   := 2     { End Legato Phrase }
+
+  on_init_ISCS(SLS_ID,1,3)           { Generate ISCS data, startup, 3 Tasks  *ISCS* }  
+  {--------------------- End of ISCS Interface Block ------------------------}  
+
+  { ---------------------- Preset Limits --------------------- }
+  declare const KeyParms := 13     { #of paramaters for a Built-in Preset }
+  declare const MainPresets := 18  { Number of Main (ie Built-In) presets }
+  declare const MainSize := MainPresets * KeyParms  { Must not exceed 512 }
+  on_init_Set_UserLimits           { Establish User Preset Limits, *UPS* }
+
+                         { RlsMode Menu Indices }
+  declare const RM_Knob := 1  { Use RlsFade Knob setting }                         
+  declare const RM_KeyUp := 2 { Fade-out ends at KeyUp } 
+                         { Offset Menu Indices }
+  declare const Ofst_Auto1 := 1  { Menu Index, Time since last note started }
+  declare const Ofst_Auto2 := 2  { Menu Index, Time since phrase startedx }
+  declare const Ofst_Man   := 3  { Menu Index, Time of Offset Knob setting }
+  declare const Ofst_Rand  := 4  { Menu Index, Time of Knob + Random add-on }
+  declare const Ofst_DFD   := 5  { Menu Index, Use DFD Articulation Offset }
+                         { PanelDraw Indices }
+  declare const NoDraw    := 0   { Don't Draw or Redraw any Panel }
+  declare const StdPanel  := 1   { Draw the Standard Performance Panel }
+  declare const RenPanel  := 2   { Draw the Rename Preset Panel }
+  declare const PrefPanel := 3   { Draw the Preferences Panel }
+                         { SLS Mode Menu Indices }
+  declare const Port_Mode := 1   { Menu Index, Portamento Mode }                        
+  declare const Legato_Mode := 2 { Menu Index, Legato Mode }
+  declare const Solo_Mode := 3   { Menu Index, Solo Mode }
+  declare const SLS_Off := 4    { Menu Index, SLS Disabled/Bypassed }
+                              { Defaults }
+  declare const No_Cmd  := -1    { Preset Idle, negative values used for commands }   
+                           { Control Limits }
+  declare const MaxAtkFade := 100   { Max Attack time of seg 1 = 100% of XTime }
+  declare const MaxBend := 100      { Max bend in cents, Edit Box only }
+  declare const MaxBTime := 1000    { Max Bend Time in msecs }
+  declare const MaxNodeVol := 90    { Max Node volume = 90% of Vmax }
+  declare const MaxOfst := 2000     { Max manual sample-start Offset in ms }
+  declare const MaxPTime := 2000    { Max portamento time in ms }
+  declare const MaxRlsFade := 100   { Max release fade in percent of XTime }
+  declare const MaxSlope := 50      { Max bend slope = 5.0 }
+  declare const MaxXTime := 1000    { Max Crossfade Time in msecs (keep < 10000 }
+  declare const MinAtkFade := 10    { Min attack time for seg 1 = 10% of XTime }
+  declare const MinNodeVol := 10    { Min node volume = 10% of Vmax } 
+  declare const MinSlope := 10      { Min bend slope = 1.0 }
+                          { Miscellaneous }
+  declare const NoGroup := -1       { Group Index used to denote No Group }
+  declare const NoID := 0           { Impossible ID }
+  declare const NoParm := -100000   { Used as a token for 'undefined' parameter }
+  declare const Thru_Note := 12345  { Poly Tag for pass-thru notes }
+  declare const Tick := 100         { Staircase step time in usec }
+  declare const Semi := 1000        { #of deci-cents per semitone }
+  declare const false := 0          { Boolean False }
+  declare const true := 1           { Boolean True }
+    
+  { ---------------------- String Stuff ------------------------ }
+  declare @SetCap            { Normal caption for SetIR button }
+    SetCap := ' Set Inst. Range'
+  declare @LowCap            { Caption for low key in IR }
+    LowCap := ' Low Key: '
+  declare @TopCap            { Caption for high key in IR }
+    TopCap := ' High Key: '
+
+  { ------------------- String Array Constants --------------------- }
+  on_init_CCNames    { Allocate and intialize MIDI CC menu names, *GSR* }
+  on_init_CharSet    { Allocate and initialize User Name Character Set, *UPS* }
+  on_init_ScaleTones { Allocate and initialize the Scale Tone array, *GSR* }
+  on_init_MCMenu     { Build MIDI Controller Menu, *GSR* }  
+  
+  { ------------------- Note and Xfade Variables ------------------ }
+  family np   { Legato/Portamento note control parameters }
+    declare note[2]     { MIDI note numbers of the new/old legato notes or }
+                        {  the lo/hi notes of the current portamento pair. }
+    declare vel[2]      { Velocities of new/old notes }
+    declare parent[2]   { IDs of new/old played notes }
+    declare child[2]    { IDs of generated notes }
+    declare pedal[2]    { Sustain pedal state for new/old notes, true = down }
+    declare 0db[2]      { Gain drop to restore original volume in mdb }
+    declare 0tune[2]    { Pitch drop to restore original tuning in mcts }
+    declare New         { Index (0 or 1) of most current parent note }
+    declare ThruChild[MaxPoly] := (0)    { Arrays holding all active }
+    declare ThruParent[MaxPoly] := (0)   {  thru-note IDs            }
+    declare idx         { Current Thru-note ID index (in Thru array) }
+    np.parent[0] := NoID  { Initialize to no parent notes active }
+    np.parent[1] := NoID
+    np.New := 0           { Initialize new parent note index }
+  end family { np }
+  
+  family pp  { Portamento pitch control parameters }
+    declare state  { 0 = Off, 1 = Standby (between phrases), 2 = Neutral, 3 = Bending }
+    declare pitch  { Current Pitch in dcts }
+    declare base   { Base pitch of current range in dcts }
+    declare range  { Range of glide or bend in dcts }
+    declare targ   { Target that Pitch is heading toward in dcts }
+    declare vel    { Velocity of note pairs used for glide/bend }
+    declare Lo     { Index (0 or 1) of lowest note in current pair   } 
+                   { (1 - Lo) = index of higest note in current pair }
+  end family { pp } 
+  
+  family sas  { SAS note tagging parameters }
+    declare Aud   { Flag set by SAS when auditioning a group } 
+    declare DFD   { Flag set by SAS, current articulation has DFD group(s) }       
+    declare RT    { Flag set by SAS, current articulation has RT group(s) }
+    declare TKT   { TKT offset value for current note sent from SAS }
+  end family  { sas } 
+  
+  family fade_time   { XFade times in micro-seconds }
+    declare full     { XFade knob setting in usec }
+    declare atk1     { Time for attack segment 1 of fade-in }
+    declare atk2     { Time for attack segment 2 of fade-in }
+  end family { fade_time }
+  
+  family fade_ticks  { XFade times in clock Ticks (100usec each) }
+    declare rls1     { Fade-out of release segment 1 in Ticks }
+    declare atk1     { Time for attack segment 1 in Ticks }
+    declare atk2     { Time for attack segment 2 in Ticks }
+  end family { fade_ticks }
+ 
+  declare bend_amount     { Total Bend Amount in mcts }    
+  declare bend_step       { Bend step in ucts per tick }    
+  declare bend_ticks      { Remaining Ticks in BTime interval }
+  declare fade_in_ticks   { Remaining fade-in Ticks for latest note }      
+  declare fade_out_ticks  { Remaining fade-out Ticks for prior note }
+  declare ScaledRF        { Scaled Release Factor, 100*RlsFade or 10000 }
+
+  { -------------------- General Variables ------------------- }
+  declare Command := No_Cmd { Preset Menu Active Command }
+
+  declare DrawPanel         { Draw/Re-Draw Panel Index, 0 = NoDraw }  
+  declare LastCC := NoCC    { Last CC moved }
+  declare MsgFlag           { Flag denoting that StatusMsg needs to be blinked }
+  declare NCCV[129]         { Normalized value of CC triggering the CCB, thread-safe }
+  declare PedalDown         { Flag denoting sustain pedal is depressed }
+  declare Ref_Time          { Start time of phrase or prior note-on in msecs }
+  declare rgx               { Loop index for controlling release groups }   
+
+  declare UserPrefs         { Current settings of User Preferences, in low 16 bits }
+  declare VCV               { Pseudo Velocity Controller value }
+  declare XFActv            { Flag set while crossfade is active }
+  
+  { ------------------------ Panel System -------------------------- }
+  declare PMap[36]    { Current Control Panel layout map }
+  on_init_Set_UIX     { Assign an index to each UI control, *SLS* }
+  
+  { ------------------------- Main Presets ------------------------ }
+  declare MainParms[MainSize] := ...  
+                             { Presets by BB } ...
+  {Inst 0} ( 60,100,50,  60,50, 10,100, RM_Knob, 250,  Ofst_man,1000, 250,2, ...
+                             { Presets by TK } ...
+  {Inst 1}   82, 27,60,  57,10, 44,100, RM_Knob, 129, Ofst_Rand,1000, 250,2, ...
+  {Inst 2}  477, 37,66, 127,34, 43, 10, RM_Knob, 190, Ofst_Rand,1000, 250,2, ...
+  {Inst 3}   89, 20,45,  66,16, 29,100, RM_Knob, 227, Ofst_Rand,1000, 250,2, ...
+  {Inst 4}   69, 20,34,  23,15, 24,100, RM_Knob, 145, Ofst_Rand,1000, 250,2, ... 
+  {Inst 5}  158, 53,78, 123,20, 44,100, RM_Knob,  62,  Ofst_Man,1000, 250,2, ...
+  {Inst 6}   74, 22,53,  55,13, 38, 54, RM_Knob, 334,  Ofst_Man,1000, 250,2, ... 
+  {Inst 7}   71, 22,46,  54,13, 23,100, RM_Knob, 290, Ofst_Rand,1000, 250,2, ...
+  {Inst 8}  114, 47,68, 138,35, 52,100, RM_Knob,  82,  Ofst_Man,1000, 250,2, ... 
+  {Inst 9}   66, 48,67,  78,18, 64,100, RM_Knob,  46, Ofst_Rand,1000, 250,2, ... 
+  {Inst 10}  81, 27,61,  43,14, 16,100, RM_Knob,  27, Ofst_Rand,1000, 250,2, ... 
+  {Inst 11} 180, 37,66,  58,23, 20,100, RM_Knob,   0,Ofst_Auto2,1000, 250,2, ...
+                             { Presets by AK } ...
+  {Inst 12} 105, 10,53, 151,30, 16, 22, RM_Knob,   0, Ofst_Rand,1000, 250,2, ...
+  {Inst 13}  85, 26,65, 135,28, 22, 34, RM_Knob,1016, Ofst_Rand,1000, 250,2, ...
+  {Inst 14} 248, 26,61,  57,28,  9, 84, RM_Knob, 864,  Ofst_Man,1000, 250,2, ...
+  {Inst 15} 316, 13,90,  79,28, 13, 24, RM_Knob, 214,Ofst_Auto1,1000, 250,2, ...
+  {Inst 16}  98, 12,90,  63,20, 44, 24, RM_Knob,  62,  Ofst_Man,1000, 250,2, ...
+  {Inst 17}  24, 10,47,  24,18, 22,  5, RM_Knob,   0, Ofst_Rand,1000, 250,2)
+  { -------------------------- User Presets -------------------------- }
+  on_init_UserPresets  { Build default or restore saved User Presets, *UPS* }
+  
+  { ------------ Main Control Panel, Presets --------------- }
+  declare ui_menu Preset   { Instrument Preset Menu Button }
+    move_control(Preset,0,0)
+    add_menu_item (Preset,' -- Presets --',No_Cmd)  { Menu Hdr }
+    Preset := No_Cmd   { Default Preset to Display Menu Header }    
+    { ------------------- Main Presets ----------------------- }
+    add_menu_item (Preset,'Clarinet 1              BB',    0)
+    add_menu_item (Preset,'Bassoon               TK1',     1)  
+    add_menu_item (Preset,'Cello 1                 TK2',   2)
+    add_menu_item (Preset,'Cello 2                AK1',   13)
+    add_menu_item (Preset,'Clarinet 2             TK3',    3)
+    add_menu_item (Preset,'Flute                  TK4',    4)
+    add_menu_item (Preset,'French Horn 1         TK5',     5)
+    add_menu_item (Preset,'French Horn 2        AK2',     16)
+    add_menu_item (Preset,'Horn Section          AK3',    15)
+    add_menu_item (Preset,'Oboe                  TK6',     6)
+    add_menu_item (Preset,'Picolo Flute           TK7',    7)
+    add_menu_item (Preset,'Trombone             TK8',      8)
+    add_menu_item (Preset,'Trumpet 1             TK9',     9)
+    add_menu_item (Preset,'Trumpet 2            AK4',     17)
+    add_menu_item (Preset,'Violin 1                TK10', 10)
+    add_menu_item (Preset,'Violin 2                AK5',  12)
+    add_menu_item (Preset,'Violin Section 1        TK11', 11)
+    add_menu_item (Preset,'Violin Section 2       AK6',   14)
+  { -------------------- User Presets ----------------------- }
+  on_init_Add_UserMenu  { Add User Presets and Commands to Menu, *UPS* }
+  { ------------------ End Preset Menu ---------------------- }
+
+  { ------------------ Main Panel Column 2 ------------------ }
+  declare ui_label XFadeCap (2,1)  { XFade Contouring Caption }
+    move_control(XFadeCap,0,0)
+    set_text(XFadeCap,'--- Crossfade Contouring Controls ---')
+  declare ui_knob AtkFade(MinAtkFade,MaxAtkFade,1)  { Percent }
+  { AtkFade sets Seg 1 rise time as percentage of XTime }
+    move_control(AtkFade,0,0)
+    set_text(AtkFade,"Atk Fade")
+    set_knob_unit(AtkFade,KNOB_UNIT_PERCENT)
+    AtkFade := MainParms[uAtkFade]
+  declare ui_knob RlsFade (0,MaxRlsFade,1) { Percent }
+  { Release Fade-out time as percent of XTime }
+    move_control(RlsFade,0,0)
+    set_text(RlsFade,"Rls Fade")
+    set_knob_unit(RlsFade,KNOB_UNIT_PERCENT)
+    RlsFade := MainParms[uRlsFade]
+  declare ui_menu RlsMode     { Release Mode Menu }
+    move_control(RlsMode,0,0)  
+    add_menu_item (RlsMode,'Knob Setting        Fade-out ends at RlsFade*XTime',RM_Knob)
+    add_menu_item (RlsMode,'  Key-Lift            Fade-out ends at key release',RM_KeyUp)  
+    RlsMode := MainParms[uRlsMode]   { Inz to Inst_0 as default }
+    _read_persistent_var(RlsMode)    { Recover last release mode } 
+    _read_persistent_var(RlsFade)    { Recover last knob setting } 
+
+  { ------------------ Main Panel Column 3 -------------------}
+  declare ui_knob NodeVol(MinNodeVol,MaxNodeVol,1)  { Percent }
+  { Max Volume of seg 1 as percent of Vmax }
+    move_control(NodeVol,0,0)  
+    set_text(NodeVol,"Node Vol")
+    set_knob_unit(NodeVol,KNOB_UNIT_PERCENT)
+    NodeVol := MainParms[uNodeVol]
+      
+  { ------------------- Main Panel Column 4 -------------------- }
+  declare ui_label BendCap (1,1)    { Bend/Slope Caption }
+    move_control(BendCap,0,0)  
+    set_text(BendCap,'   Legato Bend')
+  declare ui_knob Slope (MinSlope,MaxSlope,10) { Octave Slope scaled by 10 }
+    move_control(Slope,0,0)  
+    set_text(Slope,'Octave *')
+    Slope := MainParms[uSlope]
+    
+  { ------------------- Main Panel Column 5 ------------------- }
+  declare ui_label PortCap1 (1,1)
+    move_control(PortCap1,0,0)  
+    set_text(PortCap1,'    Portamento')
+  declare ui_label About (1,1)
+    move_control(About,0,0)  
+    set_text(About,'SIPS 2    by RDV')
+          
+  { ---------------- Main Panel, Column 6 ------------------ }
+  declare @LowKey      { String version of LowIR }
+  declare @TopKey      { String version of TopIR } 
+  declare ui_label IR_Box (1,2)
+    move_control(IR_Box,0,0)  
+  declare ui_label IRCap (1,1)
+    move_control(IRCap,0,0)  
+    set_text(IRCap,'Instrument Range')
+  
+  { ------------- Other Main Panel Controls & Labels --------------- }
+  on_init_Mode     { Build the SLSMode Menu *SLS* }
+  on_init_Ofst     { Inz OfstKnob and OfstMode }  
+  on_init_MBtns    { Build MIDI CC Buttons and MIDI Knobs *SLS* }  
+  
+  { ------------------- Standard and Rename Panels ------------------ }  
+  on_init_Std_PanelMap  { Build the StdPanel_Map, *SLS* }  
+  on_init_RenPanel      { Build & initialize Rename-Panel, *UPS* }
+  
+  { ---------- Save/Restore the following with preset/patch ---------- }
+  make_persistent(MKnob.XTime)  { Column 1 }
+  make_persistent(MKnob.BTime)
+      
+  make_persistent(AtkFade)      { Column 2 }
+  make_persistent(RlsFade)
+  make_persistent(RlsMode)
+
+  make_persistent(NodeVol)      { Column 3 }
+  make_persistent(LOfst)
+  make_persistent(OfstMode)
+  make_persistent(POfst) 
+    
+  make_persistent(Slope)        { Column 4 }
+  make_persistent(MKnob.Bend)
+  
+  make_persistent(MKnob.PTime)  { Column 5 } 
+  
+  make_persistent(LowIR)        { Column 6 }
+  make_persistent(TopIR)
+  make_persistent(Preset) 
+  make_persistent(SLSMode)
+  
+  make_persistent(Version)      { Version info array }
+  make_persistent(UserParms)    { User Presets } 
+  make_persistent(UPNames)      { User Preset Names, numeric }
+  make_persistent(MBtn.CC)      { Array of assigned CCs }
+  make_persistent(MBtn.CCV)     { Last value of assigned CCs }
+  make_persistent(MBtn.State)   { Array of Button states }
+  make_persistent(MKnob.Kmin)   { Array of Knob's CC range min }
+  make_persistent(MKnob.Kmax)   { Array of Knob's CC range max }
+
+  on_init_BigLabel { Prompting Panel that precedes standard panel *GSR* }
+  Update_Format    { If version upgrade, re-format presets, *UPS* }
+  message('')      { Clear K2's status area }
+end on { init }
+
+on note
+  ISCS_NCB(MsgHandler,OmniHandler)
+  if EVENT_PAR[3] .and. SID_Mask = SAS_ID    { Normal Note from the SAS }
+    sas.TKT := sh_right(EVENT_PAR[3],15)     { Extract TKT offset } 
+    sas.DFD := sh_right(EVENT_PAR[3],12) .and. 0x7 { Extract flags }
+    sas.Aud := sh_right(sas.DFD,2)           { Extract AudGroup flag }
+    sas.RT := sh_right(sas.DFD,1) .and. 1    { Extract RTGroups flag }
+    sas.DFD := sas.DFD .and. 1               { Extract DFDGroups flag }
+    set_event_par(EVENT_ID,3,0)    { Reset EP3 tagging to zero so K2 'behaves' }
+  else { XSwitch note or not from SAS }
+    if EVENT_PAR[0] = EVENT_NOTE   { SAS doing the XSwitch thing }
+      set_event_par(EVENT_ID,0,0)  { Reset EP0 tagging, and exit }
+      exit                         {  without any processing     }
+    end if
+    sas.TKT := 0                   { Note didn't orignate from the SAS }
+    sas.Aud := false               { Use TKT offset = 0 }              
+    sas.DFD := false               { Reset all articulation control flags }
+    sas.RT := false
+  end if 
+  if SLSMode = SLS_Off             { If SLS is disabled }
+    ignore_event(EVENT_ID)
+    np.idx := search(np.ThruParent,0) { Check for room in parent queue }
+    if np.idx # -1  { There's room, propagate this note and add to queues }
+      np.ThruParent[np.idx] := EVENT_ID
+      np.ThruChild[np.idx] := play_note(EVENT_NOTE,EVENT_VELOCITY,0,0)
+    end if
+    exit            { Leave note unprocessed by SLS }
+  end if    
+  if in_range(EVENT_NOTE,LowIR,TopIR)    { Note is within instrument range }
+    ProcessNote    { Process this note in legato, solo, or portamento mode }
+    _reset_rls_trig_counter(EVENT_NOTE) { For K2 release volume modulation }
+  end if
+  { Pass any keyswitches, etc without processing }
+end on { note }
+
+on release
+  ISCS_RCB(UserRCB,CallHandler,TaskHandler)
+end on { release }
+
+function UserRCB  { RCB Body for SIPS-Legato }
+  declare PlayRls
+  
+  if EVENT_ID = np.parent[np.New]
+    NewParent     { This is a New parent key release }
+  else 
+    if EVENT_ID = np.parent[1 - np.New]
+      OldParent     { This is an Old parent key release }
+    else { Event ID doesn't belong to either New or Old parent }
+      PlayRls := false              { Assume will not play release }
+      np.idx := search(np.ThruParent,EVENT_ID)
+      if np.idx # -1                { This is a thru-note parent release }
+        np.ThruParent[np.idx] := 0  { Remove from parent queue }
+        if PedalDown = true         { If pedaled, mark child as held }
+          set_event_mark(np.ThruChild[np.idx],ALL_HELD)
+        else                        { Not pedaled, so end the child note }
+          note_off(np.ThruChild[np.idx])
+          np.ThruChild[np.idx] := 0 { Remove from child queue }
+          PlayRls := true           { Favorable to play RT if it exists }
+        end if
+      else  { Not a thru-note parent id }
+        np.idx := search(np.ThruChild,EVENT_ID)
+        if np.idx # -1  { This is a held child note ended by pedal release }
+          np.ThruChild[np.idx] := 0  { Remove from child queue }
+          PlayRls := true            { Favorable to play RT if it exists }
+        end if
+      end if
+      ThruRelease(PlayRls)           { Trigger RT group if it exists }
+    end if
+  end if
+end function { UserRCB }
+
+function NewParent  { New parent key released }
+  if pp.state = 3              { Portamento Active }
+    np.parent[np.New] := NoID  { Retire new parent } 
+    np.New := 1 - np.New       { Swap New <-> Old indices }
+    pp.targ := pp.base         { Set target to last base pitch }
+    pp.range := 0              { Reset bend range to zero }
+    pp.state := 2              { Put Bender in 'neutral' }
+    RunTask(SeekPitch)         { Glide pitch to target }
+  else  { Portamento inactive, Ok to end current note }
+    if PedalDown = false       { Pedal not down }
+      RunTask(EndPhrase)       { End the current phrase }
+    else  { Pedal is being held down }
+      np.pedal[np.New] := true { Defer ending the phrase until pedal is released }
+    end if
+  end if
+end function { NewParent }
+
+function OldParent  { Old parent key released }
+  if pp.state = 3                   { Portamento bend is active }
+    np.parent[1 - np.New] := NoID   { Forget old parent }
+    pp.base := pp.base + pp.range   { Move base pitch to full range }
+    pp.range := 0         { Reset new range to zero }
+    pp.targ := pp.base    { Set target to new base pitch }
+    pp.state := 2         { Put Bender in 'neutral' }
+    RunTask(SeekPitch)    { Glide pitch to target }
+    { Check for intentional early key lift of Old legato note }                    
+  else if fade_out_ticks > 0 and RlsMode = RM_KeyUp  
+    if PedalDown = false            { Sustain Pedal not down }
+      EndOld                        { Retire Old note }
+    else                            { Sustain Pedal Up }
+      np.pedal[1 - np.New] := true  { Defer Old note-off }
+    end if
+  end if
+end function { OldParent }
+
+on controller
+  ISCS_CCB(Startup)  { Run extended ICB function after first CC event }
+  if CC_NUM = PitchWheel  { Normalize the current CC value in NCCV }
+    NCCV[CC_NUM] := abs(CC[PitchWheel])*127/8191  { Map PW to 0..127 range }
+  else
+    NCCV[CC_NUM] := CC[CC_NUM]
+    if CC_NUM <= TopCC        { If controller number is 0..119 }
+      LastCC := CC_NUM        { Remember for 'Last Moved' menu option }
+    end if    
+  end if
+  if CC_NUM = MBtn.CC[mMode]  { Check for possible Mode change request }
+    SetSLSMode(CC[CC_NUM])    { Set requested SLS Mode }
+    Call(NewMode,none,none)
+    Call(UpdatePanel,none,none)
+    exit
+  end if { Mode Change }
+  TestPedal    { Check sustain pedal for deferred note offs }
+  if SLSMode # SLS_Off  { If SIPS active & CC is assigned, update btns/knobs }
+    Call(SetMKnobs,cp2(CC_NUM,NCCV[CC_NUM]),none)
+    if CC_NUM = MBtn.CC[mPBend] and pp.state = 3
+      { If portamento bender has changed, update target }
+      pp.targ := pp.range*MBtn.CCV[mPBend]/127 + pp.base
+      RunTask(SeekPitch)   { Slew to new target pitch }
+    end if
+  end if
+end on { controller }
+
+{ --------------------------- UI Callbacks ------------------------- }
+                     { Assign or De-assign MIDI CCs }
+on ui_control (MBtn.Bend)  { Assign Bend CC }
+  SetCC(mBend)
+end on {Bend CC Btn }                     
+
+on ui_control (MBtn.BTime) { Assign BTime CC }
+  SetCC(mBTime) 
+end on { BTime CC Btn }
+
+on ui_control (MBtn.Mode)  { User is assigning/de-assigning the SLS Mode CC }
+ SetCC(mMode)
+end on { Mode CC Btn }
+
+on ui_control (MBtn.PBend)
+  SetCC(mPBend)
+end on { PBend CC Btn }
+
+on ui_control (MBtn.PTime)
+  SetCC(mPTime)
+end on { PTime CC Btn }
+
+on ui_control (MBtn.XTime) { Assign XTime CC }
+  SetCC(mXTime)
+end on { XTime CC Btn }
+
+                          { Set Panel Knob }
+on ui_control (MKnob.Bend)     { User has changed the Bend 'Knob' directly }
+  SetMRange(mBend,MKnob.Bend)
+end on { Bend Knob }
+
+on ui_control (MKnob.BTime)    { User has changed the BTime Knob directly }
+  SetMRange(mBTime,MKnob.BTime)
+end on { BTime Knob } 
+
+on ui_control (MKnob.PTime)    { User has changed the PTime Knob directly }
+  SetMRange(mPTime,MKnob.PTime)
+end on { PTime Knob } 
+
+on ui_control (MKnob.XTime)    { User has changed the XTime Knob directly }
+  SetMRange(mXTime,MKnob.XTime)
+end on { XTime Knob }
+
+{ ---------- Preset Menu and Misc UI Control Callbacks ------------- }
+on ui_control (OfstKnob)
+  if SLSMode = Port_Mode or OfstMode > Ofst_Auto2
+    set_knob_label(OfstKnob,'')  { Cancel text mode }
+    if SLSMode = Port_Mode
+      POfst := OfstKnob    { Update POfst }
+    else
+      LOfst := OfstKnob    { Update LOfst }
+    end if
+  end if
+end on { OfstKnob }
+
+on ui_control (OfstMode)
+  if SLSMode = Port_Mode
+    if OfstMode # Ofst_DFD
+      OfstMode := Ofst_Man    { Use only manual or DFD modes for portamento }
+    end if
+  else { One of the Legato modes }
+    LegOfstMode := OfstMode   { Update current legato OfstMode }
+  end if
+  Call(UpdatePanel,none,none) { Set Offset Knob data display according to OfstMode }
+end on { OfstMode }
+
+on ui_control (Preset)  { Process Preset Menu selection }
+  Do_Preset
+end on { Preset Menu }
+
+on ui_control (RlsFade)
+  if RlsMode = RM_Knob
+    set_knob_label(RlsFade,'') { Cancel any numeric display override }
+  end if
+end on { RlsFade }
+
+on ui_control (RlsMode)
+  Set_RlsKnob
+end on { RlsMode }
+
+on ui_control (SLSMode)
+  Call(NewMode,none,none)
+  Call(UpdatePanel,none,none)
+end on { SLSMode Menu }
+
+import "SIPS Modules\SXM-UIC-V205_KSM.txt" { UI Callbacks for Rename & BtnMenus *UIC* }
+
+{ ------------------------ ISCS Handlers ---------------------- }
+function CallHandler(fn)  { SLS subroutine dispatcher }
+  select fn
+    case OpenMenu
+      OpenMenu_(InParm[0],OutParm[0])
+    case SetMKnobs
+      SetMKnobs_(InParm[0],InParm[1])
+    case UpdatePanel
+      UpdatePanel_
+    case NewMode
+      NewMode_
+  end select
+end function { CallHandler }
+
+function MsgHandler(sender,msgtype,reply)
+  select msgtype
+    case import_block   { Only accept if sender is same as host }
+      if sender = HostSID and Preset = Import
+        Do_Import        { OK to receive Preset Import }
+        reply := mrOK      
+      end if
+  end select
+end function { MsgHandler }
+
+function OmniHandler(sender,msgtype)
+  select sender
+    case SAS_ID
+      SAS_OmniHandler(msgtype)  
+  end select
+end function { OmniHandler }
+
+function SAS_OmniHandler(msgtype)  { Decode SAS Omni-messages }
+  select msgtype
+    case new_inst_range
+      if EVENT_PAR[0] # LowIR or EVENT_PAR[1] # TopIR
+        LowIR := EVENT_PAR[0]   { Update Inst Range }
+        TopIR := EVENT_PAR[1] 
+        ShowIR                  { Display new Instrument Range }
+      end if
+    case new_prefs
+      UserPrefs := EVENT_PAR[0] { Update UserPrefs }
+  end select
+end function { SAS_OmniHandler }
+
+function TaskHandler(fn)
+  select fn
+    case SeekPitch
+      SeekPitch_
+      fn := SeekPitch
+    case EndPhrase
+      EndPhrase_
+      fn := EndPhrase
+  end select
+end function { TaskHandler }
+{ ---------------------- End ISCS Handlers ---------------------- }
+
+{ -------------------- SLS-Specific Support --------------------- }
+function chg_pitch(chg) { Change current pitch by -1000 < chg < +1000 dcts }
+  declare nn[2]   { New Bracketing Notes }
+  declare rn      { New Replacement note }
+  declare ofst    { Normal or DFD offset }
+
+  if pp.state > 1
+    pp.pitch := pp.pitch + chg    { Update pitch }
+    nn[0] := pp.pitch/Semi        { Compute new bracketing notes }
+    nn[1] := nn[0] + 1
+    if nn[1] > np.note[1 - pp.Lo] or nn[0] < np.note[pp.Lo] { Note change needed }
+      if chg < 0                  { Old Hi note no longer needed, so   }
+        pp.Lo := 1 - pp.Lo        {  point Hi to old Lo note and Lo to }
+        rn := nn[0]               {  note to be replaced by rn = nn[0] }
+      else           { Old Lo note no longer needed, after replacing it }
+        rn := nn[1]  {  with rn = nn[1] swap Lo/Hi so Hi points to it   }
+      end if
+      { At this point, Lo always points to the old note that is to be replaced } 
+      note_off(np.child[pp.Lo])       { Retire old note }   
+      np.note[pp.Lo] := rn            { New replacement note }
+      if sas.Aud = true              { User is auditioning a group }
+        disallow_group(ALL_GROUPS)    { Allow only the currently selected group }
+        allow_group(REF_GROUP_IDX)
+      end if
+      ofst := POfst         { Alterable copy of POfst }
+      DFD_Art(ofst)         { Use DFD Groups and set ofst = 0 if appropriate }
+      np.child[pp.Lo] := play_note(rn,pp.vel,ofst*1000,0)
+      np.0db[pp.Lo] := 0    { Reset reference volume and tune }
+      np.0tune[pp.Lo] := 0
+      if chg >= 0           { Replacement note was nn[1] }
+        pp.Lo := 1 - pp.Lo  { Swap Lo/Hi so Hi points to it }
+      end if
+    end if    
+    set_pitch   { Update micro-pitch blend of bracketing notes } 
+  end if
+end function { chg_pitch }
+
+function DFD_Art(ofst)  { Change to DFD Articulation or restore normal Articulation }
+  { If DFD groups exist, trigger them in Leg or Port modes unless group auditioning }
+  if OfstMode = Ofst_DFD and sas.DFD = true and sas.Aud = false and SLSMode # Solo_Mode
+    wait(1)          { Allow ArtSCC to update before altering }    
+    set_controller(ArtSCC,CC[ArtSCC] .or. 0x20)   { Add DFD bit to sub-group }
+    ofst := 0        { Force offset to zero }
+  end if
+  wait(1)            { Send new ArtSCC before generating next note }
+end function { DFD_Art }
+
+function Do_Bend   { Bend Old/New note's pitch by tick amount } 
+
+  declare OldTune
+  declare NewTune
+  
+  OldTune := bend_amount - (bend_step*bend_ticks + 500)/1000
+  NewTune := -(bend_step*bend_ticks + 500)/1000
+  change_tune(np.child[1 - np.New],OldTune - np.0tune[1 - np.New],1)
+  np.0tune[1 - np.New] := OldTune
+  change_tune(np.child[np.New],NewTune - np.0tune[np.New],1)
+  np.0tune[np.New] := NewTune
+end function { Do_Bend }
+
+function EndOld     { Stop processing and retire Old note }
+  note_off(np.child[1 - np.New])   { Retire Old note }
+  np.pedal[1 - np.New] := false    { Reset old pedal-deferred flag }
+  fade_out_ticks := 0              { Discontinue Old note processing }  
+end function { EndOld }
+
+function EndPhrase_ { Stop processing and retire Old/New notes }
+  declare rls_note
+  declare rls_vel
+  declare id
+  
+  StopFade         { Abort any XFade still in process }
+  note_off(np.child[0])  { Retire New and Old notes }
+  note_off(np.child[1])
+  np.child[0] := NoID    { Reset new/old child notes }
+  np.child[1] := NoID
+  np.parent[0] := NoID   { Reset new/old parents }
+  np.parent[1] := NoID
+  if pp.state > 1
+    rls_note := pp.targ/Semi       { Use Portamento note & vel for release }
+    rls_vel := pp.vel
+  else
+    rls_note := np.note[np.New]    { Use Legato note & vel for release }
+    rls_vel := np.vel[np.New]
+  end if
+  np.New := 0            { Reset new note index }
+  if SLSMode = Port_Mode
+    pp.state := 1        { Put Portamento in Standby }
+  else
+    pp.state := 0        { Make Portamento inactive }
+  end if
+  { Don't play release if there are no release groups or SAS is auditioning a group }
+  if sas.RT = true and sas.Aud = false
+    set_controller(ArtSCC,CC[ArtSCC] .and. 0x1F .or. 0x40)  { Set RT bit of sub-group }
+    wait(1)  { Force CC to update before triggering release note }
+    { For some mysterious reason I haven't been able to find, K2 seems to disallow }
+    { the release group when the EndPhrase task is triggered from the TestPedal    }
+    { routine (but not when the task is triggered from the RCB. I don't see what   }
+    { the difference is, but, the following allow_group seems to be necessary in   }
+    { order for the release sample to sound as a result of lifting the sustain pedal }
+    allow_group(ALL_GROUPS)  { I don't know why this is needed, see above comments }
+    if CC[ArtSCC] .and. 0x40 # 0  { !! This is very important !! }    
+      { To make sure a short-note glitch hasn't gotten in-between and reset RT bit }
+      { If so, a normal note (possibly looped) could be triggered instead, so just }
+      { omit trying to trigger the release. } 
+      if UserPrefs .and. 3SecRT # 0
+        play_note(rls_note,rls_vel,0,3000000)  { Trigger release group(s) for 3 secs }
+      else           
+        play_note(rls_note,rls_vel,0,0)      { Trigger release group(s) indefinitely }
+      end if
+    end if
+  end if
+end function { EndPhrase_ }
+
+function GenNote(ofst)
+  { Set new note parms from played note, then generate child note }  
+  np.note[np.New] := EVENT_NOTE  { MIDI note# of newest played note }
+  np.vel[np.New] := EVENT_VELOCITY
+  np.parent[np.New] := EVENT_ID  { ID of newest played note }
+  np.pedal[np.New] := false
+  np.child[np.New] := play_note(EVENT_NOTE + sas.TKT,EVENT_VELOCITY,ofst,0)  
+  if sas.TKT # 0                 { If TKT offset was used }  
+    change_tune(np.child[np.New],-100000*sas.TKT,0) { Retune the child note }    
+  end if    
+  np.0tune[np.New] := 0   { Initialize tuning reference }
+  np.0db[np.New] := 0     { Initialize volume reference }
+end function { GenNote }
+
+function Get_Offset(ofst) { Determine sample-start offset of next fade-in note }
+  declare const Ofst_Step := 50000 { Random offset add-on step increment, 50ms }
+  declare const Ofst_Steps := 8    { Number of randomly-chosen offset steps }  
+  declare NewRand      { New random add-on to be used for Manual Offset }
+  declare OldRand      { Previously used random add-on for Manual Offset }
+  
+  if SLSMode = Solo_Mode
+    ofst := 0   { Use no offset for solo mode }
+  else { Legato mode or Portamento mode state 0 or 1 }
+    ofst := (ENGINE_UPTIME - Ref_Time)*1000  { Time since last ref mark }
+    select OfstMode
+      case Ofst_Auto1           { Auto1 uses time from start of last note }
+        Ref_Time := ENGINE_UPTIME  { Update Ref_Time to start of new note }
+      case Ofst_Auto2  
+        NOP         { No action needed, use Ref_Time from start of phrase }
+      case Ofst_Man
+        ofst := LOfst*1000  { Use Virtual Knob setting for sample-start offset }
+      case Ofst_Rand        { Use Virtual Knob + random increment }
+        NewRand := OldRand
+        while NewRand = OldRand             { Get a new random index that }
+          NewRand := random(0,Ofst_Steps)   {  is different from the last }
+        end while
+        ofst := LOfst*1000 + NewRand*Ofst_Step      { Compute new offset }
+        OldRand := NewRand  { Update OldRand for next time }
+      case Ofst_DFD
+        ofst := LOfst*1000  { Same as Ofst_Man mode }
+    end select
+  end if
+end function { Get_Offset }
+
+function InzPort
+  { Converts latest (ie New) legato note into a base-pitch portamento note }
+  pp.base := np.note[np.New]*Semi  { Portamento base pitch in dcts }
+  pp.pitch := pp.base   { Set initial pitch to base pitch }
+  pp.targ := pp.base
+  pp.range := 0         { Set initial bend range to zero }
+  pp.Lo := np.New       { Initially sync port pair Lo to index New }
+  np.note[1 - pp.Lo] := np.note[pp.Lo]  { Set both notes of Hi/Lo pair to base }
+  { This will force chg_pitch to generate a new adjacent pair }
+  np.child[1 - pp.Lo] := NoID { Clear child id for Hi note }
+  pp.vel := np.vel[np.New]    { Set portamento velocity same as last legato note }
+  pp.state := 2               { Portamento mode is now in neutral }
+end function { InzPort }
+
+function on_init_Ofst
+  declare !OfstCap[2]
+    OfstCap[0] := 'Leg Ofst'
+    OfstCap[1] := 'Port Ofst'
+  declare LOfst  { Virtual Legato Offset Knob setting }
+  declare POfst  { Virtual Portamento Offset Knob setting }
+  declare LegOfstMode { Last OfstMode used in Legato Mode }
+  declare ui_knob OfstKnob (0,MaxOfst,1)
+    move_control(OfstKnob,0,0)  
+    set_knob_unit(OfstKnob,KNOB_UNIT_MS)
+    LOfst := MainParms[pLOfst]  { Default Sample-start offsets in ms }
+    POfst := MainParms[pPOfst]
+  declare ui_menu OfstMode      { Mode selector for sample-start Offset }
+    move_control(OfstMode,0,0)  
+    add_menu_item (OfstMode, ...
+      ' Auto Mode 1        From start of prior note',Ofst_Auto1)
+    add_menu_item (OfstMode, ...
+      ' Auto Mode 2       From start of current Phrase',Ofst_Auto2)
+    add_menu_item (OfstMode, ...
+      ' Knob Time          Use Time setting of Ofst Knob',Ofst_Man)
+    add_menu_item (OfstMode, ...
+      ' Knob + Rand       Leg Ofst Time + random add-on',Ofst_Rand)
+    add_menu_item (OfstMode, ...
+      ' DFD Mode          Increment Art Bank for inside notes',Ofst_DFD)
+    OfstMode := MainParms[uOfstMode] { Inz to Inst_0 as default }
+    _read_persistent_var(OfstMode)
+    LegOfstMode := OfstMode
+end function { on_init_Ofst }
+
+{ ProcessNote    This routine contains the phrase detection
+                 and legato simulation control logic }
+function ProcessNote
+  declare LegOfst  { Legato sample-start offset in usec }
+  declare reply
+  declare rdata
+  
+  ignore_event(EVENT_ID)   { Discard actual 'played' note }
+  if EVENT_VELOCITY # VCV
+    VCV := EVENT_VELOCITY                { Update Velocity Controller Value }
+    Call(SetMKnobs,cp2(VelCC,VCV),none)  { Update cv change & associated knob }
+  end if   
+  if np.parent[np.New] = NoID    { Starting a new phrase }
+    Ref_Time := ENGINE_UPTIME    { Get start time of phrase  }
+    LegOfst := 0                 { Reset Auto Offset }
+    wait(1)        { Allow new ArtSCC to update before generating note }
+    GenNote(LegOfst)             { Generate child note }
+    if pp.state = 1  { If Portamento in Standby ... }
+      InzPort        { Make this note the first of a portamento phrase }
+    end if
+  else { Continue Phrase }
+    if pp.state < 2     { Still in legato/solo mode }
+      StopFade    { Terminate any still-in-process crossfade/bend }
+      np.New := 1 - np.New   { Exchange new/old notes }
+      Get_Offset(LegOfst)    { Determine note-start offset to use }
+      DFD_Art(LegOfst)       { Switch to DFD groups if appropriate }
+      GenNote(LegOfst)       { Generate child note } 
+      XFade   { Now start Crossfade/Bend of the Old/New notes }
+    else if pp.state = 2     { Ready to set a new bend range }
+      np.New := 1 - np.New   { Swap New <-> Old }
+      np.parent[np.New] := EVENT_ID        { This is the new parent id }
+      if EVENT_NOTE - np.note[pp.Lo] >= 0  { Positive interval played }
+        pp.Lo := 1 - pp.Lo                 { Swap Lo/Hi to force chg_pitch to update }
+      end if 
+      pp.range := EVENT_NOTE*Semi - pp.base  { Set new max bend range }
+      pp.targ := pp.range*MBtn.CCV[mPBend]/127 + pp.base { Set new target within range }
+      pp.state := 3          { Now in bending mode }
+      DFD_Art(POfst)
+      RunTask(SeekPitch)     { Glide pitch to new target }
+    end if     
+  end if 
+end function { ProcessNote }
+
+function SeekPitch_  { Task to 'Slew' pitch to target pitch }
+  declare error   { Difference between target and actual pitch in dcts }
+  declare pchg    { Amount of pitch change to make per loop pass in dcts }
+  declare sign    { Polarity of the desired pitch change, -1 or +1 }
+
+  while pp.pitch # pp.targ and pp.state > 1
+    error := pp.targ - pp.pitch
+    sign := sh_right(error,18) .or. 1  { 1 = positive, -1 = negative }
+    { Max |error| < 127,000 dcts for full 0..127 MIDI note range } 
+    pchg := 64*sign   { Default case when |err| > 4000 }
+    { Change pitch more per loop pass when error is larger }
+    select abs(error)
+      case 0 to 99    { For error below 100 dcts, change }
+        pchg := sign  {  only 1 dct per loop pass.       }
+      case 100 to 249
+        pchg := sign*2
+      case 250 to 499
+        pchg := sign*4
+      case 500 to 999
+        pchg := sign*8
+      case 1000 to 1999
+        pchg := sign*16
+      case 2000 to 4000
+        pchg := sign*32
+    end select
+    chg_pitch(pchg)           { Change pitch this pass by 'pchg' }
+    TWait(500 + MKnob.PTime)  { Loop speed is inverse to PTime }
+  end while
+end function { SeekPitch_ }
+
+function Set_OfstKnob  { Updates OfstKnob and OfstMode display }
+  set_knob_unit(OfstKnob,KNOB_UNIT_MS)
+  if SLSMode = Port_Mode
+    if OfstMode # Ofst_DFD  { Use only Manual or DFD modes for Portamento }
+      OfstMode := Ofst_Man
+    end if
+    set_text(OfstKnob,OfstCap[1])  { Annotate knob as Port Ofst }
+    OfstKnob := POfst              { Last value of Port Ofst }
+    set_knob_label(OfstKnob,' ' & OfstKnob)  { Text mode until knob is moved }
+  else
+    OfstMode := LegOfstMode        { Last OfstMode used by Legato }
+    set_text(OfstKnob,OfstCap[0])  { Annotate knob as Leg Ofst }
+    if OfstMode < Ofst_Man         { If one of the Auto modes }
+      set_knob_label(OfstKnob,' ') { Blank the data window }
+      set_knob_unit(OfstKnob,KNOB_UNIT_NONE)
+    else  { Manual or Manual + Random }
+      OfstKnob := LOfst            { Last value of Legato Ofst }
+      set_knob_label(OfstKnob,' ' & OfstKnob) { Text mode until knob is moved }
+    end if
+  end if
+end function { Set_OfstKnob }
+
+function set_pitch  { Set micro-pitch blend of bracketing notes }
+  declare atn[2]    { Attenuation in mdb for bracketing notes }
+  declare bend[2]   { Tuning for bracketing notes }
+  declare ratio[2]  { Attenuation ratios for bracketing notes }
+  declare nx        { Note pair loop index, Lo/Hi or Hi/Lo }
+
+  bend[pp.Lo] := pp.pitch mod Semi           { Lo note upbend amount in dcts }
+  SinCos(bend[pp.Lo],ratio[1 - pp.Lo],ratio[pp.Lo])  { Compute EQP attenuation ratios }
+  bend[pp.Lo] := bend[pp.Lo]*100             { Lo note up-bend in mcts }
+  bend[1 - pp.Lo] := bend[pp.Lo] - Semi*100  { Hi note down-bend in mcts }
+  for nx := 0 to 1  { Set tuning and volume of bracketing notes in either order }
+    change_tune(np.child[nx],bend[nx] - np.0tune[nx],1)
+    np.0tune[nx] := bend[nx]
+    Get_db(ratio[nx],atn[nx])
+    change_vol(np.child[nx],atn[nx] - np.0db[nx],1)
+    np.0db[nx] := atn[nx] 
+  end for
+end function { set_pitch }
+
+function Set_RlsKnob { Sets RlsFade knob data display mode }
+  select RlsMode
+  case RM_KeyUp  { For this mode, darken knob's data display }
+    set_knob_unit(RlsFade,KNOB_UNIT_NONE)
+    set_knob_label(RlsFade,' ')
+  case RM_Knob   { For this mode, use normal data display }
+    set_knob_unit(RlsFade,KNOB_UNIT_PERCENT)
+    set_knob_label(RlsFade,'   ' & RlsFade) { Use text format until }
+  end select                                {  knob is moved        } 
+end function { Set_RlsKnob }
+
+function SetupXFade { Get current panel parameters to control XFade }
+  declare Interval  { New/Old note separation in semitones }
+  
+  fade_time.full := 1000*MKnob.XTime  { Compute full Xfade time in micro-seconds }
+  fade_time.atk1 := fade_time.full*AtkFade/NodeVol      { Fade-in segment 1 in us }
+  fade_time.atk2 := fade_time.full*(100 - AtkFade)/100  { Fade-in segment 2 in us }
+  fade_ticks.rls1 := fade_time.full/Tick { Compute full Xfade time in clock Ticks }
+  fade_ticks.atk1 := fade_ticks.rls1*AtkFade/100   { Fade-in segment 1 in Ticks }
+  if RlsMode = RM_Knob  { Shorten fade-out Ticks by knob setting if selected }
+    fade_ticks.rls1 := fade_ticks.rls1*RlsFade/100
+    ScaledRF := 100*RlsFade
+  else { Key_Up mode }
+    ScaledRF := 10000 
+  end if
+  if AtkFade = 100  { Determine #of Ticks for fade-in segment 2 if any }
+    fade_ticks.atk2 := 0  { No segment 2 for AtkFade = 100% }
+  else
+    fade_ticks.atk2 := fade_time.atk2/Tick
+  end if
+  Interval := abs(np.note[np.New] - np.note[1 - np.New])
+  if MKnob.BTime = 0 or Interval = 0
+    bend_ticks := 0  { No bend }
+  else { Use bending }
+    bend_ticks := MKnob.BTime*1000/Tick   { Clock Ticks for BTime interval }
+    bend_amount := MKnob.Bend*1000  { Bend in mcts for one semitone interval }
+    if Slope # 10 and Interval # 1  { Increase bend as required }
+      bend_amount := bend_amount + ...
+                     ((Slope - 10)*(Interval - 1)*bend_amount + 55)/110
+    end if
+    if np.note[np.New] < np.note[1 - np.New]
+      bend_amount := -bend_amount  { Bend downward }
+    end if
+    bend_step := 1000*bend_amount/bend_ticks  { Pitch change per tick in ucts }
+  end if
+end function { SetupXFade }
+
+function StopFade { Terminate any in-process crossfade/bend }
+  declare Busy
+  
+  while Busy = true
+    wait(Tick)    { No re-entry allowed }
+  end while
+  if XFActv = true
+    if fade_out_ticks > 0  { Old note not yet retired }
+      EndOld               { Retire it now }
+    end if
+    fade_in_ticks := 0     { End processing of New note }
+    bend_ticks := 0        { End processing of bends }
+    Busy := true  { Lockout any other callers until done }
+    while XFActv = true
+      wait(Tick)  { Wait until processing actually ends }
+    end while
+    Busy := false { Allow waiting callers at next task switch }    
+  end if
+end function { StopFade }
+
+{ TestPedal     Set/reset sustain PedalDown flag and if
+                false, act on any deferred note offs }
+function TestPedal
+  if CC_NUM = SPedal and UserPrefs .and. NoPedal = 0 
+    { Sustain pedal has changed and is not disabled }
+    if CC[SPedal] < 64      { Check and set current pedal state }
+      PedalDown := false    { Pedal has been released }
+      if np.pedal[1 - np.New] = true { If old note was pedal-held from Key_Up release }
+        if fade_out_ticks > 0        {  and hasn't yet timed-out over full XTime      }
+          EndOld                     { Terminate old note }
+        else if pp.state = 3
+        { This happens after a sustained legato note is held by the pedal  
+          as portamento mode is activated and a range is established. Then
+          unless the pedal is released both the old and new keys are still
+          'seen' until the pedal is released and detected here. This code
+          causes the base pitch to be updated to the new parent pitch.
+          This is the same thing that would happen if the first legato key
+          were held and then released instead of pedaled.     }
+          np.parent[1 - np.New] := NoID  { Cancel old parent }
+          np.pedal[1 - np.New] := false  { Cancel old pedal down flag }
+          pp.base := pp.base + pp.range  { Update base to top of range }
+          pp.range := 0        { Reset range to zero }
+          pp.targ := pp.base   { Set target to new base }
+          pp.state := 2        { Put Bender in 'neutral' }
+          RunTask(SeekPitch)   { Glide pitch to target }
+        end if
+      else if np.pedal[np.New] = true  { If new note was pedal-held after released key }
+        np.pedal[np.New] := false      { Reset pedal flag for new note }
+        RunTask(EndPhrase)             { This is the end of the current phrase }
+      end if
+      note_off(by_marks(ALL_HELD))     { Also end any pedal-held thru notes }  
+    else { CC[SPedal] > 63 }
+      PedalDown := true
+    end if
+  end if { CC_NUM = SPedal } 
+end function { TestPedal }
+
+function ThruRelease(UseRls)   { Play release samples(s) for Thru notes }
+  if UseRls = true and sas.RT = true and sas.Aud = false 
+    { Condition favorable and Release Group exists (and SAS not auditioning a group) }
+    set_controller(ArtSCC,CC[ArtSCC] .and. 0x1F .or. 0x40 ) { Set RT bit of sub-group }
+    wait(1)                  { Update SCC before generating release note }
+    allow_group(ALL_GROUPS)  { See comments in EndPhrase counterpart for this code } 
+    if UserPrefs .and. 3SecRT # 0       { Trigger release group(s) for only 3 secs }
+      play_note(EVENT_NOTE,EVENT_VELOCITY,0,3000000)
+    else                                { Trigger release group(s) indefinitely }
+      play_note(EVENT_NOTE,EVENT_VELOCITY,0,0)
+    end if        
+    wait(1)                  { Play release note before restoring SCC to normal }
+    set_controller(ArtSCC,CC[ArtSCC] .and. 0x1F)     
+  end if
+end function { ThruRelease }
+
+{ XFade     Crossfade and bend OldGen Note with NewGen Note
+            per current panel settings. In Solo Mode, simply
+            retire OldGen Note }
+function XFade
+  SetupXFade   { Get current panel parameters to control XFade }
+  fade_out_ticks := fade_ticks.rls1  { Ticks to reach Release Fade time }
+  if SLSMode = Solo_Mode or MKnob.XTime = 0
+    EndOld     { Retire OldGen Note, no crossfade or bend }
+  else { Legato Mode }
+    fade_out(np.child[1 - np.New],fade_time.full,0) { Start Old Note fade-out }
+    fade_in(np.child[np.New],fade_time.atk1) { Start New note fade-in seg-1 }
+    fade_in_ticks := fade_ticks.atk1   { Ticks to reach seg-1/seg-2 fade-in node }
+    XFActv := true                     { Set this flag while XFade is in process }
+    while fade_out_ticks > 0 or fade_in_ticks > 0 or bend_ticks > 0
+      dec(fade_out_ticks)    { Reduce remaining ticks for each of the 3 activities }
+      dec(fade_in_ticks)
+      dec(bend_ticks)
+      if fade_out_ticks = 0  { Fade-out has just completed }
+        EndOld               { Retire Old note }
+      end if
+      if fade_in_ticks = 0 and fade_ticks.atk2 > 0 { Fade-in seg-1 done }
+        fade_in(np.child[np.New],fade_time.atk2)   { Start fade-in Seg-2 }
+        fade_in_ticks := fade_ticks.atk2           { Start segment 2 counter }
+        fade_ticks.atk2 := 0                       { No more segments }
+      end if
+      if bend_ticks >= 0
+        Do_Bend     { Keep calling this function until BTime expires }
+      end if
+      wait(Tick)    { Pause for update clock interval }
+    end while       { Keep going until all 3 activities are completed }
+    XFActv := false { Reset this flag when XFade is fully completed or cancelled }
+  end if
+end function { XFade }
+

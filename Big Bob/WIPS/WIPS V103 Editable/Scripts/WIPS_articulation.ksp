@@ -1,0 +1,4187 @@
+on init
+declare $new_artx
+message("")
+make_perfview
+SET_CONDITION(NO_SYS_SCRIPT_PEDAL)
+SET_CONDITION(NO_SYS_SCRIPT_RLS_TRIG)
+declare $M__In
+declare $M__Out
+declare $M__PostInit
+declare $M__Seed := 1107155288
+pgs_create_key(M__PINIT,1)
+$M__PostInit := 1
+pgs_set_key_val(M__PINIT,0,1)
+declare $ui__cx
+declare %ui__id[190] := (0)
+declare %ui__vs[190] := (0)
+declare %ui__ax[190] := (0)
+declare $ui__px := -1
+declare %ui__psets[225] := (-1)
+declare $ui__active_panel := 0
+declare $ui__height
+declare $ui__lock := 1
+declare $ui__lock__btn := 0
+declare $ui__lock__1
+declare $ui__lock__2
+declare $ui__modal := 0
+declare $ui__kx
+declare $ui__p1
+declare $ui__p2
+declare $ui__pinit := 1
+declare $bm__open := -1
+declare $bm__close := -1
+declare $bm__timer
+declare $bm__ax
+declare %bm__cx[10]
+declare %bm__CC[10]
+declare !bm__Txt[10]
+declare %bm__width[10]
+make_persistent(%bm__CC)
+declare $rg__ax
+declare %rg__cx[10]
+declare %rg__last[10]
+make_persistent(%rg__last)
+declare $lb__ax
+declare %lb__cx[1]
+declare %lb__c1[1]
+declare %lb__d1[1]
+declare %lb__I0[2] := (0)
+declare %lb__Imax[1]
+declare !lb__txt[4096]
+declare %lb__flgs[4096]
+declare %lb__y0[1]
+declare !lb__AppCap[1]
+pgs_create_key(UI__PINIT,1)
+pgs_set_key_val(UI__PINIT,0,0)
+declare ui_menu $CCMenu
+declare $CCMenu__cx
+declare $LastCC := -1
+%ui__id[$ui__cx] := get_ui_id($ccmenu)
+$ccmenu__cx := $ui__cx
+hide_part($ccmenu,$HIDE_WHOLE_CONTROL)
+inc($ui__cx)
+declare !_CCName[120]
+declare $_n2
+$_n2 := 3
+while ($_n2<=119)
+!_CCName[$_n2] := "Undefined"
+inc($_n2)
+end while
+$_n2 := 32
+while ($_n2<=63)
+!_CCName[$_n2] := "LSB for CC " & ($_n2-32)
+inc($_n2)
+end while
+$_n2 := 70
+while ($_n2<=79)
+!_CCName[$_n2] := "Sound Ctl " & ($_n2-69)
+inc($_n2)
+end while
+!_CCName[0] := "Bsnk Select"
+!_CCName[1] := "Mod Wheel"
+!_CCName[2] := "Breath Control"
+!_CCName[4] := "Foot Controller"
+!_CCName[5] := "Portamento Time"
+!_CCName[6] := "Data Entry MSB"
+!_CCName[7] := "Channel Volume"
+!_CCName[8] := "Balance"
+!_CCName[10] := "Pan"
+!_CCName[11] := "Expression"
+!_CCName[12] := "Efx Ctl 1"
+!_CCName[13] := "Efx Ctl 2"
+!_CCName[16] := "General Ctl #1"
+!_CCName[17] := "General Ctl #2"
+!_CCName[18] := "General Ctl #3"
+!_CCName[19] := "General Ctl #4"
+!_CCName[64] := "Sustain Pedal"
+!_CCName[65] := "Portamento On/Off"
+!_CCName[66] := "Sustenuto On/Off"
+!_CCName[67] := "Soft Pedal On/Off"
+!_CCName[68] := "Legato Footswitch"
+!_CCName[69] := "Hold 2"
+!_CCName[80] := "General Ctl #5"
+!_CCName[81] := "General Ctl #6"
+!_CCName[82] := "General Ctl #7"
+!_CCName[83] := "General Ctl #8"
+!_CCName[84] := "Portamento Ctl"
+!_CCName[91] := "Efx 1 Depth"
+!_CCName[92] := "Efx 2 Depth"
+!_CCName[93] := "Efx 3 Depth"
+!_CCName[94] := "Efx 4 Depth"
+!_CCName[95] := "Efx 5 Depth"
+!_CCName[96] := "Data Inc"
+!_CCName[97] := "Data Dec"
+!_CCName[98] := "NRPN LSB"
+!_CCName[99] := "NRPN MSB"
+!_CCName[100] := "RPN LSB"
+!_CCName[101] := "RPN MSB"
+add_menu_item($CCMenu," - MIDI Controller Menu -",-3)
+add_menu_item($CCMenu," ----------------------",-3)
+add_menu_item($CCMenu,"     Deassign Controller",-1)
+add_menu_item($CCMenu,"  Assign Last CC# Moved",-2)
+add_menu_item($CCMenu," ----------------------",-3)
+$_n2 := 0
+while ($_n2<=119)
+add_menu_item($CCMenu,"CC " & $_n2 & " " & !_CCName[$_n2],$_n2)
+inc($_n2)
+end while
+add_menu_item($CCMenu,"   - CC Menu -",125)
+set_script_title("WIPS Articulation")
+$ui__height := 311
+set_ui_height_px($ui__height)
+declare $artx
+declare $copy_ptr
+declare $ENOTE
+declare $prior_artx
+declare $tktx
+declare $top_group
+declare $varp
+declare $varx
+declare $ir__state
+declare %ir__keys[2] := (128)
+declare $ir__lo_key := -1
+declare $ir__hi_key
+declare !ir__Cap[2]
+declare %Art[101] := (-1)
+declare %ArtKS[100] := (128128)
+declare %ArtMKS[100] := (0)
+declare %Var[1400] := (-1)
+declare %VMap[101] := (0, 1)
+declare %meta__Last[64] := (0)
+declare $art_mks
+declare @User
+declare !Dgts[14]
+declare !OnOffTxt[2]
+declare @click_to_save
+declare @choose_user
+@User := "User Preset "
+!Dgts[0] := "1  "
+!Dgts[1] := "2  "
+!Dgts[2] := "3  "
+!Dgts[3] := "4  "
+!Dgts[4] := "5  "
+!Dgts[5] := "6  "
+!Dgts[6] := "7  "
+!Dgts[7] := "8  "
+!Dgts[8] := "9  "
+!Dgts[9] := "10  "
+!Dgts[10] := "11  "
+!Dgts[11] := "12  "
+!Dgts[12] := "13  "
+!Dgts[13] := "14  "
+!OnOffTxt[0] := "Off"
+!OnOffTxt[1] := "On"
+@click_to_save := "Click to Save As"
+@choose_user := "Choose User Preset >>"
+pgs_create_key(WIPS__HOLD_CC,1)
+pgs_create_key(WIPS__IRANGE,3)
+pgs_create_key(WIPS__META,2)
+pgs_create_key(WIPS__NGRPS,6)
+pgs_create_key(WIPS__NGTKT,1)
+pgs_create_key(WIPS__GMUTE,1)
+pgs_create_key(WIPS__SLOTS,15)
+pgs_create_key(WIPS__NOPLAY,1)
+pgs_create_key(WIPS__ARTIC,2)
+set_listener($NI_SIGNAL_TIMER_MS,1000000)
+declare @see_guide
+declare @shape_txt
+declare @scroll_txt
+declare @ccvar_txt
+declare @auto_map
+declare @meta_txt
+declare @pst_txt1
+declare @pst_txt2
+declare @pst_txt3
+declare !Tip[54]
+@see_guide := " Please see User's Guide for a detailed discussion of the various" & " performance modes."
+@shape_txt := "Center position produces a linear relationship, negative settings produce" & " a concave curve (center lower), and positive settings produce a" & " convex curve (center higher)."
+@scroll_txt := " group numbers. Hold the button down to scroll repeatedly"
+@ccvar_txt := " CC-controlled Variation Triggering for this articulation."
+@auto_map := " to a CC for automation purposes."
+@meta_txt := " This radio button can be key-switch controlled with a meta function."
+@pst_txt1 := "When this articulation is activated, "
+@pst_txt2 := " parameters will be set as selected for the next note played. You" & " can select any of your User Presets or you can Bypass the "
+@pst_txt3 := " Script if you wish. If 'Current Setup' is selected, activating" & " this articulation will not change any "
+!Tip[0] := "Used to select/display an Articulation for viewing/editing/auditioning."
+!Tip[1] := "Used to select/display a Natural Variation for viewing/editing/auditioning."
+!Tip[2] := "Used to select TKT Variations for auditioning."
+!Tip[3] := "This 'radio' button activates the Performance or Play Mode Panel."
+!Tip[4] := "This 'radio' button activates the Setup Mode Panel."
+!Tip[5] := "Use this button to set the instrument's keyboard range (shown on Kontakt's" & " keyboard display with cyan-tinted keys). To set the range, hit the" & " the lowest and highest keys on your keyboard (or click them on" & " Kontakt's keyboard). Notes outside this range will not be sounded" & " or used for TKT variations."
+!Tip[6] := "Use this button to set optional preferences to fit your situation."
+!Tip[7] := "Double-click this button to set the MIDI CC used by your multiscript" & " as a proxie for MIDI Program Change commands. Deassign this CC if you" & " want to use keyswitches only."
+!Tip[8] := "Use this button to Add selected instrument group(s) to the normal groups" & " of the current natural variation"
+!Tip[9] := "Use this button to Add selected instrument group(s) to the release groups" & " of the current natural variation"
+!Tip[10] := "Use this button to add a new Variation containing the selected Instrument" & " Group(s) as normal groups. The new variation will be inserted just" & " after the currently selected variation."
+!Tip[11] := "Use this button to Delete the currently selected Variation."
+!Tip[12] := "Use this button to Delete the currently selected Articulation."
+!Tip[13] := "This 'radio' button allows you to Audition played notes using the" & " currently selected Articulation/Variation."
+!Tip[14] := "This 'radio' button allows you to Audition played notes using the" & " currently selected instrument group(s)."
+!Tip[15] := "View/Edit Keyswitch(s) assigned to the current articulation (shown" & " on keyboard as red, green, or yellow-tinted keys). To change the" & " keyswitch assignment, simply hit the new desired key(s)" & " [one or two]. Hit the same key(s) again to toggle between" & " latching/non-latching. To deassign, hit 3 or more keys at once."
+!Tip[16] := @pst_txt1 & "Legato" & @pst_txt2 & "Legato" & @pst_txt3 & "Legato parameters."
+!Tip[17] := @pst_txt1 & "Vibrato" & @pst_txt2 & "Vibrato" & @pst_txt3 & "Vibrato parameters."
+!Tip[18] := "Setting this to other than 'Normal Artic.' will make this a Meta-Articulation." & " Meta Articulations ignore all their group/variation settings and only" & " control Legato/Vibrato parameters and/or perform the specified 'Special'" & " function (without affecting the current articulation's group/variation control)."
+!Tip[19] := "This button opens a dialog to View/Edit the parameters assigned to the" & " selected articulation."
+!Tip[20] := "This Listbox displays all instrument groups (use scroll buttons on the" & " right side if there are more than 16).  Group(s) can be selected for" & " adding to the active articulation/variation (or for auditioning) by" & " simply clicking on the group's name to highlight it."
+!Tip[21] := "Click on any Group to select it. Click it again to deselect it, or use" & " the 'Deselect All' button to clear all selected groups."
+!Tip[22] := "This button Scrolls the window upward to view or select lower" & @scroll_txt
+!Tip[23] := "This button Scrolls the window downward to view or select higher" & @scroll_txt
+!Tip[24] := "Use this mode when no breath controller or expression pedal is available." & @see_guide
+!Tip[25] := "This mode requires both a keydown and the Breath/Dynamics CC above zero" & " to trigger a note on." & @see_guide
+!Tip[26] := "Select this mode if you are using a standalone Wind Controller (such as" & " an EWI) to generate your note stream." & @see_guide
+!Tip[27] := "This 'radio' button enables Retriggering for easy-to-play trills, trumpet" & " shakes, etc." & @meta_txt
+!Tip[28] := "This 'radio' button disables the Retriggering feature" & @meta_txt
+!Tip[29] := "Double-click to assign the MIDI CC your instrument uses for volume" & " dynamics. In Keys + Breath mode, this CC must also be above zero" & " to trigger a note on." & @see_guide
+!Tip[30] := "Double-click to assign the MIDI CC you will use as the Hold pedal." & " You can also set preferences so this pedal can be used to mute" & " the first note of a legato phrase (ghost note feature)." & " Please see User's Guide for more info on this feature."
+!Tip[31] := "This 'radio' button disables all variations (natural and TKT) for this" & " articulation"
+!Tip[32] := "Trigger the variation sequencer only for each repeated note in a series" & " (anti machine-gun mode)."
+!Tip[33] := "Trigger the variation sequencer only when the played note matches either" & " of the prior two notes (anti machine-gun + trill-dither mode)"
+!Tip[34] := "Trigger the variation sequencer for every note played."
+!Tip[35] := "Use a simple round-robin sequence thru the variation pool (when trigger" & " conditions are met)."
+!Tip[36] := "Use a random selection from the variation pool (when trigger conditions" & " are met) but never use the same variation twice in a row."
+!Tip[37] := "This 'radio' button removes all TKT variations from the pool"
+!Tip[38] := "Include 2 TKT variations in the pool."
+!Tip[39] := "Include 4 TKT variations in the pool."
+!Tip[40] := "Include 6 TKT variations in the pool."
+!Tip[41] := "Interval in semitones that will be used as the TKT offset multiplier." & " Set this to one if this articulation has samples every semitone."
+!Tip[42] := "Play no natural variations when sequencer is triggered."
+!Tip[43] := "Checking this box will fix the velocity of all played notes at 127 " & "for this articulation. The CC proxie for velocity automation " & "will still track the actual played velocity."
+!Tip[44] := "When a release sample is triggered, play it until sample runs out."
+!Tip[45] := "When a release sample is triggered, play it for 3 seconds only."
+!Tip[46] := "Click OK to close this dialog box and accept the current settings."
+!Tip[47] := "When on, Variation Triggering will be controlled normally 'as set' in" & " the Art/Var parameters." & @meta_txt
+!Tip[48] := "When on, Variation Triggering will occur for each played note" & " regardless of the Art/Var parameter settings." & @meta_txt
+!Tip[49] := "When on, Variation Triggering will never occur regardless of the" & " Art/Var parameter settings." & @meta_txt
+!Tip[50] := "Double-click this button to assign channel aftertouch" & @auto_map
+!Tip[51] := "Double-click this button to assign played velocity" & @auto_map & " NOTE: Velocity will be mapped PRIOR to 'forcing' it to 127" & " if you are using the AET Velocity Morph option."
+!Tip[52] := "Double-click this button to assign the positive pitch wheel" & @auto_map
+!Tip[53] := "Double-click this button to assign the negative pitch wheel" & @auto_map
+make_persistent($ir__lo_key)
+make_persistent($ir__hi_key)
+!ir__Cap[0] := "Instrument Range"
+!ir__Cap[1] := "Hit Lo/Hi Keys"
+make_persistent(%Art)
+make_persistent(%ArtKS)
+make_persistent(%ArtMKS)
+make_persistent(%Var)
+make_persistent(%VMap)
+declare %ksw__Hit[2] := (128)
+declare $ksw__learn
+declare %ksw__Map[129] := (0)
+declare %ksw__Type[129] := (0)
+declare $ksw__state := 0
+declare $ksw__bad := 0
+declare $ksw__id
+declare $ksw__vel
+make_persistent(%ksw__Map)
+declare $err_code
+declare !ErrMsg[10]
+!ErrMsg[0] := "Too many groups selected"
+!ErrMsg[1] := "Assign at least one normal group first"
+!ErrMsg[2] := "Variation Memory Full"
+!ErrMsg[3] := "KS already assigned"
+!ErrMsg[4] := "Articulation Not In Use"
+!ErrMsg[5] := "Too Many Natural Variations"
+!ErrMsg[6] := "Keyswitches can't be set within Instrument Range"
+!ErrMsg[7] := "This range includes keyswitches, move them first"
+!ErrMsg[8] := "No Instrument Group(s) are selected"
+!ErrMsg[9] := "No Playable Articulations Defined"
+declare $perf__held
+declare $perf__key_id
+declare $perf__key_note
+declare $perf__key_vel
+declare $perf__key_tune
+declare $perf__keys_down
+declare %perf__KeyID[10] := (0)
+declare $perf__play_id
+declare %AVfields[11] := (4, 2, 3, 3, 3, 1, 1, 1, 4, 4, 6)
+declare %_AVPar[101]
+declare %AVPar__mask[11]
+declare %AVPar__shft[11]
+declare $vpar__nvars
+declare $vpar__tvars
+declare $vpar__tzone
+declare $vpar__nmode
+declare $vpar__rmode
+declare $vpar__aet
+declare $vpar__smode
+declare $vpar__vtrig
+declare $vpar__legpst
+declare $vpar__vibpst
+declare $vpar__meta
+declare $vc__last
+declare $vc__last2
+declare $vc__new
+declare $vc__nsx
+declare $vc__span
+declare $vc__tsx
+declare $vc__legpst
+declare $vc__vibpst
+$M__In := 32
+$M__Out := 0
+while ($M__Out<11 and ($M__In-%AVfields[$M__Out]>=0))
+$M__In := $M__In-%AVfields[$M__Out]
+%AVPar__shft[$M__Out] := $M__In
+%AVPar__mask[$M__Out] := sh_left(1,%AVfields[$M__Out])-1
+inc($M__Out)
+end while
+make_persistent(%_AVPar)
+$M__Seed := 1107155288
+declare ui_switch $About
+$ui__lock__btn := get_ui_id($About)
+move_control_px($About,0,$ui__height-21)
+set_control_par($ui__lock__btn,$CONTROL_PAR_WIDTH,64)
+set_control_par($ui__lock__btn,$CONTROL_PAR_HEIGHT,18)
+set_control_par_str(get_ui_id($About),$CONTROL_PAR_PICTURE,"rdvClr_Skin")
+set_control_par($ui__lock__btn,$CONTROL_PAR_FONT_TYPE,6)
+set_control_par($ui__lock__btn,$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_text($About,"About")
+declare ui_label $SASBkg(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($SASBkg)
+move_control_px($SASBkg,0,30)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,632)
+if ($ui__height-32>=0)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,$ui__height-32)
+end if
+declare $SASBkg__cx
+$SASBkg__cx := $ui__cx
+set_text($SASBkg,"")
+set_control_par_str(get_ui_id($SASBkg),$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(get_ui_id($SASBkg),$CONTROL_PAR_PICTURE_STATE,20)
+inc($ui__cx)
+declare ui_label $SASBkg__2(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($SASBkg__2)
+move_control_px($SASBkg__2,60,0)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,572)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,30)
+set_text($SASBkg__2,"")
+set_control_par_str(get_ui_id($SASBkg__2),$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(get_ui_id($SASBkg__2),$CONTROL_PAR_PICTURE_STATE,20)
+inc($ui__cx)
+$ui__p1 := 216
+$ui__p2 := ($ui__height-145)/2
+inc($ui__cx)
+declare ui_label $AboutDlg__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($AboutDlg__border)
+move_control_px($AboutDlg__border,$ui__p1,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,200)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,145)
+set_text($AboutDlg__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,22)
+dec($ui__cx)
+declare ui_label $AboutDlg(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($AboutDlg)
+move_control_px($AboutDlg,$ui__p1+2,$ui__p2+2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,196)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,141)
+declare $AboutDlg__cx
+$AboutDlg__cx := $ui__cx
+set_text($AboutDlg,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,2)
+declare $AboutDlg__nc := 2
+$ui__cx := $ui__cx+2
+set_control_par(get_ui_id($AboutDlg),$CONTROL_PAR_FONT_TYPE,17)
+set_control_par(get_ui_id($AboutDlg),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$AboutDlg__nc := 5
+declare ui_button $AboutDlg__OK
+%ui__id[$ui__cx] := get_ui_id($AboutDlg__OK)
+move_control_px($AboutDlg__OK,$ui__p1+100-30,$ui__p2+145-27)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,60)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+set_text($AboutDlg__OK,"OK")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$AboutDlg__OK := 1
+inc($ui__cx)
+declare ui_button $AboutDlg__TLock1
+%ui__id[$ui__cx] := get_ui_id($AboutDlg__TLock1)
+move_control_px($AboutDlg__TLock1,$ui__p1,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,12)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,12)
+set_text($AboutDlg__TLock1,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvClr_Skin")
+inc($ui__cx)
+declare ui_button $AboutDlg__TLock2
+%ui__id[$ui__cx] := get_ui_id($AboutDlg__TLock2)
+move_control_px($AboutDlg__TLock2,$ui__p1+200-12,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,12)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,12)
+set_text($AboutDlg__TLock2,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvClr_Skin")
+inc($ui__cx)
+set_text($AboutDlg,"WIPS Version 1.04")
+add_text_line($AboutDlg,"Articulation Script   V150")
+add_text_line($AboutDlg,"Last Modified: 1-23-14")
+add_text_line($AboutDlg,"----------------------------")
+add_text_line($AboutDlg,"Scripting by Robert D. Villwock")
+add_text_line($AboutDlg,"October 10, 2011")
+add_text_line($AboutDlg,"Contact rdvillwock@msn.com")
+declare ui_label $SmLogo(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($SmLogo)
+move_control_px($SmLogo,7,44)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,45)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,128)
+declare $SmLogo__cx
+$SmLogo__cx := $ui__cx
+set_text($SmLogo,"")
+inc($ui__cx)
+set_control_par_str(%ui__id[$SmLogo__cx],$CONTROL_PAR_PICTURE,"rdvLogo_Setup")
+declare ui_label $Hdr(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($Hdr)
+move_control_px($Hdr,220,5)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,170)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+declare $Hdr__cx
+$Hdr__cx := $ui__cx
+set_text($Hdr,"WIPS Articulation Script")
+set_control_par(get_ui_id($Hdr),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($Hdr),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_control_par(get_ui_id($Hdr),$CONTROL_PAR_FONT_TYPE,16)
+set_control_par(get_ui_id($Hdr),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+declare ui_label $BigLogo(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($BigLogo)
+move_control_px($BigLogo,12,40)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,120)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,250)
+declare $BigLogo__cx
+$BigLogo__cx := $ui__cx
+set_text($BigLogo,"")
+inc($ui__cx)
+set_control_par_str(%ui__id[$BigLogo__cx],$CONTROL_PAR_PICTURE,"rdvLogo_Play")
+declare ui_label $VBar(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($VBar)
+move_control_px($VBar,479,42)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,71)
+declare $VBar__cx
+$VBar__cx := $ui__cx
+set_text($VBar,"")
+inc($ui__cx)
+set_control_par_str(get_ui_id($VBar),$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(get_ui_id($VBar),$CONTROL_PAR_PICTURE_STATE,2)
+declare ui_label $ModeCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ModeCap)
+move_control_px($ModeCap,506,28)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,100)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $ModeCap__cx
+$ModeCap__cx := $ui__cx
+set_text($ModeCap,"-- Mode Select --")
+set_control_par(get_ui_id($ModeCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($ModeCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_text($ModeCap,"-- Mode Select --")
+%rg__last[$rg__ax] := $ui__cx
+%rg__cx[$rg__ax] := $ui__cx
+inc($rg__ax)
+declare ui_switch $Setup
+%ui__id[$ui__cx] := get_ui_id($Setup)
+move_control_px($Setup,555,43)
+declare $Setup__cx
+$Setup__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($Setup)
+set_text($Setup,"Setup")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+declare ui_switch $Play
+%ui__id[$ui__cx] := get_ui_id($Play)
+move_control_px($Play,508,43)
+declare $Play__cx
+$Play__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($Play)
+set_text($Play,"Play")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+set_control_par(get_ui_id($Play),$CONTROL_PAR_WIDTH,50)
+set_control_par(get_ui_id($Play),$CONTROL_PAR_HEIGHT,18)
+set_control_par(get_ui_id($Setup),$CONTROL_PAR_WIDTH,50)
+set_control_par(get_ui_id($Setup),$CONTROL_PAR_HEIGHT,18)
+declare ui_label $ISCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ISCap)
+move_control_px($ISCap,506,63)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,100)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $ISCap__cx
+$ISCap__cx := $ui__cx
+set_text($ISCap,"- Instrument Setup -")
+set_control_par(get_ui_id($ISCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($ISCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_switch $SetIR
+%ui__id[$ui__cx] := get_ui_id($SetIR)
+move_control_px($SetIR,508,78)
+declare $SetIR__cx
+$SetIR__cx := $ui__cx
+set_text($SetIR,!ir__Cap[0])
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+inc($ui__cx)
+set_control_par(get_ui_id($SetIR),$CONTROL_PAR_WIDTH,98)
+set_control_par(get_ui_id($SetIR),$CONTROL_PAR_HEIGHT,18)
+declare ui_button $SetPrefs
+%ui__id[$ui__cx] := get_ui_id($SetPrefs)
+move_control_px($SetPrefs,508,98)
+declare $SetPrefs__cx
+$SetPrefs__cx := $ui__cx
+set_text($SetPrefs,"Preferences")
+set_control_par(get_ui_id($SetPrefs),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+inc($ui__cx)
+set_control_par(get_ui_id($SetPrefs),$CONTROL_PAR_WIDTH,98)
+set_control_par(get_ui_id($SetPrefs),$CONTROL_PAR_HEIGHT,18)
+declare ui_value_edit $ArtSel(1, 100, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtSel)
+move_control_px($ArtSel,162,24)
+declare $ArtSel__cx
+$ArtSel__cx := $ui__cx
+set_text($ArtSel,"Articulation")
+inc($ui__cx)
+$ArtSel := 1
+set_control_par(get_ui_id($ArtSel),$CONTROL_PAR_WIDTH,90)
+set_control_par(get_ui_id($ArtSel),$CONTROL_PAR_HEIGHT,18)
+declare ui_value_edit $NatVar(0, 15, 1) 
+%ui__id[$ui__cx] := get_ui_id($NatVar)
+move_control_px($NatVar,255,24)
+declare $NatVar__cx
+$NatVar__cx := $ui__cx
+set_text($NatVar,"Natural Variation")
+inc($ui__cx)
+set_control_par(get_ui_id($NatVar),$CONTROL_PAR_WIDTH,109)
+set_control_par(get_ui_id($NatVar),$CONTROL_PAR_HEIGHT,18)
+declare ui_value_edit $TKTVar(0, 6, 1) 
+%ui__id[$ui__cx] := get_ui_id($TKTVar)
+move_control_px($TKTVar,367,24)
+declare $TKTVar__cx
+$TKTVar__cx := $ui__cx
+set_text($TKTVar,"TKT Var")
+inc($ui__cx)
+set_control_par(get_ui_id($TKTVar),$CONTROL_PAR_WIDTH,80)
+set_control_par(get_ui_id($TKTVar),$CONTROL_PAR_HEIGHT,18)
+declare ui_label $ArtView__12(1, 1) 
+$ui__cx := $ui__cx+12
+%ui__id[$ui__cx] := get_ui_id($ArtView__12)
+move_control_px($ArtView__12,162,45)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,285)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,128)
+set_text($ArtView__12,"Normal Groups                         Release Groups")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+inc($ui__cx)
+declare ui_label $ArtView__13(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtView__13)
+move_control_px($ArtView__13,167,62)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,136)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,107)
+set_text($ArtView__13,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,18)
+inc($ui__cx)
+declare ui_label $ArtView__14(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtView__14)
+move_control_px($ArtView__14,306,62)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,136)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,107)
+set_text($ArtView__14,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,18)
+$ui__cx := $ui__cx-14
+declare ui_label $ArtView(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtView)
+declare $ArtView__cx
+$ArtView__cx := $ui__cx
+inc($ui__cx)
+declare ui_label $ArtView__1(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtView__1)
+inc($ui__cx)
+declare ui_label $ArtView__2(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtView__2)
+inc($ui__cx)
+declare ui_label $ArtView__3(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtView__3)
+inc($ui__cx)
+declare ui_label $ArtView__4(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtView__4)
+inc($ui__cx)
+declare ui_label $ArtView__5(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtView__5)
+inc($ui__cx)
+declare ui_label $ArtView__6(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtView__6)
+inc($ui__cx)
+declare ui_label $ArtView__7(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtView__7)
+inc($ui__cx)
+declare ui_label $ArtView__8(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtView__8)
+inc($ui__cx)
+declare ui_label $ArtView__9(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtView__9)
+inc($ui__cx)
+declare ui_label $ArtView__10(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtView__10)
+inc($ui__cx)
+declare ui_label $ArtView__11(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtView__11)
+$ui__cx := $ui__cx+4
+$ui__p1 := 0
+while ($ui__p1<=11)
+set_control_par(%ui__id[$ArtView__cx+$ui__p1],$CONTROL_PAR_POS_X,167+($ui__p1/6*140))
+set_control_par(%ui__id[$ArtView__cx+$ui__p1],$CONTROL_PAR_POS_Y,64+($ui__p1 mod 6*17))
+set_control_par(%ui__id[$ArtView__cx+$ui__p1],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ArtView__cx+$ui__p1],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ArtView__cx+$ui__p1],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ArtView__cx+$ui__p1],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__p1)
+end while
+declare ui_label $AudCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($AudCap)
+move_control_px($AudCap,44,29)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,110)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $AudCap__cx
+$AudCap__cx := $ui__cx
+set_text($AudCap,"-- Audition Mode --")
+set_control_par(get_ui_id($AudCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($AudCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+%rg__last[$rg__ax] := $ui__cx
+%rg__cx[$rg__ax] := $ui__cx
+inc($rg__ax)
+declare ui_switch $AudArt
+%ui__id[$ui__cx] := get_ui_id($AudArt)
+move_control_px($AudArt,55,44)
+declare $AudArt__cx
+$AudArt__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($AudArt)
+set_text($AudArt,"Art/Var")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+declare ui_switch $AudGrp
+%ui__id[$ui__cx] := get_ui_id($AudGrp)
+move_control_px($AudGrp,98,44)
+declare $AudGrp__cx
+$AudGrp__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($AudGrp)
+set_text($AudGrp,"Groups")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+set_control_par(get_ui_id($AudArt),$CONTROL_PAR_WIDTH,46)
+set_control_par(get_ui_id($AudArt),$CONTROL_PAR_HEIGHT,18)
+set_control_par(get_ui_id($AudGrp),$CONTROL_PAR_WIDTH,46)
+set_control_par(get_ui_id($AudGrp),$CONTROL_PAR_HEIGHT,18)
+declare ui_switch $AddNorm
+%ui__id[$ui__cx] := get_ui_id($AddNorm)
+move_control_px($AddNorm,57,70)
+declare $AddNorm__cx
+$AddNorm__cx := $ui__cx
+set_text($AddNorm,"+ Normal Group")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+inc($ui__cx)
+declare ui_switch $AddRls
+%ui__id[$ui__cx] := get_ui_id($AddRls)
+move_control_px($AddRls,57,89)
+declare $AddRls__cx
+$AddRls__cx := $ui__cx
+set_text($AddRls,"+ Release Group")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+inc($ui__cx)
+declare ui_switch $AddNew
+%ui__id[$ui__cx] := get_ui_id($AddNew)
+move_control_px($AddNew,57,108)
+declare $AddNew__cx
+$AddNew__cx := $ui__cx
+set_text($AddNew,"+ New Variation")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+inc($ui__cx)
+declare ui_switch $DltVar
+%ui__id[$ui__cx] := get_ui_id($DltVar)
+move_control_px($DltVar,57,134)
+declare $DltVar__cx
+$DltVar__cx := $ui__cx
+set_text($DltVar,"Delete Variation")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+inc($ui__cx)
+set_control_par_str(%ui__id[$DltVar__cx],$CONTROL_PAR_PICTURE,"rdvRedBtn")
+declare ui_switch $DltArt
+%ui__id[$ui__cx] := get_ui_id($DltArt)
+move_control_px($DltArt,57,153)
+declare $DltArt__cx
+$DltArt__cx := $ui__cx
+set_text($DltArt,"Delete Artic.")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+inc($ui__cx)
+set_control_par_str(%ui__id[$DltArt__cx],$CONTROL_PAR_PICTURE,"rdvRedBtn")
+declare ui_label $AOptCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($AOptCap)
+move_control_px($AOptCap,461,121)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,120)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $AOptCap__cx
+$AOptCap__cx := $ui__cx
+set_text($AOptCap,"-- Articulation Options --")
+set_control_par(get_ui_id($AOptCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($AOptCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_button $EditVar
+%ui__id[$ui__cx] := get_ui_id($EditVar)
+move_control_px($EditVar,465,136)
+declare $EditVar__cx
+$EditVar__cx := $ui__cx
+set_text($EditVar,"Art/Var Parameters")
+set_control_par(get_ui_id($EditVar),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+inc($ui__cx)
+set_control_par(get_ui_id($EditVar),$CONTROL_PAR_WIDTH,116)
+set_control_par(get_ui_id($EditVar),$CONTROL_PAR_HEIGHT,18)
+declare ui_switch $SetKS
+%ui__id[$ui__cx] := get_ui_id($SetKS)
+move_control_px($SetKS,465,156)
+declare $SetKS__cx
+$SetKS__cx := $ui__cx
+set_text($SetKS,"View/Edit Key Switch")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+inc($ui__cx)
+$SetKS := 0
+set_control_par(get_ui_id($SetKS),$CONTROL_PAR_WIDTH,116)
+set_control_par(get_ui_id($SetKS),$CONTROL_PAR_HEIGHT,18)
+declare $InstGroups__cx
+$InstGroups__cx := $ui__cx
+$ui__p1 := 0
+while ($ui__p1<=39)
+%ui__ax[$ui__cx+$ui__p1] := $lb__ax
+inc($ui__p1)
+end while
+%lb__cx[$lb__ax] := $ui__cx
+$ui__p1 := 4096
+if ($ui__p1<16)
+$ui__p1 := 16
+end if
+%lb__Imax[$lb__ax] := $ui__p1-1
+%lb__I0[$lb__ax+1] := $ui__p1+%lb__I0[$lb__ax]
+%lb__y0[$lb__ax] := 175
+!lb__AppCap[$lb__ax] := "Instrument Groups"
+inc($lb__ax)
+declare ui_label $InstGroups__T0(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__T0)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_button $InstGroups__S0
+%ui__id[$ui__cx] := get_ui_id($InstGroups__S0)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,130)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Select")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_label $InstGroups__T1(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__T1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_button $InstGroups__S1
+%ui__id[$ui__cx] := get_ui_id($InstGroups__S1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,130)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Select")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_label $InstGroups__T2(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__T2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_button $InstGroups__S2
+%ui__id[$ui__cx] := get_ui_id($InstGroups__S2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,130)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Select")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_label $InstGroups__T3(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__T3)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_button $InstGroups__S3
+%ui__id[$ui__cx] := get_ui_id($InstGroups__S3)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,130)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Select")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_label $InstGroups__T4(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__T4)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_button $InstGroups__S4
+%ui__id[$ui__cx] := get_ui_id($InstGroups__S4)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,130)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Select")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_label $InstGroups__T5(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__T5)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_button $InstGroups__S5
+%ui__id[$ui__cx] := get_ui_id($InstGroups__S5)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,130)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Select")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_label $InstGroups__T6(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__T6)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_button $InstGroups__S6
+%ui__id[$ui__cx] := get_ui_id($InstGroups__S6)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,130)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Select")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_label $InstGroups__T7(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__T7)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_button $InstGroups__S7
+%ui__id[$ui__cx] := get_ui_id($InstGroups__S7)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,130)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Select")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_label $InstGroups__T8(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__T8)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_button $InstGroups__S8
+%ui__id[$ui__cx] := get_ui_id($InstGroups__S8)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,130)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Select")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_label $InstGroups__T9(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__T9)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_button $InstGroups__S9
+%ui__id[$ui__cx] := get_ui_id($InstGroups__S9)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,130)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Select")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_label $InstGroups__T10(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__T10)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_button $InstGroups__S10
+%ui__id[$ui__cx] := get_ui_id($InstGroups__S10)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,130)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Select")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_label $InstGroups__T11(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__T11)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_button $InstGroups__S11
+%ui__id[$ui__cx] := get_ui_id($InstGroups__S11)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,130)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Select")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_label $InstGroups__T12(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__T12)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_button $InstGroups__S12
+%ui__id[$ui__cx] := get_ui_id($InstGroups__S12)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,130)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Select")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_label $InstGroups__T13(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__T13)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_button $InstGroups__S13
+%ui__id[$ui__cx] := get_ui_id($InstGroups__S13)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,130)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Select")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_label $InstGroups__T14(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__T14)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_button $InstGroups__S14
+%ui__id[$ui__cx] := get_ui_id($InstGroups__S14)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,130)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Select")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_label $InstGroups__T15(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__T15)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_button $InstGroups__S15
+%ui__id[$ui__cx] := get_ui_id($InstGroups__S15)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,130)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Select")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_label $InstGroups__T16(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__T16)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_button $InstGroups__S16
+%ui__id[$ui__cx] := get_ui_id($InstGroups__S16)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,130)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Select")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_label $InstGroups__T17(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__T17)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_button $InstGroups__S17
+%ui__id[$ui__cx] := get_ui_id($InstGroups__S17)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,130)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Select")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_label $InstGroups__T18(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__T18)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_button $InstGroups__S18
+%ui__id[$ui__cx] := get_ui_id($InstGroups__S18)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,130)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Select")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_label $InstGroups__T19(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__T19)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+declare ui_button $InstGroups__S19
+%ui__id[$ui__cx] := get_ui_id($InstGroups__S19)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,130)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Select")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_TEXT,"")
+inc($ui__cx)
+$ui__kx := 0
+while ($ui__kx<=19)
+set_control_par(%ui__id[$InstGroups__cx+(2*$ui__kx)],$CONTROL_PAR_POS_X,28+($ui__kx mod 4*133)+18)
+set_control_par(%ui__id[$InstGroups__cx+(2*$ui__kx)],$CONTROL_PAR_POS_Y,175+(($ui__kx/4+1)*19))
+set_control_par(%ui__id[$InstGroups__cx+(2*$ui__kx)+1],$CONTROL_PAR_POS_X,28+($ui__kx mod 4*133)+18)
+set_control_par(%ui__id[$InstGroups__cx+(2*$ui__kx)+1],$CONTROL_PAR_POS_Y,175+(($ui__kx/4+1)*19))
+inc($ui__kx)
+end while
+declare ui_label $InstGroups__Mq(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__Mq)
+move_control_px($InstGroups__Mq,46,194)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,532)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,77)
+set_text($InstGroups__Mq,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,18)
+inc($ui__cx)
+declare ui_button $InstGroups__Cap
+%ui__id[$ui__cx] := get_ui_id($InstGroups__Cap)
+move_control_px($InstGroups__Cap,45,175)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,534)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+set_text($InstGroups__Cap,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBlk_Skin")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+inc($ui__cx)
+declare ui_button $InstGroups__FTS
+%ui__id[$ui__cx] := get_ui_id($InstGroups__FTS)
+move_control_px($InstGroups__FTS,45,175)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,534)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+set_text($InstGroups__FTS,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvClr_Skin")
+inc($ui__cx)
+declare ui_label $InstGroups__FL(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__FL)
+move_control_px($InstGroups__FL,28,176)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,18)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,113)
+set_text($InstGroups__FL,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Left")
+inc($ui__cx)
+declare ui_label $InstGroups__FR(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__FR)
+move_control_px($InstGroups__FR,576,176)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,20)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,113)
+set_text($InstGroups__FR,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_Right")
+inc($ui__cx)
+declare ui_button $InstGroups__FB
+%ui__id[$ui__cx] := get_ui_id($InstGroups__FB)
+move_control_px($InstGroups__FB,45,270)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,534)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+set_text($InstGroups__FB,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBlk_Skin")
+inc($ui__cx)
+declare ui_value_edit $InstGroups__Up(0, 2, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__Up)
+move_control_px($InstGroups__Up,556,206)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,20)
+set_text($InstGroups__Up,"")
+$InstGroups__Up := 1
+hide_part($InstGroups__Up,$HIDE_PART_BG)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_FONT_TYPE,2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_SHOW_ARROWS,0)
+inc($ui__cx)
+declare ui_label $InstGroups__UpBtn(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__UpBtn)
+move_control_px($InstGroups__UpBtn,581,203)
+set_text($InstGroups__UpBtn,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_ScrollUp")
+inc($ui__cx)
+declare ui_value_edit $InstGroups__Dn(0, 2, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__Dn)
+move_control_px($InstGroups__Dn,556,239)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,20)
+set_text($InstGroups__Dn,"")
+$InstGroups__Dn := 1
+hide_part($InstGroups__Dn,$HIDE_PART_BG)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_FONT_TYPE,2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_SHOW_ARROWS,0)
+inc($ui__cx)
+declare ui_label $InstGroups__DnBtn(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($InstGroups__DnBtn)
+move_control_px($InstGroups__DnBtn,581,236)
+set_text($InstGroups__DnBtn,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_ScrollDn")
+inc($ui__cx)
+declare ui_button $InstGroups__CB
+%ui__id[$ui__cx] := get_ui_id($InstGroups__CB)
+move_control_px($InstGroups__CB,266,272)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,93)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+set_text($InstGroups__CB,"Deselect All")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvListBox_ClearBtn")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_FONT_TYPE,10)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+inc($ui__cx)
+inc($ui__cx)
+declare ui_label $ArtStatus__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtStatus__border)
+move_control_px($ArtStatus__border,146,36)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,304)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,80)
+set_text($ArtStatus__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,3)
+dec($ui__cx)
+declare ui_label $ArtStatus(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($ArtStatus)
+move_control_px($ArtStatus,148,38)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,300)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,76)
+declare $ArtStatus__cx
+$ArtStatus__cx := $ui__cx
+set_text($ArtStatus,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,23)
+$ui__cx := $ui__cx+2
+declare ui_label $ArtStatCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtStatCap)
+move_control_px($ArtStatCap,223,38)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,150)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $ArtStatCap__cx
+$ArtStatCap__cx := $ui__cx
+set_text($ArtStatCap,"Articulation Status")
+set_control_par(get_ui_id($ArtStatCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($ArtStatCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_control_par(get_ui_id($ArtStatCap),$CONTROL_PAR_FONT_TYPE,16)
+set_control_par(get_ui_id($ArtStatCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+declare ui_label $HBar(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($HBar)
+move_control_px($HBar,146,54)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,304)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,1)
+declare $HBar__cx
+$HBar__cx := $ui__cx
+set_text($HBar,"")
+inc($ui__cx)
+set_control_par_str(get_ui_id($HBar),$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(get_ui_id($HBar),$CONTROL_PAR_PICTURE_STATE,2)
+declare ui_label $ABCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ABCap)
+move_control_px($ABCap,186,61)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,210)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $ABCap__cx
+$ABCap__cx := $ui__cx
+set_text($ABCap,"Playing (or last-played) Articulation = ")
+set_control_par(get_ui_id($ABCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($ABCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_control_par(get_ui_id($ABCap),$CONTROL_PAR_FONT_TYPE,19)
+set_control_par(get_ui_id($ABCap),$CONTROL_PAR_TEXT_ALIGNMENT,2)
+declare ui_label $ArtBox(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtBox)
+move_control_px($ArtBox,386,61)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,50)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $ArtBox__cx
+$ArtBox__cx := $ui__cx
+set_text($ArtBox,"")
+set_control_par(get_ui_id($ArtBox),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($ArtBox),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_control_par(get_ui_id($ArtBox),$CONTROL_PAR_FONT_TYPE,19)
+set_control_par(get_ui_id($ArtBox),$CONTROL_PAR_TEXT_ALIGNMENT,0)
+declare ui_label $VBCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($VBCap)
+move_control_px($VBCap,156,76)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,254)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $VBCap__cx
+$VBCap__cx := $ui__cx
+set_text($VBCap,"Playing (or last-played) Variation: Nat/TKT = ")
+set_control_par(get_ui_id($VBCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($VBCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_control_par(get_ui_id($VBCap),$CONTROL_PAR_FONT_TYPE,19)
+set_control_par(get_ui_id($VBCap),$CONTROL_PAR_TEXT_ALIGNMENT,2)
+declare ui_label $VarBox(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($VarBox)
+move_control_px($VarBox,398,76)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,50)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $VarBox__cx
+$VarBox__cx := $ui__cx
+set_text($VarBox,"")
+set_control_par(get_ui_id($VarBox),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($VarBox),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_control_par(get_ui_id($VarBox),$CONTROL_PAR_FONT_TYPE,19)
+set_control_par(get_ui_id($VarBox),$CONTROL_PAR_TEXT_ALIGNMENT,0)
+declare ui_label $NxtCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($NxtCap)
+move_control_px($NxtCap,189,96)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,184)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $NxtCap__cx
+$NxtCap__cx := $ui__cx
+set_text($NxtCap,"Next (pending) Articulation = ")
+set_control_par(get_ui_id($NxtCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($NxtCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_control_par(get_ui_id($NxtCap),$CONTROL_PAR_FONT_TYPE,19)
+set_control_par(get_ui_id($NxtCap),$CONTROL_PAR_TEXT_ALIGNMENT,2)
+declare ui_label $NxtBox(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($NxtBox)
+move_control_px($NxtBox,360,96)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,50)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $NxtBox__cx
+$NxtBox__cx := $ui__cx
+set_text($NxtBox,"")
+set_control_par(get_ui_id($NxtBox),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($NxtBox),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_control_par(get_ui_id($NxtBox),$CONTROL_PAR_FONT_TYPE,19)
+set_control_par(get_ui_id($NxtBox),$CONTROL_PAR_TEXT_ALIGNMENT,0)
+inc($ui__cx)
+declare ui_label $PerfBox__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($PerfBox__border)
+move_control_px($PerfBox__border,146,133)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,460)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,145)
+set_text($PerfBox__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,2)
+dec($ui__cx)
+declare ui_label $PerfBox(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($PerfBox)
+move_control_px($PerfBox,147,134)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,458)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,143)
+declare $PerfBox__cx
+$PerfBox__cx := $ui__cx
+set_text($PerfBox,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,20)
+$ui__cx := $ui__cx+2
+declare ui_label $PBCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($PBCap)
+move_control_px($PBCap,316,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,106)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $PBCap__cx
+$PBCap__cx := $ui__cx
+set_text($PBCap,"Performance Settings")
+set_control_par(get_ui_id($PBCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($PBCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_control_par_str(get_ui_id($PBCap),$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(get_ui_id($PBCap),$CONTROL_PAR_PICTURE_STATE,20)
+declare ui_label $VBar2(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($VBar2)
+move_control_px($VBar2,435,158)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,51)
+declare $VBar2__cx
+$VBar2__cx := $ui__cx
+set_text($VBar2,"")
+inc($ui__cx)
+set_control_par_str(get_ui_id($VBar2),$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(get_ui_id($VBar2),$CONTROL_PAR_PICTURE_STATE,2)
+declare ui_label $PmCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($PmCap)
+move_control_px($PmCap,198,139)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,180)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $PmCap__cx
+$PmCap__cx := $ui__cx
+set_text($PmCap,"-- Performance Controller Mode --")
+set_control_par(get_ui_id($PmCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($PmCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+%rg__last[$rg__ax] := $ui__cx
+%rg__cx[$rg__ax] := $ui__cx
+inc($rg__ax)
+declare ui_switch $PmKeys
+%ui__id[$ui__cx] := get_ui_id($PmKeys)
+move_control_px($PmKeys,154,154)
+declare $PmKeys__cx
+$PmKeys__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($PmKeys)
+set_text($PmKeys,"Keys Only")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+declare ui_switch $PmBC
+%ui__id[$ui__cx] := get_ui_id($PmBC)
+move_control_px($PmBC,241,154)
+declare $PmBC__cx
+$PmBC__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($PmBC)
+set_text($PmBC,"Keys + Breath")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+declare ui_switch $PmWC
+%ui__id[$ui__cx] := get_ui_id($PmWC)
+move_control_px($PmWC,328,154)
+declare $PmWC__cx
+$PmWC__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($PmWC)
+set_text($PmWC,"Wind Controller")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+set_control_par(get_ui_id($PmKeys),$CONTROL_PAR_WIDTH,90)
+set_control_par(get_ui_id($PmKeys),$CONTROL_PAR_HEIGHT,18)
+set_control_par(get_ui_id($PmBC),$CONTROL_PAR_WIDTH,90)
+set_control_par(get_ui_id($PmBC),$CONTROL_PAR_HEIGHT,18)
+set_control_par(get_ui_id($PmWC),$CONTROL_PAR_WIDTH,90)
+set_control_par(get_ui_id($PmWC),$CONTROL_PAR_HEIGHT,18)
+declare ui_label $RtCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($RtCap)
+move_control_px($RtCap,463,139)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,120)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $RtCap__cx
+$RtCap__cx := $ui__cx
+set_text($RtCap,"Retrigger/Trill Option")
+set_control_par(get_ui_id($RtCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($RtCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+%rg__last[$rg__ax] := $ui__cx
+%rg__cx[$rg__ax] := $ui__cx
+inc($rg__ax)
+declare ui_switch $RtOn
+%ui__id[$ui__cx] := get_ui_id($RtOn)
+move_control_px($RtOn,475,154)
+declare $RtOn__cx
+$RtOn__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($RtOn)
+set_text($RtOn,"On")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+declare ui_switch $RtOff
+%ui__id[$ui__cx] := get_ui_id($RtOff)
+move_control_px($RtOff,522,154)
+declare $RtOff__cx
+$RtOff__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($RtOff)
+set_text($RtOff,"Off")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+set_control_par(get_ui_id($RtOn),$CONTROL_PAR_WIDTH,50)
+set_control_par(get_ui_id($RtOn),$CONTROL_PAR_HEIGHT,18)
+set_control_par(get_ui_id($RtOff),$CONTROL_PAR_WIDTH,50)
+set_control_par(get_ui_id($RtOff),$CONTROL_PAR_HEIGHT,18)
+declare ui_label $HoldCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($HoldCap)
+move_control_px($HoldCap,199,181)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,180)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $HoldCap__cx
+$HoldCap__cx := $ui__cx
+set_text($HoldCap,"-- Performance CC Assignments --")
+set_control_par(get_ui_id($HoldCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($HoldCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_button $HoldCC
+%ui__id[$ui__cx] := get_ui_id($HoldCC)
+move_control_px($HoldCC,156,196)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,85)
+declare $HoldCC__cx
+$HoldCC__cx := $ui__cx
+set_text($HoldCC,"Hold")
+make_persistent($HoldCC)
+%ui__ax[$ui__cx] := $bm__ax
+%bm__cx[$bm__ax] := $ui__cx
+set_control_par(get_ui_id($HoldCC),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+%bm__CC[$bm__ax] := -1
+!bm__Txt[$bm__ax] := "Hold" & " CC = "
+%bm__width[$bm__ax] := 85
+inc($ui__cx)
+inc($bm__ax)
+set_control_par(%ui__id[$HoldCC__cx],$CONTROL_PAR_VALUE,1)
+%bm__CC[%ui__ax[$HoldCC__cx]] := 64
+declare ui_button $BrCC
+%ui__id[$ui__cx] := get_ui_id($BrCC)
+move_control_px($BrCC,244,196)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,85)
+declare $BrCC__cx
+$BrCC__cx := $ui__cx
+set_text($BrCC,"Breath")
+make_persistent($BrCC)
+%ui__ax[$ui__cx] := $bm__ax
+%bm__cx[$bm__ax] := $ui__cx
+set_control_par(get_ui_id($BrCC),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+%bm__CC[$bm__ax] := -1
+!bm__Txt[$bm__ax] := "Breath" & " CC = "
+%bm__width[$bm__ax] := 85
+inc($ui__cx)
+inc($bm__ax)
+set_control_par(%ui__id[$BrCC__cx],$CONTROL_PAR_VALUE,1)
+%bm__CC[%ui__ax[$BrCC__cx]] := 2
+declare ui_button $ArtCC
+%ui__id[$ui__cx] := get_ui_id($ArtCC)
+move_control_px($ArtCC,332,196)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,85)
+declare $ArtCC__cx
+$ArtCC__cx := $ui__cx
+set_text($ArtCC,"Art")
+make_persistent($ArtCC)
+%ui__ax[$ui__cx] := $bm__ax
+%bm__cx[$bm__ax] := $ui__cx
+set_control_par(get_ui_id($ArtCC),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+%bm__CC[$bm__ax] := -1
+!bm__Txt[$bm__ax] := "Art" & " CC = "
+%bm__width[$bm__ax] := 85
+inc($ui__cx)
+inc($bm__ax)
+declare ui_label $VarCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($VarCap)
+move_control_px($VarCap,449,182)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,150)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $VarCap__cx
+$VarCap__cx := $ui__cx
+set_text($VarCap,"-- Variation Trigger Override --")
+set_control_par(get_ui_id($VarCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($VarCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+%rg__last[$rg__ax] := $ui__cx
+%rg__cx[$rg__ax] := $ui__cx
+inc($rg__ax)
+declare ui_switch $VTO_Off
+%ui__id[$ui__cx] := get_ui_id($VTO_Off)
+move_control_px($VTO_Off,452,197)
+declare $VTO_Off__cx
+$VTO_Off__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($VTO_Off)
+set_text($VTO_Off,"As Set")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+declare ui_switch $VTO_Always
+%ui__id[$ui__cx] := get_ui_id($VTO_Always)
+move_control_px($VTO_Always,499,197)
+declare $VTO_Always__cx
+$VTO_Always__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($VTO_Always)
+set_text($VTO_Always,"Always")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+declare ui_switch $VTO_Never
+%ui__id[$ui__cx] := get_ui_id($VTO_Never)
+move_control_px($VTO_Never,546,197)
+declare $VTO_Never__cx
+$VTO_Never__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($VTO_Never)
+set_text($VTO_Never,"Never")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+set_control_par(get_ui_id($VTO_Off),$CONTROL_PAR_WIDTH,50)
+set_control_par(get_ui_id($VTO_Off),$CONTROL_PAR_HEIGHT,18)
+set_control_par(get_ui_id($VTO_Always),$CONTROL_PAR_WIDTH,50)
+set_control_par(get_ui_id($VTO_Always),$CONTROL_PAR_HEIGHT,18)
+set_control_par(get_ui_id($VTO_Never),$CONTROL_PAR_WIDTH,50)
+set_control_par(get_ui_id($VTO_Never),$CONTROL_PAR_HEIGHT,18)
+declare ui_label $MapCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($MapCap)
+move_control_px($MapCap,251,233)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,250)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,11)
+declare $MapCap__cx
+$MapCap__cx := $ui__cx
+set_text($MapCap,"---- Special Controller Mapping For Automation ----")
+set_control_par(get_ui_id($MapCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($MapCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_button $ATMap
+%ui__id[$ui__cx] := get_ui_id($ATMap)
+move_control_px($ATMap,173,243)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,93)
+declare $ATMap__cx
+$ATMap__cx := $ui__cx
+set_text($ATMap,"AT")
+make_persistent($ATMap)
+%ui__ax[$ui__cx] := $bm__ax
+%bm__cx[$bm__ax] := $ui__cx
+set_control_par(get_ui_id($ATMap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+%bm__CC[$bm__ax] := -1
+!bm__Txt[$bm__ax] := "AT" & " CC = "
+%bm__width[$bm__ax] := 93
+inc($ui__cx)
+inc($bm__ax)
+declare ui_button $VelMap
+%ui__id[$ui__cx] := get_ui_id($VelMap)
+move_control_px($VelMap,277,243)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,93)
+declare $VelMap__cx
+$VelMap__cx := $ui__cx
+set_text($VelMap,"Vel")
+make_persistent($VelMap)
+%ui__ax[$ui__cx] := $bm__ax
+%bm__cx[$bm__ax] := $ui__cx
+set_control_par(get_ui_id($VelMap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+%bm__CC[$bm__ax] := -1
+!bm__Txt[$bm__ax] := "Vel" & " CC = "
+%bm__width[$bm__ax] := 93
+inc($ui__cx)
+inc($bm__ax)
+declare ui_button $PPWMap
+%ui__id[$ui__cx] := get_ui_id($PPWMap)
+move_control_px($PPWMap,381,243)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,93)
+declare $PPWMap__cx
+$PPWMap__cx := $ui__cx
+set_text($PPWMap,"PW+")
+make_persistent($PPWMap)
+%ui__ax[$ui__cx] := $bm__ax
+%bm__cx[$bm__ax] := $ui__cx
+set_control_par(get_ui_id($PPWMap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+%bm__CC[$bm__ax] := -1
+!bm__Txt[$bm__ax] := "PW+" & " CC = "
+%bm__width[$bm__ax] := 93
+inc($ui__cx)
+inc($bm__ax)
+declare ui_button $NPWMap
+%ui__id[$ui__cx] := get_ui_id($NPWMap)
+move_control_px($NPWMap,485,243)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,93)
+declare $NPWMap__cx
+$NPWMap__cx := $ui__cx
+set_text($NPWMap,"PW-")
+make_persistent($NPWMap)
+%ui__ax[$ui__cx] := $bm__ax
+%bm__cx[$bm__ax] := $ui__cx
+set_control_par(get_ui_id($NPWMap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+%bm__CC[$bm__ax] := -1
+!bm__Txt[$bm__ax] := "PW-" & " CC = "
+%bm__width[$bm__ax] := 93
+inc($ui__cx)
+inc($bm__ax)
+declare $vdx
+declare $vdy
+$ui__p1 := 110
+$ui__p2 := ($ui__height-290)/2
+inc($ui__cx)
+declare ui_label $VarDlg__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($VarDlg__border)
+move_control_px($VarDlg__border,$ui__p1,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,412)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,290)
+set_text($VarDlg__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,3)
+dec($ui__cx)
+declare ui_label $VarDlg(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($VarDlg)
+move_control_px($VarDlg,$ui__p1+2,$ui__p2+2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,408)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,286)
+declare $VarDlg__cx
+$VarDlg__cx := $ui__cx
+set_text($VarDlg,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,11)
+declare $VarDlg__nc := 2
+$ui__cx := $ui__cx+2
+set_control_par(get_ui_id($VarDlg),$CONTROL_PAR_FONT_TYPE,17)
+set_control_par(get_ui_id($VarDlg),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$VarDlg__nc := 3
+declare ui_button $VarDlg__OK
+%ui__id[$ui__cx] := get_ui_id($VarDlg__OK)
+move_control_px($VarDlg__OK,$ui__p1+206-30,$ui__p2+290-27)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,60)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+set_text($VarDlg__OK,"OK")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$VarDlg__OK := 1
+inc($ui__cx)
+set_control_par(get_ui_id($VarDlg),$CONTROL_PAR_FONT_TYPE,16)
+$vdx := $ui__p1
+$vdy := $ui__p2
+declare ui_label $DlgCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($DlgCap)
+move_control_px($DlgCap,$vdx+10,$vdy+10)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,390)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $DlgCap__cx
+$DlgCap__cx := $ui__cx
+set_text($DlgCap,"")
+set_control_par(get_ui_id($DlgCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($DlgCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_control_par(get_ui_id($DlgCap),$CONTROL_PAR_FONT_TYPE,16)
+set_control_par(get_ui_id($DlgCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+declare ui_label $TrigCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($TrigCap)
+move_control_px($TrigCap,$vdx+10,$vdy+30)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,390)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $TrigCap__cx
+$TrigCap__cx := $ui__cx
+set_text($TrigCap,"-- Triggering Mode --")
+set_control_par(get_ui_id($TrigCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($TrigCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+%rg__last[$rg__ax] := $ui__cx
+%rg__cx[$rg__ax] := $ui__cx
+inc($rg__ax)
+declare ui_switch $TrigOff
+%ui__id[$ui__cx] := get_ui_id($TrigOff)
+move_control_px($TrigOff,$vdx+10,$vdy+45)
+declare $TrigOff__cx
+$TrigOff__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($TrigOff)
+set_text($TrigOff,"Never")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+declare ui_switch $TrigLast
+%ui__id[$ui__cx] := get_ui_id($TrigLast)
+move_control_px($TrigLast,$vdx+107,$vdy+45)
+declare $TrigLast__cx
+$TrigLast__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($TrigLast)
+set_text($TrigLast,"Repeated Note")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+declare ui_switch $TrigTrill
+%ui__id[$ui__cx] := get_ui_id($TrigTrill)
+move_control_px($TrigTrill,$vdx+204,$vdy+45)
+declare $TrigTrill__cx
+$TrigTrill__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($TrigTrill)
+set_text($TrigTrill,"Trill or Repeat Note")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+declare ui_switch $TrigAll
+%ui__id[$ui__cx] := get_ui_id($TrigAll)
+move_control_px($TrigAll,$vdx+301,$vdy+45)
+declare $TrigAll__cx
+$TrigAll__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($TrigAll)
+set_text($TrigAll,"Every Note")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+set_control_par(get_ui_id($TrigOff),$CONTROL_PAR_WIDTH,100)
+set_control_par(get_ui_id($TrigOff),$CONTROL_PAR_HEIGHT,18)
+set_control_par(get_ui_id($TrigLast),$CONTROL_PAR_WIDTH,100)
+set_control_par(get_ui_id($TrigLast),$CONTROL_PAR_HEIGHT,18)
+set_control_par(get_ui_id($TrigTrill),$CONTROL_PAR_WIDTH,100)
+set_control_par(get_ui_id($TrigTrill),$CONTROL_PAR_HEIGHT,18)
+set_control_par(get_ui_id($TrigAll),$CONTROL_PAR_WIDTH,100)
+set_control_par(get_ui_id($TrigAll),$CONTROL_PAR_HEIGHT,18)
+declare ui_label $SeqCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($SeqCap)
+move_control_px($SeqCap,$vdx+10,$vdy+63)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,390)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $SeqCap__cx
+$SeqCap__cx := $ui__cx
+set_text($SeqCap,"-- Sequencing Mode --")
+set_control_par(get_ui_id($SeqCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($SeqCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+%rg__last[$rg__ax] := $ui__cx
+%rg__cx[$rg__ax] := $ui__cx
+inc($rg__ax)
+declare ui_switch $SeqRR
+%ui__id[$ui__cx] := get_ui_id($SeqRR)
+move_control_px($SeqRR,$vdx+107,$vdy+78)
+declare $SeqRR__cx
+$SeqRR__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($SeqRR)
+set_text($SeqRR,"Round Robin")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+declare ui_switch $SeqRand
+%ui__id[$ui__cx] := get_ui_id($SeqRand)
+move_control_px($SeqRand,$vdx+204,$vdy+78)
+declare $SeqRand__cx
+$SeqRand__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($SeqRand)
+set_text($SeqRand,"Random")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+set_control_par(get_ui_id($SeqRR),$CONTROL_PAR_WIDTH,100)
+set_control_par(get_ui_id($SeqRR),$CONTROL_PAR_HEIGHT,18)
+set_control_par(get_ui_id($SeqRand),$CONTROL_PAR_WIDTH,100)
+set_control_par(get_ui_id($SeqRand),$CONTROL_PAR_HEIGHT,18)
+declare ui_label $TKTCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($TKTCap)
+move_control_px($TKTCap,$vdx+10,$vdy+98)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,390)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $TKTCap__cx
+$TKTCap__cx := $ui__cx
+set_text($TKTCap,"-- Total Number of TKT Variations --")
+set_control_par(get_ui_id($TKTCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($TKTCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+%rg__last[$rg__ax] := $ui__cx
+%rg__cx[$rg__ax] := $ui__cx
+inc($rg__ax)
+declare ui_switch $TKTOff
+%ui__id[$ui__cx] := get_ui_id($TKTOff)
+move_control_px($TKTOff,$vdx+10,$vdy+113)
+declare $TKTOff__cx
+$TKTOff__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($TKTOff)
+set_text($TKTOff,"No TKT Variations")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+declare ui_switch $TKT2
+%ui__id[$ui__cx] := get_ui_id($TKT2)
+move_control_px($TKT2,$vdx+107,$vdy+113)
+declare $TKT2__cx
+$TKT2__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($TKT2)
+set_text($TKT2,"2 Variations")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+declare ui_switch $TKT4
+%ui__id[$ui__cx] := get_ui_id($TKT4)
+move_control_px($TKT4,$vdx+204,$vdy+113)
+declare $TKT4__cx
+$TKT4__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($TKT4)
+set_text($TKT4,"4 Variations")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+declare ui_switch $TKT6
+%ui__id[$ui__cx] := get_ui_id($TKT6)
+move_control_px($TKT6,$vdx+301,$vdy+113)
+declare $TKT6__cx
+$TKT6__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($TKT6)
+set_text($TKT6,"6 Variations")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+set_control_par(get_ui_id($TKTOff),$CONTROL_PAR_WIDTH,100)
+set_control_par(get_ui_id($TKTOff),$CONTROL_PAR_HEIGHT,18)
+set_control_par(get_ui_id($TKT2),$CONTROL_PAR_WIDTH,100)
+set_control_par(get_ui_id($TKT2),$CONTROL_PAR_HEIGHT,18)
+set_control_par(get_ui_id($TKT4),$CONTROL_PAR_WIDTH,100)
+set_control_par(get_ui_id($TKT4),$CONTROL_PAR_HEIGHT,18)
+set_control_par(get_ui_id($TKT6),$CONTROL_PAR_WIDTH,100)
+set_control_par(get_ui_id($TKT6),$CONTROL_PAR_HEIGHT,18)
+declare ui_value_edit $ZoneSize(1, 8, 1) 
+%ui__id[$ui__cx] := get_ui_id($ZoneSize)
+move_control_px($ZoneSize,$vdx+140,$vdy+133)
+declare $ZoneSize__cx
+$ZoneSize__cx := $ui__cx
+set_text($ZoneSize,"TKT Sample Zone Size")
+inc($ui__cx)
+set_control_par(get_ui_id($ZoneSize),$CONTROL_PAR_WIDTH,131)
+set_control_par(get_ui_id($ZoneSize),$CONTROL_PAR_HEIGHT,18)
+declare ui_switch $NatOff
+%ui__id[$ui__cx] := get_ui_id($NatOff)
+move_control_px($NatOff,$vdx+12,$vdy+170)
+declare $NatOff__cx
+$NatOff__cx := $ui__cx
+set_text($NatOff,"")
+make_persistent($NatOff)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvCheckBox_Blk")
+inc($ui__cx)
+declare ui_label $NatOff__Cap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($NatOff__Cap)
+move_control_px($NatOff__Cap,$vdx+12+12,$vdy+170-2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+set_text($NatOff__Cap,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_FONT_TYPE,9)
+inc($ui__cx)
+set_text($NatOff__Cap,"Disable Natural Variations")
+declare ui_label $RlsCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($RlsCap)
+move_control_px($RlsCap,$vdx+153,$vdy+155)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,104)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $RlsCap__cx
+$RlsCap__cx := $ui__cx
+set_text($RlsCap," -- Release Mode --")
+set_control_par(get_ui_id($RlsCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($RlsCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+%rg__last[$rg__ax] := $ui__cx
+%rg__cx[$rg__ax] := $ui__cx
+inc($rg__ax)
+declare ui_switch $RlsEnd
+%ui__id[$ui__cx] := get_ui_id($RlsEnd)
+move_control_px($RlsEnd,$vdx+155,$vdy+170)
+declare $RlsEnd__cx
+$RlsEnd__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($RlsEnd)
+set_text($RlsEnd,"To End")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+declare ui_switch $Rls3Sec
+%ui__id[$ui__cx] := get_ui_id($Rls3Sec)
+move_control_px($Rls3Sec,$vdx+205,$vdy+170)
+declare $Rls3Sec__cx
+$Rls3Sec__cx := $ui__cx
+%ui__ax[$ui__cx] := $rg__ax-1
+make_persistent($Rls3Sec)
+set_text($Rls3Sec,"3 Secs")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+inc($ui__cx)
+set_control_par(get_ui_id($RlsEnd),$CONTROL_PAR_WIDTH,53)
+set_control_par(get_ui_id($RlsEnd),$CONTROL_PAR_HEIGHT,18)
+set_control_par(get_ui_id($Rls3Sec),$CONTROL_PAR_WIDTH,53)
+set_control_par(get_ui_id($Rls3Sec),$CONTROL_PAR_HEIGHT,18)
+declare ui_switch $UseAET
+%ui__id[$ui__cx] := get_ui_id($UseAET)
+move_control_px($UseAET,$vdx+271,$vdy+170)
+declare $UseAET__cx
+$UseAET__cx := $ui__cx
+set_text($UseAET,"")
+make_persistent($UseAET)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvCheckBox_Blk")
+inc($ui__cx)
+declare ui_label $UseAET__Cap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($UseAET__Cap)
+move_control_px($UseAET__Cap,$vdx+271+12,$vdy+170-2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,125)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+set_text($UseAET__Cap,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_FONT_TYPE,9)
+inc($ui__cx)
+set_text($UseAET__Cap,"Uses AET Velocity Morph")
+inc($ui__cx)
+declare ui_label $LVBox__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($LVBox__border)
+move_control_px($LVBox__border,$vdx+25,$vdy+200)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,360)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,50)
+set_text($LVBox__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,2)
+dec($ui__cx)
+declare ui_label $LVBox(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($LVBox)
+move_control_px($LVBox,$vdx+25+1,$vdy+200+1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,358)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,48)
+declare $LVBox__cx
+$LVBox__cx := $ui__cx
+set_text($LVBox,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,10)
+$ui__cx := $ui__cx+2
+declare ui_label $LVCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($LVCap)
+move_control_px($LVCap,$vdx+123,$vdy+192)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,164)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $LVCap__cx
+$LVCap__cx := $ui__cx
+set_text($LVCap,"Legato/Vibrato Parameter Control")
+set_control_par(get_ui_id($LVCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($LVCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_control_par_str(get_ui_id($LVCap),$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(get_ui_id($LVCap),$CONTROL_PAR_PICTURE_STATE,10)
+declare ui_label $LegCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($LegCap)
+move_control_px($LegCap,$vdx+41,$vdy+208)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,98)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $LegCap__cx
+$LegCap__cx := $ui__cx
+set_text($LegCap,"Legato Parameters")
+set_control_par(get_ui_id($LegCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($LegCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_menu $LegPre
+%ui__id[$ui__cx] := get_ui_id($LegPre)
+move_control_px($LegPre,$vdx+45,$vdy+223)
+declare $LegPre__cx
+$LegPre__cx := $ui__cx
+inc($ui__cx)
+add_menu_item($LegPre,"Current Setup  ",0)
+declare $_n12
+$_n12 := 1
+while ($_n12<=14)
+add_menu_item($LegPre,@User & !Dgts[$_n12-1],0+$_n12)
+inc($_n12)
+end while
+add_menu_item($LegPre,"Bypass Script  ",15)
+set_control_par(get_ui_id($LegPre),$CONTROL_PAR_WIDTH,90)
+set_control_par(get_ui_id($LegPre),$CONTROL_PAR_HEIGHT,18)
+set_control_par(%ui__id[$LegPre__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+declare ui_label $VibCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($VibCap)
+move_control_px($VibCap,$vdx+143,$vdy+208)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,98)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $VibCap__cx
+$VibCap__cx := $ui__cx
+set_text($VibCap,"Vibrato Parameters")
+set_control_par(get_ui_id($VibCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($VibCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_menu $VibPre
+%ui__id[$ui__cx] := get_ui_id($VibPre)
+move_control_px($VibPre,$vdx+147,$vdy+223)
+declare $VibPre__cx
+$VibPre__cx := $ui__cx
+inc($ui__cx)
+add_menu_item($VibPre,"Current Setup  ",0)
+$_n12 := 1
+while ($_n12<=14)
+add_menu_item($VibPre,@User & !Dgts[$_n12-1],0+$_n12)
+inc($_n12)
+end while
+add_menu_item($VibPre,"Bypass Script  ",15)
+set_control_par(get_ui_id($VibPre),$CONTROL_PAR_WIDTH,90)
+set_control_par(get_ui_id($VibPre),$CONTROL_PAR_HEIGHT,18)
+set_control_par(%ui__id[$VibPre__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+declare ui_label $MetaCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($MetaCap)
+move_control_px($MetaCap,$vdx+250,$vdy+208)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,115)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $MetaCap__cx
+$MetaCap__cx := $ui__cx
+set_text($MetaCap,"Meta Function")
+set_control_par(get_ui_id($MetaCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($MetaCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_menu $MetaFn
+%ui__id[$ui__cx] := get_ui_id($MetaFn)
+move_control_px($MetaFn,$vdx+250,$vdy+223)
+declare $MetaFn__cx
+$MetaFn__cx := $ui__cx
+inc($ui__cx)
+set_control_par(get_ui_id($MetaFn),$CONTROL_PAR_WIDTH,115)
+set_control_par(get_ui_id($MetaFn),$CONTROL_PAR_HEIGHT,18)
+set_control_par(%ui__id[$MetaFn__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+add_menu_item($MetaFn,"Normal Articulation  ",0)
+add_menu_item($MetaFn,"Retrigger On  ",1)
+add_menu_item($MetaFn,"Retrigger Off  ",2)
+add_menu_item($MetaFn,"Toggle Retrigger  ",3)
+add_menu_item($MetaFn,"Var Override As Set  ",4)
+add_menu_item($MetaFn,"Var Override Always  ",5)
+add_menu_item($MetaFn,"Var Override Never  ",6)
+add_menu_item($MetaFn,"Glider Sw On  ",7)
+add_menu_item($MetaFn,"Glider Sw Off  ",8)
+add_menu_item($MetaFn,"Toggle Glider Sw  ",9)
+add_menu_item($MetaFn,"Leg Preset Ctl On  ",10)
+add_menu_item($MetaFn,"Leg Preset Ctl Off  ",11)
+add_menu_item($MetaFn,"Toggle Leg Preset Ctl  ",12)
+add_menu_item($MetaFn,"Bypass Legato On  ",13)
+add_menu_item($MetaFn,"Bypass Legato Off  ",14)
+add_menu_item($MetaFn,"Toggle Bypass Legato  ",15)
+add_menu_item($MetaFn,"VibPitch/Vol Phase-  ",16)
+add_menu_item($MetaFn,"VibPitch/Vol Phase+  ",17)
+add_menu_item($MetaFn,"Toggle Pitch/Vol Phase  ",18)
+add_menu_item($MetaFn,"Vib Style Off  ",19)
+add_menu_item($MetaFn,"Vib Style Tight  ",20)
+add_menu_item($MetaFn,"Vib Style Moderate  ",21)
+add_menu_item($MetaFn,"Vib Style Loose  ",22)
+add_menu_item($MetaFn,"Vib Preset Ctl On  ",23)
+add_menu_item($MetaFn,"Vib Preset Ctl Off  ",24)
+add_menu_item($MetaFn,"Toggle Vib Preset Ctl  ",25)
+add_menu_item($MetaFn,"Bypass Vibrato On  ",26)
+add_menu_item($MetaFn,"Bypass Vibrato Off  ",27)
+add_menu_item($MetaFn,"Toggle Bypass Vibrato ",28)
+add_menu_item($MetaFn,"Ksw-Paced Vibrato  ",29)
+add_menu_item($MetaFn,"Recall User Presets  ",30)
+$ui__p1 := 201
+$ui__p2 := ($ui__height-70)/2
+inc($ui__cx)
+declare ui_label $ErrDlg__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ErrDlg__border)
+move_control_px($ErrDlg__border,$ui__p1,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,230)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,70)
+set_text($ErrDlg__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,3)
+dec($ui__cx)
+declare ui_label $ErrDlg(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($ErrDlg)
+move_control_px($ErrDlg,$ui__p1+2,$ui__p2+2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,226)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,66)
+declare $ErrDlg__cx
+$ErrDlg__cx := $ui__cx
+set_text($ErrDlg,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,11)
+declare $ErrDlg__nc := 2
+$ui__cx := $ui__cx+2
+set_control_par(get_ui_id($ErrDlg),$CONTROL_PAR_FONT_TYPE,17)
+set_control_par(get_ui_id($ErrDlg),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$ErrDlg__nc := 3
+declare ui_button $ErrDlg__OK
+%ui__id[$ui__cx] := get_ui_id($ErrDlg__OK)
+move_control_px($ErrDlg__OK,$ui__p1+115-30,$ui__p2+70-27)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,60)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+set_text($ErrDlg__OK,"OK")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$ErrDlg__OK := 1
+inc($ui__cx)
+set_control_par(get_ui_id($ErrDlg),$CONTROL_PAR_FONT_TYPE,16)
+$ui__p1 := 110
+$ui__p2 := ($ui__height-187)/2
+inc($ui__cx)
+declare ui_label $PrefsDlg__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($PrefsDlg__border)
+move_control_px($PrefsDlg__border,$ui__p1,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,412)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,187)
+set_text($PrefsDlg__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,2)
+dec($ui__cx)
+declare ui_label $PrefsDlg(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($PrefsDlg)
+move_control_px($PrefsDlg,$ui__p1+2,$ui__p2+2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,408)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,183)
+declare $PrefsDlg__cx
+$PrefsDlg__cx := $ui__cx
+set_text($PrefsDlg,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,4)
+declare $PrefsDlg__nc := 2
+$ui__cx := $ui__cx+2
+set_control_par(get_ui_id($PrefsDlg),$CONTROL_PAR_FONT_TYPE,17)
+set_control_par(get_ui_id($PrefsDlg),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$PrefsDlg__nc := 3
+declare ui_button $PrefsDlg__OK
+%ui__id[$ui__cx] := get_ui_id($PrefsDlg__OK)
+move_control_px($PrefsDlg__OK,$ui__p1+206-30,$ui__p2+187-27)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,60)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+set_text($PrefsDlg__OK,"OK")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$PrefsDlg__OK := 1
+inc($ui__cx)
+set_text($PrefsDlg,"INSTRUMENT PREFERENCES")
+set_control_par(get_ui_id($PrefsDlg),$CONTROL_PAR_FONT_TYPE,10)
+set_control_par(get_ui_id($PrefsDlg),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+add_text_line($PrefsDlg,"--------------------------")
+declare ui_switch $KBOfst
+%ui__id[$ui__cx] := get_ui_id($KBOfst)
+move_control_px($KBOfst,$ui__p1+10,$ui__p2+35)
+declare $KBOfst__cx
+$KBOfst__cx := $ui__cx
+set_text($KBOfst,"")
+make_persistent($KBOfst)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvCheckBox_Wht")
+inc($ui__cx)
+declare ui_label $KBOfst__Cap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($KBOfst__Cap)
+move_control_px($KBOfst__Cap,$ui__p1+10+12,$ui__p2+35-2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,395)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+set_text($KBOfst__Cap,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_text($KBOfst__Cap,"Keyboard Shows MIDI Program Change as 1 to 128  (leave unchecked for 0 to 127)")
+declare ui_switch $OrigVel
+%ui__id[$ui__cx] := get_ui_id($OrigVel)
+move_control_px($OrigVel,$ui__p1+10,$ui__p2+55)
+declare $OrigVel__cx
+$OrigVel__cx := $ui__cx
+set_text($OrigVel,"")
+make_persistent($OrigVel)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvCheckBox_Wht")
+inc($ui__cx)
+declare ui_label $OrigVel__Cap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($OrigVel__Cap)
+move_control_px($OrigVel__Cap,$ui__p1+10+12,$ui__p2+55-2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,395)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+set_text($OrigVel__Cap,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_text($OrigVel__Cap,"Retriggered Note Uses Original Velocity  (uses trigger key velocity if unchecked)")
+declare ui_switch $RandOpt
+%ui__id[$ui__cx] := get_ui_id($RandOpt)
+move_control_px($RandOpt,$ui__p1+10,$ui__p2+75)
+declare $RandOpt__cx
+$RandOpt__cx := $ui__cx
+set_text($RandOpt,"")
+make_persistent($RandOpt)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvCheckBox_Wht")
+inc($ui__cx)
+declare ui_label $RandOpt__Cap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($RandOpt__Cap)
+move_control_px($RandOpt__Cap,$ui__p1+10+12,$ui__p2+75-2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,395)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+set_text($RandOpt__Cap,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_text($RandOpt__Cap,"Reset Random Number Generator When Articulation Is Changed")
+declare ui_switch $NoTKT
+%ui__id[$ui__cx] := get_ui_id($NoTKT)
+move_control_px($NoTKT,$ui__p1+10,$ui__p2+95)
+declare $NoTKT__cx
+$NoTKT__cx := $ui__cx
+set_text($NoTKT,"")
+make_persistent($NoTKT)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvCheckBox_Wht")
+inc($ui__cx)
+declare ui_label $NoTKT__Cap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($NoTKT__Cap)
+move_control_px($NoTKT__Cap,$ui__p1+10+12,$ui__p2+95-2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,395)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+set_text($NoTKT__Cap,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_text($NoTKT__Cap,"Disable TKT when glider is active")
+declare ui_switch $GhostMute
+%ui__id[$ui__cx] := get_ui_id($GhostMute)
+move_control_px($GhostMute,$ui__p1+10,$ui__p2+115)
+declare $GhostMute__cx
+$GhostMute__cx := $ui__cx
+set_text($GhostMute,"")
+make_persistent($GhostMute)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvCheckBox_Wht")
+inc($ui__cx)
+declare ui_label $GhostMute__Cap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($GhostMute__Cap)
+move_control_px($GhostMute__Cap,$ui__p1+10+12,$ui__p2+115-2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,395)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+set_text($GhostMute__Cap,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_text($GhostMute__Cap,"Activate Mute/Ghost function of Hold Pedal")
+declare ui_switch $CCMeta
+%ui__id[$ui__cx] := get_ui_id($CCMeta)
+move_control_px($CCMeta,$ui__p1+10,$ui__p2+135)
+declare $CCMeta__cx
+$CCMeta__cx := $ui__cx
+set_text($CCMeta,"")
+make_persistent($CCMeta)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvCheckBox_Wht")
+inc($ui__cx)
+declare ui_label $CCMeta__Cap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($CCMeta__Cap)
+move_control_px($CCMeta__Cap,$ui__p1+10+12,$ui__p2+135-2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,395)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+set_text($CCMeta__Cap,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_text($CCMeta__Cap,"Allow ArtCC to recall meta articulations")
+$ui__p1 := 181
+$ui__p2 := ($ui__height-75)/2
+inc($ui__cx)
+declare ui_label $SuiteErr__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($SuiteErr__border)
+move_control_px($SuiteErr__border,$ui__p1,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,270)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,75)
+set_text($SuiteErr__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,22)
+dec($ui__cx)
+declare ui_label $SuiteErr(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($SuiteErr)
+move_control_px($SuiteErr,$ui__p1+2,$ui__p2+2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,266)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,71)
+declare $SuiteErr__cx
+$SuiteErr__cx := $ui__cx
+set_text($SuiteErr,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,6)
+declare $SuiteErr__nc := 2
+$ui__cx := $ui__cx+2
+set_control_par(get_ui_id($SuiteErr),$CONTROL_PAR_FONT_TYPE,17)
+set_control_par(get_ui_id($SuiteErr),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$SuiteErr__nc := 2
+set_text($SuiteErr,"SCRIPT MISSING OR BYPASSED")
+add_text_line($SuiteErr,"***************************")
+add_text_line($SuiteErr,"This Script cannot function without the")
+add_text_line($SuiteErr,"Legato Script in the next slot")
+set_control_help($ArtSel,!Tip[0])
+set_control_help($NatVar,!Tip[1])
+set_control_help($TKTVar,!Tip[2])
+set_control_help($Play,!Tip[3])
+set_control_help($Setup,!Tip[4])
+set_control_help($SetIR,!Tip[5])
+set_control_help($SetPrefs,!Tip[6])
+set_control_help($ArtCC,!Tip[7])
+set_control_help($AddNorm,!Tip[8])
+set_control_help($AddRls,!Tip[9])
+set_control_help($AddNew,!Tip[10])
+set_control_help($DltVar,!Tip[11])
+set_control_help($DltArt,!Tip[12])
+set_control_help($AudArt,!Tip[13])
+set_control_help($AudGrp,!Tip[14])
+set_control_help($SetKS,!Tip[15])
+set_control_help($LegPre,!Tip[16])
+set_control_help($VibPre,!Tip[17])
+set_control_help($MetaFn,!Tip[18])
+set_control_help($EditVar,!Tip[19])
+set_control_help($InstGroups__Cap,!Tip[20])
+set_control_help($InstGroups__S0,!Tip[21])
+set_control_help($InstGroups__S1,!Tip[21])
+set_control_help($InstGroups__S2,!Tip[21])
+set_control_help($InstGroups__S3,!Tip[21])
+set_control_help($InstGroups__S4,!Tip[21])
+set_control_help($InstGroups__S5,!Tip[21])
+set_control_help($InstGroups__S6,!Tip[21])
+set_control_help($InstGroups__S7,!Tip[21])
+set_control_help($InstGroups__S8,!Tip[21])
+set_control_help($InstGroups__S9,!Tip[21])
+set_control_help($InstGroups__S10,!Tip[21])
+set_control_help($InstGroups__S11,!Tip[21])
+set_control_help($InstGroups__S12,!Tip[21])
+set_control_help($InstGroups__S13,!Tip[21])
+set_control_help($InstGroups__S14,!Tip[21])
+set_control_help($InstGroups__S15,!Tip[21])
+set_control_help($InstGroups__S16,!Tip[21])
+set_control_help($InstGroups__S17,!Tip[21])
+set_control_help($InstGroups__S18,!Tip[21])
+set_control_help($InstGroups__S19,!Tip[21])
+set_control_help($InstGroups__UP,!Tip[22])
+set_control_help($InstGroups__DN,!Tip[23])
+set_control_help($PmKeys,!Tip[24])
+set_control_help($PmBC,!Tip[25])
+set_control_help($PmWC,!Tip[26])
+set_control_help($RtOn,!Tip[27])
+set_control_help($RtOff,!Tip[28])
+set_control_help($BrCC,!Tip[29])
+set_control_help($HoldCC,!Tip[30])
+set_control_help($TrigOff,!Tip[31])
+set_control_help($TrigLast,!Tip[32])
+set_control_help($TrigTrill,!Tip[33])
+set_control_help($TrigAll,!Tip[34])
+set_control_help($SeqRR,!Tip[35])
+set_control_help($SeqRand,!Tip[36])
+set_control_help($TKTOff,!Tip[37])
+set_control_help($TKT2,!Tip[38])
+set_control_help($TKT4,!Tip[39])
+set_control_help($TKT6,!Tip[40])
+set_control_help($ZoneSize,!Tip[41])
+set_control_help($NatOff,!Tip[42])
+set_control_help($UseAET,!Tip[43])
+set_control_help($RlsEnd,!Tip[44])
+set_control_help($Rls3Sec,!Tip[45])
+set_control_help($VarDlg__OK,!Tip[46])
+set_control_help($VTO_Off,!Tip[47])
+set_control_help($VTO_Always,!Tip[48])
+set_control_help($VTO_Never,!Tip[49])
+set_control_help($ATMap,!Tip[50])
+set_control_help($VelMap,!Tip[51])
+set_control_help($PPWMap,!Tip[52])
+set_control_help($NPWMap,!Tip[53])
+declare $SetupPanel
+inc($ui__px)
+inc($ui__px)
+$SetupPanel := $ui__px
+$ui__p1 := $SASBkg__cx
+while ($ui__p1<($SASBkg__cx+2))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+$ui__p1 := $SmLogo__cx
+while ($ui__p1<($Hdr__cx+1))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+$ui__p1 := $VBar__cx
+while ($ui__p1<($InstGroups__cx+51))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+declare $PlayPanel
+inc($ui__px)
+inc($ui__px)
+$PlayPanel := $ui__px
+$ui__p1 := $SASBkg__cx
+while ($ui__p1<($SASBkg__cx+2))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+$ui__p1 := $Hdr__cx
+while ($ui__p1<($SetPrefs__cx+1))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+$ui__p1 := $ArtStatus__cx
+while ($ui__p1<($NPWMap__cx+1))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+declare $VarPanel
+inc($ui__px)
+inc($ui__px)
+$VarPanel := $ui__px
+$ui__p1 := $SASBkg__cx
+while ($ui__p1<($SASBkg__cx+2))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+$ui__p1 := $VarDlg__cx
+while ($ui__p1<($MetaFn__cx+1))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+declare $ErrPanel
+inc($ui__px)
+inc($ui__px)
+$ErrPanel := $ui__px
+$ui__p1 := $SASBkg__cx
+while ($ui__p1<($SASBkg__cx+2))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+if ($ErrDlg__nc<2)
+%ui__psets[$ui__px] := $ErrDlg__cx
+inc($ui__px)
+else
+$ui__p1 := $ErrDlg__cx
+while ($ui__p1<($ErrDlg__cx+$ErrDlg__nc))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+end if
+declare $PrefsPanel
+inc($ui__px)
+inc($ui__px)
+$PrefsPanel := $ui__px
+$ui__p1 := $SASBkg__cx
+while ($ui__p1<($SASBkg__cx+2))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+$ui__p1 := $PrefsDlg__cx
+while ($ui__p1<($CCMeta__cx+2))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+declare $AboutPanel
+inc($ui__px)
+inc($ui__px)
+$AboutPanel := $ui__px
+$ui__p1 := $SASBkg__cx
+while ($ui__p1<($AboutDlg__cx+$AboutDlg__nc))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+declare $SuiteErrPanel
+inc($ui__px)
+inc($ui__px)
+$SuiteErrPanel := $ui__px
+$ui__p1 := $SASBkg__cx
+while ($ui__p1<($SASBkg__cx+2))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+if ($SuiteErr__nc<2)
+%ui__psets[$ui__px] := $SuiteErr__cx
+inc($ui__px)
+else
+$ui__p1 := $SuiteErr__cx
+while ($ui__p1<($SuiteErr__cx+$SuiteErr__nc))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+end if
+make_persistent($ArtSel)
+read_persistent_var($ir__lo_key)
+read_persistent_var($ir__hi_key)
+pgs_set_key_val(WIPS__IRANGE,1,$ir__lo_key)
+pgs_set_key_val(WIPS__IRANGE,2,$ir__hi_key)
+declare $_mfn2
+declare $_xart
+declare $_n26
+declare $_n25
+declare $_n24
+declare $_kx
+declare $_n23
+declare $_advance
+declare $_n22
+declare $_n21
+declare $_ptr
+declare $_idx
+declare $_cks
+declare $_n20
+declare $_rid
+declare $_n19
+declare $_ccb
+declare polyphonic $_xplay1
+declare polyphonic $_xplay2
+declare $_play_art
+declare $_n18
+declare $_rofst
+declare %_TMap[7] := (0, 1, -1, 2, -2, 3, -3)
+declare $_n17
+declare $_nvarp2
+declare $_n16
+declare $_n15
+declare $_nvarp
+declare $_n14
+declare $_mfn
+declare $_nsel3
+declare $_nsel2
+declare $_old_varp2
+declare $_old_varp
+declare $_nsel
+declare $_n13
+declare $_ax2
+declare $_offset
+declare $_ax
+declare $_cx3
+declare $_cxmin
+declare $_n3
+declare $_dy
+declare $_auto
+declare $_ftime
+declare $_int
+declare $_lock
+declare $_pix
+declare $_apx
+declare $_t0
+declare $_y
+declare $_n
+declare $_cx
+end on
+function hide_panel
+$bm__timer := 0
+while ($bm__close # -1)
+wait(10000)
+end while
+$ui__p1 := $ui__active_panel
+while (%ui__psets[$ui__p1]>=0)
+%ui__vs[%ui__psets[$ui__p1]] := get_control_par(%ui__id[%ui__psets[$ui__p1]],$CONTROL_PAR_HIDE)
+set_control_par(%ui__id[%ui__psets[$ui__p1]],$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+inc($ui__p1)
+end while
+end function
+function show_panel
+$ui__p1 := $ui__active_panel
+while (%ui__psets[$ui__p1]>=0)
+set_control_par(%ui__id[%ui__psets[$ui__p1]],$CONTROL_PAR_HIDE,%ui__vs[%ui__psets[$ui__p1]])
+inc($ui__p1)
+end while
+end function
+function kill_notes
+note_off($ALL_EVENTS)
+$perf__play_id := 0
+$perf__key_id := 0
+end function
+function show_error
+set_text($ErrDlg,!ErrMsg[$err_code])
+if ($ui__active_panel # $ErrPanel and (1>$ui__modal))
+$ui__modal := $ui__modal+1
+call hide_panel
+%ui__psets[$ErrPanel-1] := $ui__active_panel
+$ui__active_panel := $ErrPanel
+call show_panel
+end if
+call kill_notes
+end function
+function show_keys
+$_n25 := 0
+while ($_n25<=127)
+set_key_color($_n25,$KEY_COLOR_WHITE)
+%ksw__Type[$_n25] := 0
+inc($_n25)
+end while
+if ($ir__lo_key=-1)
+$_n25 := 0
+while ($_n25<=127)
+set_key_color($_n25,$KEY_COLOR_NONE)
+inc($_n25)
+end while
+else
+$_n25 := $ir__lo_key
+while ($_n25<=$ir__hi_key)
+set_key_color($_n25,$KEY_COLOR_CYAN)
+inc($_n25)
+end while
+end if
+if ($ir__state=1)
+set_key_color(%ir__Keys[0],$KEY_COLOR_CYAN)
+end if
+if ($SetKS=1)
+if (%ArtKS[$artx]/1000 # 128)
+set_key_color(%ArtKS[$artx]/1000,$KEY_COLOR_RED-%ArtMKS[$artx])
+end if
+if (%ArtKS[$artx] mod 1000 # 128)
+set_key_color(%ArtKS[$artx] mod 1000,$KEY_COLOR_RED-%ArtMKS[$artx])
+end if
+else
+$_n24 := 0
+while ($_n24<100)
+$_kx := %ArtKS[$_n24]/1000
+%ksw__Type[$_kx] := %ksw__Type[$_kx] .or. (1+%ArtMKS[$_n24])
+$_kx := %ArtKS[$_n24] mod 1000
+%ksw__Type[$_kx] := %ksw__Type[$_kx] .or. (1+%ArtMKS[$_n24])
+inc($_n24)
+end while
+$_n24 := 0
+while ($_n24<=127)
+if (%ksw__Type[$_n24] # 0)
+set_key_color($_n24,5-%ksw__Type[$_n24])
+end if
+inc($_n24)
+end while
+end if
+end function
+function erase_var_groups
+$_n16 := 0
+while ($_n16<12)
+set_control_par_str(%ui__id[$ArtView__cx+$_n16],$CONTROL_PAR_TEXT,"")
+inc($_n16)
+end while
+end function
+function show_var_groups
+call erase_var_groups
+if ($varp # -1)
+$_n26 := 0
+while ($_n26<=5)
+if (%Var[$varp+2+$_n26] # -1)
+set_control_par_str(%ui__id[$ArtView__cx+$_n26],$CONTROL_PAR_TEXT,group_name(%Var[$varp+2+$_n26]))
+end if
+if (%Var[$varp+8+$_n26] # -1)
+set_control_par_str(%ui__id[$ArtView__cx+6+$_n26],$CONTROL_PAR_TEXT,group_name(%Var[$varp+8+$_n26]))
+end if
+inc($_n26)
+end while
+else
+set_control_par_str(%ui__id[$ArtView__cx],$CONTROL_PAR_TEXT,!ErrMsg[4])
+end if
+end function
+function show_var
+$NatVar := $varx
+$TKTVar := $tktx
+if ($Setup=1)
+call show_var_groups
+end if
+end function
+function set_var
+$varp := %Art[$artx]
+$_n23 := 0
+while (%var[$varp+1] # -1 and ($_n23<$varx))
+$varp := %var[$varp+1]
+inc($_n23)
+end while
+if ($_n23 # $varx)
+$varx := $_n23
+end if
+call show_var
+end function
+function send_groups
+$_ptr := $varp
+if ($varp=-1)
+$_ptr := 0
+end if
+set_event_par_arr($perf__play_id,$EVENT_PAR_ALLOW_GROUP,0,$ALL_GROUPS)
+$_n21 := 0
+while ($_n21<=5)
+pgs_set_key_val(WIPS__NGRPS,$_n21,%Var[$_ptr+2+$_n21])
+if (%Var[$_ptr+2+$_n21] # -1)
+set_event_par_arr($perf__play_id,$EVENT_PAR_ALLOW_GROUP,1,%Var[$_ptr+2+$_n21])
+end if
+inc($_n21)
+end while
+end function
+function get_tkt
+$vc__span := %_TMap[$tktx]*$vpar__tzone
+if (not ($ir__lo_key=-1 or in_range(get_event_par($perf__play_id,$EVENT_PAR_NOTE)+$vc__span,$ir__lo_key,$ir__hi_key)))
+$vc__span := -$vc__span
+if (not ($ir__lo_key=-1 or in_range(get_event_par($perf__play_id,$EVENT_PAR_NOTE)+$vc__span,$ir__lo_key,$ir__hi_key)))
+if (get_event_par($perf__play_id,$EVENT_PAR_NOTE)+$vc__span>$ir__hi_key)
+$vc__span := $ir__hi_key-get_event_par($perf__play_id,$EVENT_PAR_NOTE)
+else
+$vc__span := get_event_par($perf__play_id,$EVENT_PAR_NOTE)-$ir__lo_key
+end if
+end if
+end if
+end function
+function show_art
+set_text($ArtBox,pgs_get_key_val(WIPS__ARTIC,0)+1)
+set_text($VarBox,$varx & "/" & $tktx)
+set_text($NxtBox,pgs_get_key_val(WIPS__ARTIC,1)+1)
+end function
+function play_new
+$_ccb := $NI_CALLBACK_ID
+if (%bm__CC[%ui__ax[$VelMap__cx]] # -1)
+set_controller(%bm__CC[%ui__ax[$VelMap__cx]],$perf__key_vel)
+wait(1)
+end if
+if ($_ccb=$NI_CALLBACK_ID and ($perf__key_id # 0) and ($PmBC=0 or (%CC[%bm__CC[%ui__ax[$BrCC__cx]]]>0)))
+if ($NI_CALLBACK_TYPE=$NI_CB_TYPE_NOTE)
+$_xplay1 := $perf__play_id
+else
+$_xplay2 := $perf__play_id
+end if
+if ($vpar__AET # 0)
+$perf__play_id := play_note($perf__key_note,127,0,0)
+else
+$perf__play_id := play_note($perf__key_note,$perf__key_vel,0,0)
+end if
+set_event_par($perf__play_id,$EVENT_PAR_TUNE,$perf__key_tune)
+set_event_par($perf__play_id,$EVENT_PAR_0,2)
+if (%Art[$artx] # -1)
+$_advance := 2-(%rg__last[%ui__ax[$VTO_Off__cx]]-%rg__cx[%ui__ax[$VTO_Off__cx]])
+if ($_advance=2 and not ($vpar__vtrig=3 or ($vpar__vtrig=1 and (get_event_par($perf__play_id,$EVENT_PAR_NOTE)=$vc__last)) or ($vpar__vtrig=2 and (get_event_par($perf__play_id,$EVENT_PAR_NOTE)=$vc__last or (get_event_par($perf__play_id,$EVENT_PAR_NOTE)=$vc__last2)))))
+$_advance := 0
+end if
+if ($_advance # 0 and ($vc__new=0))
+if ($vc__nsx=$vpar__nvars or ($vpar__nmode=1))
+$vc__nsx := 0
+if ($vpar__tvars=0 or ($vc__tsx=$vpar__tvars))
+$vc__tsx := 0
+else
+inc($vc__tsx)
+end if
+else
+inc($vc__nsx)
+end if
+else
+$vc__nsx := 0
+$vc__tsx := 0
+$vc__new := 0
+end if
+$vc__last2 := $vc__last
+$vc__last := get_event_par($perf__play_id,$EVENT_PAR_NOTE)
+if ($vpar__smode=0)
+$varx := $vc__nsx
+$tktx := $vc__tsx
+else
+if ($vc__nsx=0)
+$varx := 0
+else
+$M__Seed := 8088405*$M__Seed+1
+$_rofst := (sh_right($M__Seed,8) .and. 16777215) mod ($vpar__nvars-1-(sh_right($varx-1,31)+1)-0+1)+0
+$varx := ($varx+$_rofst) mod $vpar__nvars+1
+end if
+if ($vc__tsx=0)
+$tktx := 0
+else
+$M__Seed := 8088405*$M__Seed+1
+$_rofst := (sh_right($M__Seed,8) .and. 16777215) mod ($vpar__tvars-1-(sh_right($tktx-1,31)+1)-0+1)+0
+$tktx := ($tktx+$_rofst) mod $vpar__tvars+1
+end if
+end if
+call set_var
+call send_groups
+call get_tkt
+set_event_par($perf__play_id,$EVENT_PAR_1,sh_left($art_mks,14)+(($vc__span+24)*256)+($vc__vibpst*16)+$vc__legpst)
+if ($art_mks=1)
+$prior_artx := $artx
+end if
+$vc__legpst := 0
+$vc__vibpst := 0
+$art_mks := 0
+pgs_set_key_val(WIPS__ARTIC,0,$artx)
+call show_art
+end if
+wait(2000)
+if ($NI_CALLBACK_TYPE=$NI_CB_TYPE_NOTE)
+note_off($_xplay1)
+else
+note_off($_xplay2)
+end if
+end if
+end function
+function unpack_vpar
+$_xart := $artx
+if (%Art[$artx]=-1)
+$_xart := 100
+end if
+$vpar__nvars := sh_right(%_AVPar[$_xart],%AVPar__shft[0]) .and. %AVPar__mask[0]
+$vpar__tvars := 2*(sh_right(%_AVPar[$_xart],%AVPar__shft[1]) .and. %AVPar__mask[1])
+$vpar__tzone := (sh_right(%_AVPar[$_xart],%AVPar__shft[2]) .and. %AVPar__mask[2])+1
+$vpar__vtrig := sh_right(%_AVPar[$_xart],%AVPar__shft[3]) .and. %AVPar__mask[3]
+$vpar__smode := sh_right(%_AVPar[$_xart],%AVPar__shft[4]) .and. %AVPar__mask[4]
+$vpar__nmode := sh_right(%_AVPar[$_xart],%AVPar__shft[5]) .and. %AVPar__mask[5]
+$vpar__rmode := sh_right(%_AVPar[$_xart],%AVPar__shft[6]) .and. %AVPar__mask[6]
+$vpar__aet := sh_right(%_AVPar[$_xart],%AVPar__shft[7]) .and. %AVPar__mask[7]
+$vpar__legpst := sh_right(%_AVPar[$_xart],%AVPar__shft[8]) .and. %AVPar__mask[8]
+$vpar__vibpst := sh_right(%_AVPar[$_xart],%AVPar__shft[9]) .and. %AVPar__mask[9]
+$vpar__meta := sh_right(%_AVPar[$_xart],%AVPar__shft[10]) .and. %AVPar__mask[10]
+end function
+function set_var0
+$varx := 0
+$tktx := 0
+if ($Setup=1)
+$varp := %Art[$artx]
+call show_var
+end if
+end function
+function new_art
+$vc__last := -1
+$vc__last2 := -1
+$vc__new := 1
+$vc__nsx := 0
+$vc__tsx := 0
+call unpack_vpar
+call set_var0
+pgs_set_key_val(WIPS__ARTIC,1,$artx)
+end function
+function queue_art
+call new_art
+$vc__legpst := $vpar__legpst
+$vc__vibpst := $vpar__vibpst
+call show_art
+end function
+function change_art
+if (%Art[$new_artx] # -1)
+$_mfn := sh_right(%_AVPar[$new_artx],%AVPar__shft[10]) .and. %AVPar__mask[10]
+if ($_mfn=0)
+$art_mks := 1
+if ($NI_CALLBACK_TYPE=$NI_CB_TYPE_NOTE and (%ArtMKS[$new_artx]=1))
+$art_mks := 2
+set_event_par($ksw__id,$EVENT_PAR_0,64)
+end if
+if ($RandOpt=1)
+$M__Seed := 1107155288
+end if
+$artx := $new_artx
+call queue_art
+else
+if ($NI_CALLBACK_TYPE=$NI_CB_TYPE_NOTE or ($CCMeta=1))
+if ($_mfn=30)
+$art_mks := 1
+if ($NI_CALLBACK_TYPE=$NI_CB_TYPE_NOTE and (%ArtMKS[$new_artx]=1))
+$art_mks := 2
+set_event_par($ksw__id,$EVENT_PAR_0,64)
+end if
+$vc__legpst := sh_right(%_AVPar[$new_artx],%AVPar__shft[8]) .and. %AVPar__mask[8]
+$vc__vibpst := sh_right(%_AVPar[$new_artx],%AVPar__shft[9]) .and. %AVPar__mask[9]
+else
+if ($_mfn=29)
+if ($NI_CALLBACK_TYPE=$NI_CB_TYPE_NOTE and (%ArtMKS[$new_artx]=1))
+pgs_set_key_val(WIPS__META,0,$_mfn+64)
+pgs_set_key_val(WIPS__META,1,$ksw__vel)
+set_event_par($ksw__id,$EVENT_PAR_0,128)
+end if
+else
+pgs_set_key_val(WIPS__META,0,$_mfn+64)
+if ($NI_CALLBACK_TYPE=$NI_CB_TYPE_NOTE and (%ArtMKS[$new_artx]=1))
+set_event_par($ksw__id,$EVENT_PAR_0,128)
+end if
+end if
+end if
+end if
+end if
+end if
+end function
+function get_ksw
+if ($ksw__state=0)
+%ksw__Hit[0] := $ENOTE
+$ksw__state := 1
+wait(50000)
+sort(%ksw__Hit,0)
+$_cks := 1000*%ksw__Hit[1]+%ksw__Hit[0]
+$_n20 := -1
+if ($_cks # 128128)
+$_n20 := search(%ArtKS,$_cks)
+end if
+if ($ksw__learn=1)
+if ($ksw__bad=1)
+$err_code := 6
+call show_error
+else
+if (%Art[$artx]=-1)
+$err_code := 4
+call show_error
+else
+if ($_n20=-1)
+%ArtKS[$artx] := $_cks
+if ($_cks=128128)
+dec(%ksw__Map[%ArtKS[$artx] mod 1000])
+dec(%ksw__Map[%ArtKS[$artx]/1000])
+%ArtMKS[$artx] := 0
+else
+inc(%ksw__Map[%ksw__Hit[0]])
+inc(%ksw__Map[%ksw__Hit[1]])
+end if
+call show_keys
+else
+if ($_n20=$artx)
+%ArtMKS[$artx] := 1-%ArtMKS[$artx]
+call show_keys
+else
+$err_code := 3
+call show_error
+end if
+end if
+end if
+end if
+else
+if ($_n20 # -1)
+$new_artx := $_n20
+call change_art
+end if
+end if
+%ksw__Hit[0] := 128
+%ksw__Hit[1] := 128
+$ksw__learn := 0
+$ksw__bad := 0
+$ksw__state := 0
+else
+if ($ksw__state=1)
+%ksw__Hit[1] := $ENOTE
+$ksw__state := 2
+else
+%ksw__Hit[0] := 128
+%ksw__Hit[1] := 128
+$ksw__bad := 0
+end if
+end if
+end function
+function play_rls_var
+if ($perf__play_id # 0 and ($varp # -1) and (%Var[$varp+8] # -1) and ($PLAYED_VOICES_INST # 0))
+$_rid := play_note(get_event_par($perf__play_id,$EVENT_PAR_NOTE),get_event_par($perf__play_id,$EVENT_PAR_VELOCITY),0,3000000*$vpar__rmode)
+set_event_par($_rid,$EVENT_PAR_0,1)
+set_event_par($_rid,$EVENT_PAR_TUNE,get_event_par($perf__play_id,$EVENT_PAR_TUNE))
+set_event_par_arr($_rid,$EVENT_PAR_ALLOW_GROUP,0,$ALL_GROUPS)
+$_n19 := 0
+while ($_n19<6 and (%Var[$varp+8+$_n19] # -1))
+set_event_par_arr($_rid,$EVENT_PAR_ALLOW_GROUP,1,%Var[$varp+8+$_n19])
+inc($_n19)
+end while
+end if
+end function
+function end_phrase
+note_off($perf__play_id)
+call play_rls_var
+$perf__play_id := 0
+end function
+function end_parent
+if ($perf__keys_down=0 or ($RtOff=1) or ($PmWC=1))
+call end_phrase
+$perf__key_id := 0
+else
+sort(%perf__KeyID,1)
+$perf__key_id := %perf__KeyID[0]
+if ($OrigVel=1)
+$perf__key_vel := get_event_par($perf__key_id,$EVENT_PAR_VELOCITY)
+end if
+$perf__key_note := get_event_par($perf__key_id,$EVENT_PAR_NOTE)
+$perf__key_tune := get_event_par($perf__key_id,$EVENT_PAR_TUNE)
+call play_new
+end if
+end function
+function update_cc_btn
+if (%bm__CC[%ui__ax[$ui__p1]]<0)
+set_control_par_str(%ui__id[$ui__p1],$CONTROL_PAR_TEXT,!bm__Txt[%ui__ax[$ui__p1]] & "None")
+else
+set_control_par_str(%ui__id[$ui__p1],$CONTROL_PAR_TEXT,!bm__Txt[%ui__ax[$ui__p1]] & %bm__CC[%ui__ax[$ui__p1]])
+end if
+end function
+function setup_mode
+if ($ui__active_panel # $SetupPanel and ($ui__modal=0))
+call hide_panel
+%ui__psets[$SetupPanel-1] := $ui__active_panel
+$ui__active_panel := $SetupPanel
+call show_panel
+end if
+$ArtSel := $artx+1
+call new_art
+call show_keys
+call kill_notes
+pgs_set_key_val(WIPS__NOPLAY,0,1)
+end function
+function _on_radio
+set_control_par(%ui__id[$ui__p1],$CONTROL_PAR_VALUE,1)
+if ($ui__p1 # %rg__last[%ui__ax[$ui__p1]])
+set_control_par(%ui__id[%rg__last[%ui__ax[$ui__p1]]],$CONTROL_PAR_VALUE,0)
+%rg__last[%ui__ax[$ui__p1]] := $ui__p1
+end if
+end function
+function play_mode
+$_play_art := $artx
+if (%Art[$artx]=-1 or (sh_right(%_AVPar[$artx],%AVPar__shft[10]) .and. %AVPar__mask[10] # 0))
+$_n17 := 0
+while ((%Art[$_n17]=-1 or (sh_right(%_AVPar[$_n17],%AVPar__shft[10]) .and. %AVPar__mask[10] # 0)) and ($_n17<100))
+inc($_n17)
+end while
+$_play_art := $_n17
+end if
+if ($_play_art<100)
+if ($ui__active_panel # $PlayPanel and ($ui__modal=0))
+call hide_panel
+%ui__psets[$PlayPanel-1] := $ui__active_panel
+$ui__active_panel := $PlayPanel
+call show_panel
+end if
+$artx := $_play_art
+$prior_artx := $artx
+pgs_set_key_val(WIPS__ARTIC,0,-1)
+$SetKS := 0
+call queue_art
+$art_mks := 1
+call show_keys
+call kill_notes
+pgs_set_key_val(WIPS__NOPLAY,0,0)
+else
+wait(150000)
+$ui__p1 := 0+%rg__cx[%ui__ax[$Play__cx]]
+call _on_radio
+$err_code := 9
+call show_error
+end if
+end function
+function reset_listbox
+$ui__kx := %lb__cx[$ui__p1]
+%lb__c1[$ui__p1] := 0
+%lb__d1[$ui__p1] := %lb__I0[$ui__p1]
+$ui__p2 := 0
+while ($ui__p2<=%lb__Imax[$ui__p1])
+!lb__txt[%lb__I0[$ui__p1]+$ui__p2] := ""
+%lb__flgs[%lb__I0[$ui__p1]+$ui__p2] := 0
+inc($ui__p2)
+end while
+$ui__p2 := 0
+while ($ui__p2<=19)
+$_y := %lb__y0[$ui__p1]+(($ui__p2/4+1)*19)
+set_control_par(%ui__id[$ui__kx+(2*$ui__p2)],$CONTROL_PAR_POS_Y,$_y)
+set_control_par(%ui__id[$ui__kx+(2*$ui__p2)+1],$CONTROL_PAR_POS_Y,$_y)
+set_control_par(%ui__id[$ui__kx+(2*$ui__p2)+1],$CONTROL_PAR_VALUE,0)
+inc($ui__p2)
+end while
+end function
+function show_text
+$ui__p2 := 0
+while ($ui__p2<16)
+set_control_par_str(%ui__id[$ui__kx+(2*$ui__p2)],$CONTROL_PAR_TEXT,!lb__txt[%lb__I0[$ui__p1]+$ui__p2])
+inc($ui__p2)
+end while
+end function
+function get_listbox_cnt
+$ui__p1 := 0
+$ui__p2 := 0
+while ($ui__p2<=%lb__IMax[%ui__ax[$ui__kx]])
+if (%lb__flgs[%lb__I0[%ui__ax[$ui__kx]]+$ui__p2] # 0)
+inc($ui__p1)
+end if
+inc($ui__p2)
+end while
+end function
+function show_selected
+call get_listbox_cnt
+set_control_par_str(%ui__id[$ui__kx+41],$CONTROL_PAR_TEXT,!lb__AppCap[%ui__ax[$ui__kx]] & ":   " & $ui__p1 & " of " & (%lb__Imax[%ui__ax[$ui__kx]]+1) & "  Selected")
+end function
+function update_pgs_prefs
+pgs_set_key_val(WIPS__NGTKT,0,$NoTKT)
+pgs_set_key_val(WIPS__GMUTE,0,$GhostMute)
+end function
+function _open_ccmenu
+$bm__timer := 0
+while ($bm__close # -1)
+wait(10000)
+end while
+move_control_px($CCMenu,get_control_par(%ui__id[$bm__open],$CONTROL_PAR_POS_X),get_control_par(%ui__id[$bm__open],$CONTROL_PAR_POS_Y))
+set_control_par(%ui__id[$CCMenu__cx],$CONTROL_PAR_WIDTH,%bm__width[%ui__ax[$bm__open]])
+set_control_par(%ui__id[$CCMenu__cx],$CONTROL_PAR_VALUE,125)
+set_control_par(%ui__id[$bm__open],$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+hide_part($CCMenu,$HIDE_PART_NOTHING)
+$bm__close := $bm__open
+$bm__open := -1
+$bm__timer := 6000
+while ($bm__timer # 0)
+dec($bm__timer)
+wait(10000)
+end while
+hide_part($CCMenu,$HIDE_WHOLE_CONTROL)
+set_control_par(%ui__id[$bm__close],$CONTROL_PAR_HIDE,$HIDE_PART_NOTHING)
+set_control_par(%ui__id[$bm__close],$CONTROL_PAR_VALUE,%bm__CC[%ui__ax[$bm__close]]+1)
+$bm__close := -1
+end function
+function update_flgs
+$_ax2 := %ui__ax[$ui__kx]
+$_offset := (($ui__kx-%lb__cx[$_ax2])/2+20-%lb__c1[$_ax2]) mod 20
+if ($_offset<=(%lb__I0[$_ax2]+%lb__Imax[$_ax2]-%lb__d1[$_ax2]))
+%lb__flgs[%lb__d1[$_ax2]+$_offset] := get_control_par(%ui__id[$ui__kx],$CONTROL_PAR_VALUE)
+else
+set_control_par(%ui__id[$ui__kx],$CONTROL_PAR_VALUE,0)
+end if
+$ui__kx := %lb__cx[$_ax2]
+call show_selected
+end function
+function Scroll
+$_pix := $ui__kx+48-$ui__p1
+if ($_lock=0 and ($_auto=0 or ($_pix=$_apx)))
+$_apx := $_pix
+set_control_par(%ui__id[$_apx],$CONTROL_PAR_PICTURE_STATE,2)
+$_int := $ENGINE_UPTIME-$_t0
+$_t0 := $ENGINE_UPTIME
+$_ftime := 650+(21*$_int)
+if ($_int>350)
+$_ftime := 8500
+end if
+$_lock := 1
+$_ax := %ui__ax[$ui__kx]
+$_dy := $ui__p1
+%lb__d1[$_ax] := %lb__d1[$_ax]-(4*$_dy)
+$_cx3 := 2*((%lb__c1[$_ax]+16) mod 20)+$ui__kx
+$_n3 := 0
+while ($_n3<=3)
+set_control_par(%ui__id[$_cx3+(2*$_n3)],$CONTROL_PAR_POS_Y,95*(1-$_dy)/2+%lb__y0[$_ax])
+set_control_par_str(%ui__id[$_cx3+(2*$_n3)],$CONTROL_PAR_TEXT,!lb__txt[%lb__d1[$_ax]+(6*(1-$_dy))+$_n3])
+set_control_par(%ui__id[$_cx3+(2*$_n3)+1],$CONTROL_PAR_POS_Y,95*(1-$_dy)/2+%lb__y0[$_ax])
+set_control_par(%ui__id[$_cx3+(2*$_n3)+1],$CONTROL_PAR_VALUE,%lb__flgs[%lb__d1[$_ax]+(6*(1-$_dy))+$_n3])
+inc($_n3)
+end while
+$_cxmin := $ui__kx
+%lb__c1[$_ax] := (%lb__c1[$_ax]-(4*$_dy)+20) mod 20
+$_n3 := 1
+while ($_n3<=19)
+$_cx3 := $_cxmin
+while ($_cx3<=($_cxmin+39))
+set_control_par(%ui__id[$_cx3],$CONTROL_PAR_POS_Y,get_control_par(%ui__id[$_cx3],$CONTROL_PAR_POS_Y)+$_dy)
+inc($_cx3)
+end while
+wait($_ftime)
+inc($_n3)
+end while
+$_lock := 0
+if ($_auto=0)
+$_auto := 1
+while ($_int<=350 and ($ENGINE_UPTIME-$_t0<350))
+wait(10000)
+end while
+$_auto := 0
+set_control_par(%ui__id[$_apx],$CONTROL_PAR_PICTURE_STATE,0)
+end if
+end if
+end function
+function DownScroll
+if (%lb__d1[%ui__ax[$ui__kx]]+16<=(%lb__Imax[%ui__ax[$ui__kx]]+%lb__I0[%ui__ax[$ui__kx]]))
+$ui__p1 := -1
+call Scroll
+end if
+end function
+function UpScroll
+if (%lb__d1[%ui__ax[$ui__kx]]-4>=%lb__I0[%ui__ax[$ui__kx]])
+$ui__p1 := 1
+call Scroll
+end if
+end function
+function deselect_all
+$_n := 0
+while ($_n<=%lb__Imax[%ui__ax[$ui__kx]])
+%lb__flgs[%lb__I0[%ui__ax[$ui__kx]]+$_n] := 0
+inc($_n)
+end while
+call show_selected
+$_n := 0
+while ($_n<=15)
+$_cx := (%lb__c1[%ui__ax[$ui__kx]]+$_n) mod 20*2+$ui__kx+1
+set_control_par(%ui__id[$_cx],$CONTROL_PAR_VALUE,0)
+inc($_n)
+end while
+end function
+function get_new_var
+$_nvarp2 := search(%Vmap,1)
+if ($_nvarp2>=0)
+%Vmap[$_nvarp2] := 0
+$varp := 14*$_nvarp2
+end if
+end function
+function copy_selected
+$_n14 := 0
+while ($_n14<$NUM_GROUPS)
+if (%lb__flgs[%lb__I0[%ui__ax[$InstGroups__cx]]+$_n14] # 0)
+%Var[$copy_ptr+$varp] := $_n14
+inc($copy_ptr)
+end if
+inc($_n14)
+end while
+call show_var
+end function
+on note
+reset_rls_trig_counter($EVENT_NOTE)
+if (not ($SetupPanel=$ui__active_panel or ($PlayPanel=$ui__active_panel)))
+ignore_event($EVENT_ID)
+exit
+end if
+if ($SetIR=1)
+ignore_event($EVENT_ID)
+%ir__Keys[$ir__state] := $EVENT_NOTE
+inc($ir__state)
+if ($ir__state>1)
+sort(%ir__Keys,0)
+$ir__state := 0
+$_n18 := %ir__Keys[0]
+while ($_n18<=%ir__Keys[1])
+$ir__state := $ir__state+%ksw__Map[$_n18]
+inc($_n18)
+end while
+if ($ir__state=0)
+$ir__lo_key := %ir__Keys[0]
+$ir__hi_key := %ir__Keys[1]
+else
+$ir__state := 0
+$err_code := 7
+call show_error
+end if
+set_text($SetIR,!ir__Cap[0])
+$SetIR := 0
+end if
+call show_keys
+pgs_set_key_val(WIPS__IRANGE,1,$ir__lo_key)
+pgs_set_key_val(WIPS__IRANGE,2,$ir__hi_key)
+pgs_set_key_val(WIPS__IRANGE,0,$SetIR)
+exit
+end if
+$ENOTE := $EVENT_NOTE
+if ($Play=1)
+if (%ksw__Map[$EVENT_NOTE]>0)
+ignore_event($EVENT_ID)
+$ksw__id := $EVENT_ID
+$ksw__vel := $EVENT_VELOCITY
+call get_ksw
+else
+if ($ir__lo_key=-1 or in_range($EVENT_NOTE,$ir__lo_key,$ir__hi_key))
+ignore_event($EVENT_ID)
+$_idx := search(%perf__KeyID,0)
+if ($_idx=-1)
+sort(%perf__KeyID,0)
+set_event_par(%perf__KeyID[0],$EVENT_PAR_0,0)
+dec($perf__keys_down)
+$_idx := 0
+end if
+inc($perf__keys_down)
+$perf__key_id := $EVENT_ID
+%perf__KeyID[$_idx] := $perf__key_id
+set_event_par($perf__key_id,$EVENT_PAR_0,8)
+$perf__held := 0
+$perf__key_note := $EVENT_NOTE
+$perf__key_vel := $EVENT_VELOCITY
+$perf__key_tune := get_event_par($EVENT_ID,$EVENT_PAR_TUNE)
+call play_new
+else
+ignore_event($EVENT_ID)
+end if
+end if
+else
+if ($SetKS=1 or ($ksw__learn=1))
+$ksw__learn := 1
+ignore_event($EVENT_ID)
+if ($ir__lo_key=-1 or in_range($EVENT_NOTE,$ir__lo_key,$ir__hi_key))
+$ksw__bad := 1
+end if
+call get_ksw
+else
+if ($ir__lo_key=-1 or in_range($EVENT_NOTE,$ir__lo_key,$ir__hi_key))
+$perf__play_id := $EVENT_ID
+set_event_par($perf__play_id,$EVENT_PAR_0,1)
+call get_tkt
+set_event_par($perf__play_id,$EVENT_PAR_NOTE,get_event_par($perf__play_id,$EVENT_PAR_NOTE)+$vc__span)
+set_event_par($perf__play_id,$EVENT_PAR_TUNE,get_event_par($perf__play_id,$EVENT_PAR_TUNE)-($vc__span*100000))
+set_event_par_arr($perf__play_id,$EVENT_PAR_ALLOW_GROUP,0,$ALL_GROUPS)
+if ($AudArt=1)
+$_n22 := 0
+while ($varp # -1 and ($_n22<6) and (%Var[$varp+2+$_n22] # -1))
+set_event_par_arr($perf__play_id,$EVENT_PAR_ALLOW_GROUP,1,%Var[$varp+2+$_n22])
+inc($_n22)
+end while
+else
+$_n22 := 0
+while ($_n22<$NUM_GROUPS)
+if (%lb__flgs[%lb__I0[%ui__ax[$InstGroups__cx]]+$_n22] # 0)
+set_event_par_arr($perf__play_id,$EVENT_PAR_ALLOW_GROUP,1,$_n22)
+end if
+inc($_n22)
+end while
+end if
+else
+ignore_event($EVENT_ID)
+end if
+end if
+end if
+end on
+on release
+if (get_event_par($EVENT_ID,$EVENT_PAR_0)=1)
+if ($Setup=1 and ($AudArt=1))
+$perf__play_id := $EVENT_ID
+call play_rls_var
+end if
+exit
+end if
+select (get_event_par($EVENT_ID,$EVENT_PAR_0))
+case 8
+%perf__KeyID[search(%perf__KeyID,$EVENT_ID)] := 0
+dec($perf__keys_down)
+if ($EVENT_ID=$perf__key_id)
+if (%CC[%bm__CC[%ui__ax[$HoldCC__cx]]]>63 and ($PmWC=0))
+$perf__held := 1
+else
+call end_parent
+end if
+end if
+case 16
+if ($perf__key_id # 0)
+call end_parent
+end if
+case 32
+if ($perf__play_id<=1 and ($perf__key_id # 0))
+call play_new
+end if
+case 64
+if ($EVENT_ID=$ksw__id)
+$artx := $prior_artx
+call new_art
+$art_mks := 3
+call show_art
+end if
+case 128
+if ($EVENT_ID=$ksw__id)
+pgs_set_key_val(WIPS__META,0,pgs_get_key_val(WIPS__META,0) .or. 192)
+end if
+end select
+end on
+on controller
+if ($CC_NUM<=119)
+$LastCC := $CC_NUM
+end if
+if ($CC_NUM=%bm__CC[%ui__ax[$ArtCC__cx]])
+if ($Play=1 and in_range(%CC[$CC_NUM]+$KBOfst,1,100))
+$new_artx := %CC[$CC_NUM]+$KBOfst-1
+call change_art
+end if
+else
+if ($CC_NUM=%bm__CC[%ui__ax[$BrCC__cx]])
+if ($PmBC=1)
+if (%CC[$CC_NUM]=0)
+call end_phrase
+else
+if ($perf__play_id=0 and ($perf__key_id # 0))
+set_event_par(play_note(0,1,0,1),$EVENT_PAR_0,32)
+$perf__play_id := 1
+end if
+end if
+end if
+else
+if ($CC_NUM=%bm__CC[%ui__ax[$HoldCC__cx]])
+if (%CC[$CC_NUM]<64 and ($perf__held=1))
+$perf__held := 0
+set_event_par(play_note(0,1,0,1),$EVENT_PAR_0,16)
+end if
+else
+if ($CC_NUM=$VCC_MONO_AT)
+if (%bm__CC[%ui__ax[$ATMap__cx]] # -1)
+set_controller(%bm__CC[%ui__ax[$ATMap__cx]],%CC[$VCC_MONO_AT])
+end if
+else
+if ($CC_NUM=$VCC_PITCH_BEND)
+if (%CC[$VCC_PITCH_BEND]<0 and (%bm__CC[%ui__ax[$NPWMap__cx]] # -1))
+set_controller(%bm__CC[%ui__ax[$NPWMap__cx]],-(%CC[$VCC_PITCH_BEND]+1)/64)
+end if
+if (%CC[$VCC_PITCH_BEND]>=0 and (%bm__CC[%ui__ax[$PPWMap__cx]] # -1))
+set_controller(%bm__CC[%ui__ax[$PPWMap__cx]],%CC[$VCC_PITCH_BEND]/64)
+end if
+end if
+end if
+end if
+end if
+end if
+end on
+on pgs_changed
+if ($ui__pinit # 0)
+$ui__pinit := 0
+$ui__p2 := 0
+while ($ui__p2<$bm__ax)
+$ui__p1 := %bm__cx[$ui__p2]
+call update_cc_btn
+inc($ui__p2)
+end while
+$ui__p1 := 0
+while ($ui__p1<$rg__ax)
+set_control_par(%ui__id[%rg__last[$ui__p1]],$CONTROL_PAR_VALUE,1)
+inc($ui__p1)
+end while
+if ($ui__lock__btn # 0)
+set_control_par($ui__lock__btn,$CONTROL_PAR_WIDTH,49+(15*$ui__lock))
+end if
+$ui__p1 := 0
+while ($ui__p1<$ui__cx)
+%ui__vs[$ui__p1] := get_control_par(%ui__id[$ui__p1],$CONTROL_PAR_HIDE)
+set_control_par(%ui__id[$ui__p1],$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+inc($ui__p1)
+end while
+$ui__active_panel := $SetupPanel
+%ui__psets[$SetupPanel-1] := $SetupPanel
+call show_panel
+$artx := $ArtSel-1
+if ($Setup=1)
+call setup_mode
+else
+call play_mode
+end if
+$top_group := $NUM_GROUPS-1
+$ui__p1 := %ui__ax[$InstGroups__cx]
+call reset_listbox
+%lb__Imax[$ui__p1] := $top_group
+$ui__p2 := 0
+while ($ui__p2<=$top_group)
+!lb__txt[%lb__I0[$ui__p1]+$ui__p2] := group_name($ui__p2)
+inc($ui__p2)
+end while
+call show_text
+call show_selected
+$SetKS := 0
+call show_keys
+pgs_set_key_val(WIPS__HOLD_CC,0,%bm__CC[%ui__ax[$HoldCC__cx]])
+call update_pgs_prefs
+end if
+$_n13 := 0
+while ($_n13<=4)
+pgs_set_key_val(WIPS__SLOTS,0+$_n13,$CURRENT_SCRIPT_SLOT)
+inc($_n13)
+end while
+if (pgs_get_key_val(WIPS__META,0) .and. 64 # 0)
+$_mfn2 := pgs_get_key_val(WIPS__META,0) .and. 63
+select ($_mfn2)
+case 1 to 2
+if (pgs_get_key_val(WIPS__META,0) .and. 128=0)
+%meta__Last[$_mfn2] := %rg__last[%ui__ax[$RtOn__cx]]-%rg__cx[%ui__ax[$RtOn__cx]]
+$ui__p1 := $_mfn2-1+%rg__cx[%ui__ax[$RtOn__cx]]
+call _on_radio
+else
+$ui__p1 := %meta__Last[$_mfn2]+%rg__cx[%ui__ax[$RtOn__cx]]
+call _on_radio
+end if
+case 3
+if (pgs_get_key_val(WIPS__META,0) .and. 128=0)
+%meta__Last[$_mfn2] := %rg__last[%ui__ax[$RtOn__cx]]-%rg__cx[%ui__ax[$RtOn__cx]]
+$ui__p1 := 1-(%rg__last[%ui__ax[$RtOn__cx]]-%rg__cx[%ui__ax[$RtOn__cx]])+%rg__cx[%ui__ax[$RtOn__cx]]
+call _on_radio
+else
+$ui__p1 := %meta__Last[$_mfn2]+%rg__cx[%ui__ax[$RtOn__cx]]
+call _on_radio
+end if
+case 4 to 6
+if (pgs_get_key_val(WIPS__META,0) .and. 128=0)
+%meta__Last[$_mfn2] := %rg__last[%ui__ax[$VTO_Off__cx]]-%rg__cx[%ui__ax[$VTO_Off__cx]]
+$ui__p1 := $_mfn2-4+%rg__cx[%ui__ax[$VTO_Off__cx]]
+call _on_radio
+else
+$ui__p1 := %meta__Last[$_mfn2]+%rg__cx[%ui__ax[$VTO_Off__cx]]
+call _on_radio
+end if
+end select
+wait(1)
+pgs_set_key_val(WIPS__META,0,pgs_get_key_val(WIPS__META,0) .and. 63)
+end if
+end on
+on ui_update
+if ($top_group # ($NUM_GROUPS-1))
+$top_group := $NUM_GROUPS-1
+$ui__p1 := %ui__ax[$InstGroups__cx]
+call reset_listbox
+%lb__Imax[$ui__p1] := $top_group
+$ui__p2 := 0
+while ($ui__p2<=$top_group)
+!lb__txt[%lb__I0[$ui__p1]+$ui__p2] := group_name($ui__p2)
+inc($ui__p2)
+end while
+call show_text
+call show_selected
+$ui__p1 := 0+%rg__cx[%ui__ax[$Setup__cx]]
+call _on_radio
+call setup_mode
+end if
+end on
+on listener
+if ($NI_SIGNAL_TYPE=$NI_SIGNAL_TIMER_MS)
+if (pgs_get_key_val(WIPS__SLOTS,5+$CURRENT_SCRIPT_SLOT)=($CURRENT_SCRIPT_SLOT+1))
+if ($ui__active_panel=$SuiteErrPanel and ($ui__modal>=2) and (4>$ui__modal))
+$ui__modal := $ui__modal-2
+call hide_panel
+$ui__active_panel := %ui__psets[$SuiteErrPanel-1]
+call show_panel
+end if
+else
+if ($ui__active_panel # $SuiteErrPanel and (2>$ui__modal))
+$ui__modal := $ui__modal+2
+call hide_panel
+%ui__psets[$SuiteErrPanel-1] := $ui__active_panel
+$ui__active_panel := $SuiteErrPanel
+call show_panel
+end if
+end if
+pgs_set_key_val(WIPS__SLOTS,5+$CURRENT_SCRIPT_SLOT,-10)
+end if
+end on
+on ui_control($AboutDlg__TLock1)
+$AboutDlg__TLock1 := 0
+if ($ui__lock__2 # 0)
+$ui__lock := 1-$ui__lock
+set_control_par($ui__lock__btn,$CONTROL_PAR_WIDTH,49+(15*$ui__lock))
+end if
+$ui__lock__1 := 1
+wait(2000000)
+$ui__lock__1 := 0
+end on
+on ui_control($AboutDlg__TLock2)
+$AboutDlg__TLock2 := 0
+if ($ui__lock__1 # 0)
+$ui__lock := 1-$ui__lock
+set_control_par($ui__lock__btn,$CONTROL_PAR_WIDTH,49+(15*$ui__lock))
+end if
+$ui__lock__2 := 1
+wait(2000000)
+$ui__lock__2 := 0
+end on
+on ui_control($ccmenu)
+if ($ccmenu=-2)
+$ccmenu := $LastCC
+end if
+if ($ccmenu>=-1 and ($ccmenu # 125))
+%bm__CC[%ui__ax[$bm__close]] := $ccmenu
+$ui__p1 := $bm__close
+call update_cc_btn
+if ($ui__p1=$HoldCC__cx)
+pgs_set_key_val(WIPS__HOLD_CC,0,%bm__CC[%ui__ax[$ui__p1]])
+end if
+end if
+$bm__timer := 0
+end on
+on ui_control($ArtCC)
+if ($bm__open=-1)
+$bm__open := $ArtCC__cx
+call _open_ccmenu
+end if
+end on
+on ui_control($HoldCC)
+if ($bm__open=-1)
+$bm__open := $HoldCC__cx
+call _open_ccmenu
+end if
+end on
+on ui_control($BrCC)
+if ($bm__open=-1)
+$bm__open := $BrCC__cx
+call _open_ccmenu
+end if
+end on
+on ui_control($ATMap)
+if ($bm__open=-1)
+$bm__open := $ATMap__cx
+call _open_ccmenu
+end if
+end on
+on ui_control($VelMap)
+if ($bm__open=-1)
+$bm__open := $VelMap__cx
+call _open_ccmenu
+end if
+end on
+on ui_control($PPWMap)
+if ($bm__open=-1)
+$bm__open := $PPWMap__cx
+call _open_ccmenu
+end if
+end on
+on ui_control($NPWMap)
+if ($bm__open=-1)
+$bm__open := $NPWMap__cx
+call _open_ccmenu
+end if
+end on
+on ui_control($AudArt)
+$ui__p1 := $AudArt__cx
+call _on_radio
+$ui__kx := $ui__kx
+end on
+on ui_control($AudGrp)
+$ui__p1 := $AudGrp__cx
+call _on_radio
+$ui__kx := $ui__kx
+end on
+on ui_control($Play)
+$ui__p1 := $Play__cx
+call _on_radio
+call play_mode
+end on
+on ui_control($Setup)
+$ui__p1 := $Setup__cx
+call _on_radio
+call setup_mode
+end on
+on ui_control($RlsEnd)
+$ui__p1 := $RlsEnd__cx
+call _on_radio
+$ui__kx := $ui__kx
+end on
+on ui_control($Rls3Sec)
+$ui__p1 := $Rls3Sec__cx
+call _on_radio
+$ui__kx := $ui__kx
+end on
+on ui_control($TrigOff)
+$ui__p1 := $TrigOff__cx
+call _on_radio
+$ui__kx := $ui__kx
+end on
+on ui_control($TrigLast)
+$ui__p1 := $TrigLast__cx
+call _on_radio
+$ui__kx := $ui__kx
+end on
+on ui_control($TrigTrill)
+$ui__p1 := $TrigTrill__cx
+call _on_radio
+$ui__kx := $ui__kx
+end on
+on ui_control($TrigAll)
+$ui__p1 := $TrigAll__cx
+call _on_radio
+$ui__kx := $ui__kx
+end on
+on ui_control($SeqRR)
+$ui__p1 := $SeqRR__cx
+call _on_radio
+$ui__kx := $ui__kx
+end on
+on ui_control($SeqRand)
+$ui__p1 := $SeqRand__cx
+call _on_radio
+$ui__kx := $ui__kx
+end on
+on ui_control($TKTOff)
+$ui__p1 := $TKTOff__cx
+call _on_radio
+$ui__kx := $ui__kx
+end on
+on ui_control($TKT2)
+$ui__p1 := $TKT2__cx
+call _on_radio
+$ui__kx := $ui__kx
+end on
+on ui_control($TKT4)
+$ui__p1 := $TKT4__cx
+call _on_radio
+$ui__kx := $ui__kx
+end on
+on ui_control($TKT6)
+$ui__p1 := $TKT6__cx
+call _on_radio
+$ui__kx := $ui__kx
+end on
+on ui_control($PmKeys)
+$ui__p1 := $PmKeys__cx
+call _on_radio
+call kill_notes
+end on
+on ui_control($PmBC)
+$ui__p1 := $PmBC__cx
+call _on_radio
+call kill_notes
+end on
+on ui_control($PmWC)
+$ui__p1 := $PmWC__cx
+call _on_radio
+call kill_notes
+end on
+on ui_control($RtOn)
+$ui__p1 := $RtOn__cx
+call _on_radio
+$ui__kx := $ui__kx
+end on
+on ui_control($RtOff)
+$ui__p1 := $RtOff__cx
+call _on_radio
+$ui__kx := $ui__kx
+end on
+on ui_control($VTO_Off)
+$ui__p1 := $VTO_Off__cx
+call _on_radio
+$ui__kx := $ui__kx
+end on
+on ui_control($VTO_Always)
+$ui__p1 := $VTO_Always__cx
+call _on_radio
+$ui__kx := $ui__kx
+end on
+on ui_control($VTO_Never)
+$ui__p1 := $VTO_Never__cx
+call _on_radio
+$ui__kx := $ui__kx
+end on
+on ui_control($InstGroups__S0)
+$ui__kx := $InstGroups__cx+0+1
+call update_flgs
+end on
+on ui_control($InstGroups__S1)
+$ui__kx := $InstGroups__cx+2+1
+call update_flgs
+end on
+on ui_control($InstGroups__S2)
+$ui__kx := $InstGroups__cx+4+1
+call update_flgs
+end on
+on ui_control($InstGroups__S3)
+$ui__kx := $InstGroups__cx+6+1
+call update_flgs
+end on
+on ui_control($InstGroups__S4)
+$ui__kx := $InstGroups__cx+8+1
+call update_flgs
+end on
+on ui_control($InstGroups__S5)
+$ui__kx := $InstGroups__cx+10+1
+call update_flgs
+end on
+on ui_control($InstGroups__S6)
+$ui__kx := $InstGroups__cx+12+1
+call update_flgs
+end on
+on ui_control($InstGroups__S7)
+$ui__kx := $InstGroups__cx+14+1
+call update_flgs
+end on
+on ui_control($InstGroups__S8)
+$ui__kx := $InstGroups__cx+16+1
+call update_flgs
+end on
+on ui_control($InstGroups__S9)
+$ui__kx := $InstGroups__cx+18+1
+call update_flgs
+end on
+on ui_control($InstGroups__S10)
+$ui__kx := $InstGroups__cx+20+1
+call update_flgs
+end on
+on ui_control($InstGroups__S11)
+$ui__kx := $InstGroups__cx+22+1
+call update_flgs
+end on
+on ui_control($InstGroups__S12)
+$ui__kx := $InstGroups__cx+24+1
+call update_flgs
+end on
+on ui_control($InstGroups__S13)
+$ui__kx := $InstGroups__cx+26+1
+call update_flgs
+end on
+on ui_control($InstGroups__S14)
+$ui__kx := $InstGroups__cx+28+1
+call update_flgs
+end on
+on ui_control($InstGroups__S15)
+$ui__kx := $InstGroups__cx+30+1
+call update_flgs
+end on
+on ui_control($InstGroups__S16)
+$ui__kx := $InstGroups__cx+32+1
+call update_flgs
+end on
+on ui_control($InstGroups__S17)
+$ui__kx := $InstGroups__cx+34+1
+call update_flgs
+end on
+on ui_control($InstGroups__S18)
+$ui__kx := $InstGroups__cx+36+1
+call update_flgs
+end on
+on ui_control($InstGroups__S19)
+$ui__kx := $InstGroups__cx+38+1
+call update_flgs
+end on
+on ui_control($InstGroups__Dn)
+$InstGroups__Dn := 1
+$ui__kx := $InstGroups__cx
+call DownScroll
+end on
+on ui_control($InstGroups__Up)
+$InstGroups__Up := 1
+$ui__kx := $InstGroups__cx
+call UpScroll
+end on
+on ui_control($InstGroups__CB)
+$InstGroups__CB := 0
+$ui__kx := $InstGroups__cx
+call deselect_all
+end on
+on ui_control($About)
+$About := 0
+if ($ui__active_panel # $AboutPanel and ($ui__modal=0))
+call hide_panel
+%ui__psets[$AboutPanel-1] := $ui__active_panel
+$ui__active_panel := $AboutPanel
+call show_panel
+end if
+call kill_notes
+end on
+on ui_control($AboutDlg__OK)
+$AboutDlg__OK := 1
+if ($ui__active_panel=$AboutPanel and ($ui__modal=0))
+call hide_panel
+$ui__active_panel := %ui__psets[$AboutPanel-1]
+call show_panel
+end if
+end on
+on ui_control($AddNew)
+$AddNew := 0
+$ui__kx := $InstGroups__cx
+call get_listbox_cnt
+$_nsel := $ui__p1
+if ($_nsel=0)
+$err_code := 8
+call show_error
+else
+if ($_nsel>6)
+$err_code := 0
+call show_error
+else
+if ($vpar__nvars<15)
+$_old_varp := $varp
+call get_new_var
+if ($varp<0)
+$varp := $_old_varp
+$err_code := 2
+call show_error
+else
+if ($_old_varp<0)
+%Art[$artx] := $varp
+else
+%Var[$varp+1] := %Var[$_old_varp+1]
+%Var[$varp] := $_old_varp
+%Var[$_old_varp+1] := $varp
+inc($varx)
+inc($vpar__nvars)
+%_AVPar[$artx] := (%_AVPar[$artx] .and. .not. sh_left(%AVPar__mask[0],%AVPar__shft[0])) .or. sh_left($vpar__nvars .and. %AVPar__mask[0],%AVPar__shft[0])
+end if
+if (%Var[$varp+1] # -1)
+%Var[%Var[$varp+1]] := $varp
+end if
+$copy_ptr := 2
+call copy_selected
+end if
+else
+$err_code := 5
+call show_error
+end if
+end if
+end if
+end on
+on ui_control($AddNorm)
+$AddNorm := 0
+$ui__kx := $InstGroups__cx
+call get_listbox_cnt
+$_nsel2 := $ui__p1
+if ($_nsel2=0)
+$err_code := 8
+call show_error
+else
+$copy_ptr := 2
+while ($varp # -1 and ($copy_ptr<8) and (%Var[$varp+$copy_ptr] # -1))
+inc($copy_ptr)
+end while
+if ($_nsel2>(8-$copy_ptr))
+$err_code := 0
+call show_error
+else
+$_old_varp2 := $varp
+if ($varp<0)
+call get_new_var
+end if
+if ($varp<0)
+$err_code := 2
+call show_error
+else
+if ($_old_varp2<0)
+%Art[$artx] := $varp
+end if
+call copy_selected
+end if
+end if
+end if
+end on
+on ui_control($AddRls)
+$AddRls := 0
+$ui__kx := $InstGroups__cx
+call get_listbox_cnt
+$_nsel3 := $ui__p1
+if ($_nsel3=0)
+$err_code := 8
+call show_error
+else
+if ($varp=-1)
+$err_code := 1
+call show_error
+else
+$copy_ptr := 8
+while ($varp # -1 and ($copy_ptr<14) and (%Var[$varp+$copy_ptr] # -1))
+inc($copy_ptr)
+end while
+if ($_nsel3>(14-$copy_ptr))
+$err_code := 0
+call show_error
+else
+call copy_selected
+end if
+end if
+end if
+end on
+on ui_control($ArtSel)
+$artx := $ArtSel-1
+call new_art
+call show_keys
+end on
+on ui_control($DltArt)
+$DltArt := 0
+while ($varp # -1)
+if ($varp # -1)
+if (%Var[$varp]=-1)
+%Art[$artx] := %Var[$varp+1]
+$_nvarp := -1
+else
+%Var[%Var[$varp]+1] := %Var[$varp+1]
+$_nvarp := %Var[$varp]
+end if
+if (%Var[$varp+1] # -1)
+%Var[%Var[$varp+1]] := %Var[$varp]
+end if
+$_n15 := 0
+while ($_n15<14)
+%Var[$varp+$_n15] := -1
+inc($_n15)
+end while
+%Vmap[$varp/14] := 1
+$varp := $_nvarp
+if ($varp # -1)
+dec($varx)
+call show_var
+else
+call set_var0
+end if
+if ($vpar__nvars>0)
+dec($vpar__nvars)
+%_AVPar[$artx] := (%_AVPar[$artx] .and. .not. sh_left(%AVPar__mask[0],%AVPar__shft[0])) .or. sh_left($vpar__nvars .and. %AVPar__mask[0],%AVPar__shft[0])
+else
+%_AVPar[$artx] := 0
+dec(%ksw__Map[%ArtKS[$artx] mod 1000])
+dec(%ksw__Map[%ArtKS[$artx]/1000])
+%ArtKS[$artx] := 128128
+call new_art
+call show_keys
+end if
+end if
+end while
+end on
+on ui_control($DltVar)
+$DltVar := 0
+if ($varp # -1)
+if (%Var[$varp]=-1)
+%Art[$artx] := %Var[$varp+1]
+$_nvarp := -1
+else
+%Var[%Var[$varp]+1] := %Var[$varp+1]
+$_nvarp := %Var[$varp]
+end if
+if (%Var[$varp+1] # -1)
+%Var[%Var[$varp+1]] := %Var[$varp]
+end if
+$_n15 := 0
+while ($_n15<14)
+%Var[$varp+$_n15] := -1
+inc($_n15)
+end while
+%Vmap[$varp/14] := 1
+$varp := $_nvarp
+if ($varp # -1)
+dec($varx)
+call show_var
+else
+call set_var0
+end if
+if ($vpar__nvars>0)
+dec($vpar__nvars)
+%_AVPar[$artx] := (%_AVPar[$artx] .and. .not. sh_left(%AVPar__mask[0],%AVPar__shft[0])) .or. sh_left($vpar__nvars .and. %AVPar__mask[0],%AVPar__shft[0])
+else
+%_AVPar[$artx] := 0
+dec(%ksw__Map[%ArtKS[$artx] mod 1000])
+dec(%ksw__Map[%ArtKS[$artx]/1000])
+%ArtKS[$artx] := 128128
+call new_art
+call show_keys
+end if
+end if
+end on
+on ui_control($EditVar)
+$EditVar := 0
+if (%Art[$artx] # -1)
+set_text($DlgCap,"Parameters For Articulation " & ($artx+1))
+$ui__p1 := $vpar__vtrig+%rg__cx[%ui__ax[$TrigOff__cx]]
+call _on_radio
+$ui__p1 := $vpar__smode+%rg__cx[%ui__ax[$SeqRR__cx]]
+call _on_radio
+$ui__p1 := $vpar__tvars/2+%rg__cx[%ui__ax[$TKTOff__cx]]
+call _on_radio
+$ZoneSize := $vpar__tzone
+$ui__p1 := $vpar__rmode+%rg__cx[%ui__ax[$RlsEnd__cx]]
+call _on_radio
+$LegPre := $vpar__legpst
+$VibPre := $vpar__vibpst
+$MetaFn := $vpar__meta
+$NatOff := $vpar__nmode
+$UseAET := $vpar__aet
+if ($ui__active_panel # $VarPanel and ($ui__modal=0))
+call hide_panel
+%ui__psets[$VarPanel-1] := $ui__active_panel
+$ui__active_panel := $VarPanel
+call show_panel
+end if
+call kill_notes
+else
+$err_code := 4
+call show_error
+end if
+end on
+on ui_control($ErrDlg__OK)
+$ErrDlg__OK := 1
+if ($ui__active_panel=$ErrPanel and ($ui__modal>=1) and (2>$ui__modal))
+$ui__modal := $ui__modal-1
+call hide_panel
+$ui__active_panel := %ui__psets[$ErrPanel-1]
+call show_panel
+end if
+end on
+on ui_control($NatVar)
+if ($varp # -1)
+$varx := $NatVar
+call set_var
+end if
+$NatVar := $varx
+end on
+on ui_control($PrefsDlg__OK)
+$PrefsDlg__OK := 1
+if ($ui__active_panel=$PrefsPanel and ($ui__modal=0))
+call hide_panel
+$ui__active_panel := %ui__psets[$PrefsPanel-1]
+call show_panel
+end if
+call update_pgs_prefs
+end on
+on ui_control($SetIR)
+set_text($SetIR,!ir__Cap[$SetIR])
+$ir__state := 0
+pgs_set_key_val(WIPS__IRANGE,0,$SetIR)
+call show_keys
+end on
+on ui_control($SetKS)
+call show_keys
+end on
+on ui_control($SetPrefs)
+$SetPrefs := 0
+if ($ui__active_panel # $PrefsPanel and ($ui__modal=0))
+call hide_panel
+%ui__psets[$PrefsPanel-1] := $ui__active_panel
+$ui__active_panel := $PrefsPanel
+call show_panel
+end if
+call kill_notes
+end on
+on ui_control($TKTVar)
+if ($varp # -1 and ($TKTVar<=$vpar__tvars))
+$tktx := $TKTVar
+else
+$TKTVar := $tktx
+end if
+end on
+on ui_control($VarDlg__OK)
+$VarDlg__OK := 1
+%_AVPar[$artx] := (%_AVPar[$artx] .and. .not. sh_left(%AVPar__mask[3],%AVPar__shft[3])) .or. sh_left(%rg__last[%ui__ax[$TrigOff__cx]]-%rg__cx[%ui__ax[$TrigOff__cx]] .and. %AVPar__mask[3],%AVPar__shft[3])
+%_AVPar[$artx] := (%_AVPar[$artx] .and. .not. sh_left(%AVPar__mask[4],%AVPar__shft[4])) .or. sh_left(%rg__last[%ui__ax[$SeqRR__cx]]-%rg__cx[%ui__ax[$SeqRR__cx]] .and. %AVPar__mask[4],%AVPar__shft[4])
+%_AVPar[$artx] := (%_AVPar[$artx] .and. .not. sh_left(%AVPar__mask[1],%AVPar__shft[1])) .or. sh_left(%rg__last[%ui__ax[$TKTOff__cx]]-%rg__cx[%ui__ax[$TKTOff__cx]] .and. %AVPar__mask[1],%AVPar__shft[1])
+%_AVPar[$artx] := (%_AVPar[$artx] .and. .not. sh_left(%AVPar__mask[2],%AVPar__shft[2])) .or. sh_left($ZoneSize-1 .and. %AVPar__mask[2],%AVPar__shft[2])
+%_AVPar[$artx] := (%_AVPar[$artx] .and. .not. sh_left(%AVPar__mask[5],%AVPar__shft[5])) .or. sh_left($NatOff .and. %AVPar__mask[5],%AVPar__shft[5])
+%_AVPar[$artx] := (%_AVPar[$artx] .and. .not. sh_left(%AVPar__mask[6],%AVPar__shft[6])) .or. sh_left(%rg__last[%ui__ax[$RlsEnd__cx]]-%rg__cx[%ui__ax[$RlsEnd__cx]] .and. %AVPar__mask[6],%AVPar__shft[6])
+%_AVPar[$artx] := (%_AVPar[$artx] .and. .not. sh_left(%AVPar__mask[7],%AVPar__shft[7])) .or. sh_left($UseAET .and. %AVPar__mask[7],%AVPar__shft[7])
+%_AVPar[$artx] := (%_AVPar[$artx] .and. .not. sh_left(%AVPar__mask[8],%AVPar__shft[8])) .or. sh_left($LegPre .and. %AVPar__mask[8],%AVPar__shft[8])
+%_AVPar[$artx] := (%_AVPar[$artx] .and. .not. sh_left(%AVPar__mask[9],%AVPar__shft[9])) .or. sh_left($VibPre .and. %AVPar__mask[9],%AVPar__shft[9])
+%_AVPar[$artx] := (%_AVPar[$artx] .and. .not. sh_left(%AVPar__mask[10],%AVPar__shft[10])) .or. sh_left($MetaFn .and. %AVPar__mask[10],%AVPar__shft[10])
+call unpack_vpar
+if ($tktx>$vpar__tvars)
+$tktx := $vpar__tvars
+$TKTVar := $tktx
+end if
+if ($ui__active_panel=$VarPanel and ($ui__modal=0))
+call hide_panel
+$ui__active_panel := %ui__psets[$VarPanel-1]
+call show_panel
+end if
+end on
+

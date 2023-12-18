@@ -1,0 +1,2104 @@
+on init
+declare $fmt__val
+declare $fmt__div
+message("")
+make_perfview
+SET_CONDITION(NO_SYS_SCRIPT_PEDAL)
+SET_CONDITION(NO_SYS_SCRIPT_RLS_TRIG)
+declare $M__PostInit
+pgs_create_key(M__PINIT,1)
+$M__PostInit := 1
+pgs_set_key_val(M__PINIT,0,1)
+declare !ui__sfx[7]
+declare $ui__cx
+declare %ui__id[90] := (0)
+declare %ui__vs[90] := (0)
+declare %ui__ax[90] := (0)
+declare $ui__px := -1
+declare %ui__psets[105] := (-1)
+declare $ui__active_panel := 0
+declare $ui__height
+declare $ui__lock := 1
+declare $ui__lock__btn := 0
+declare $ui__lock__1
+declare $ui__lock__2
+declare $ui__modal := 0
+declare $ui__kx
+declare $ui__p1
+declare $ui__p2
+declare @ui__txt
+declare $ui__pinit := 1
+!ui__sfx[0] := ""
+!ui__sfx[1] := " dB"
+!ui__sfx[2] := " Hz"
+!ui__sfx[3] := " %"
+!ui__sfx[4] := " ms"
+!ui__sfx[5] := " oct"
+!ui__sfx[6] := " st"
+declare $ns__ax
+declare %ns__alt[8]
+declare %ns__cx[8]
+declare %ns__div[8]
+declare %ns__vmin[8]
+declare %ns__vrng[8]
+declare %ns__x0[8]
+declare %ns__y0[8]
+declare %ns__span[8]
+declare !ns__sfx[8]
+make_persistent(%ns__alt)
+pgs_create_key(UI__PINIT,1)
+pgs_set_key_val(UI__PINIT,0,0)
+set_script_title("WIPS Legato")
+$ui__height := 298
+set_ui_height_px($ui__height)
+declare !ContourPix[4]
+declare !ContourSuffix[2]
+declare $bend__NT
+declare $bend__pstep
+declare $bend__tick
+declare $bend__ticks
+declare $bend__time
+declare $shape__alt_mode
+declare $shape__pstep
+declare $shape__slope
+declare $shape__up
+declare $shape__y0
+declare $art_preset
+declare $art_span
+declare $bypass
+declare %FadeQ[4] := (0)
+declare $key_id
+declare $last_preset
+declare $leg_px
+declare $new_ncb
+declare $phrase
+declare $pitch
+declare $play_id
+declare $qptr
+declare $ss_ofst
+declare $target
+declare $user0_px
+declare $xftime
+declare %meta__Last[64] := (0)
+declare $art_mks
+declare @User
+declare !Dgts[14]
+declare !OnOffTxt[2]
+declare @click_to_save
+declare @choose_user
+@User := "User Preset "
+!Dgts[0] := "1  "
+!Dgts[1] := "2  "
+!Dgts[2] := "3  "
+!Dgts[3] := "4  "
+!Dgts[4] := "5  "
+!Dgts[5] := "6  "
+!Dgts[6] := "7  "
+!Dgts[7] := "8  "
+!Dgts[8] := "9  "
+!Dgts[9] := "10  "
+!Dgts[10] := "11  "
+!Dgts[11] := "12  "
+!Dgts[12] := "13  "
+!Dgts[13] := "14  "
+!OnOffTxt[0] := "Off"
+!OnOffTxt[1] := "On"
+@click_to_save := "Click to Save As"
+@choose_user := "Choose User Preset >>"
+pgs_create_key(WIPS__HOLD_CC,1)
+pgs_create_key(WIPS__IRANGE,3)
+pgs_create_key(WIPS__META,2)
+pgs_create_key(WIPS__NGRPS,6)
+pgs_create_key(WIPS__NGTKT,1)
+pgs_create_key(WIPS__GMUTE,1)
+pgs_create_key(WIPS__SLOTS,15)
+pgs_create_key(WIPS__NOPLAY,1)
+pgs_create_key(WIPS__ARTIC,2)
+set_listener($NI_SIGNAL_TIMER_MS,1000000)
+declare @track_txt
+declare @bend_txt1
+declare @bend_txt2
+declare @bend_txt3
+declare @dfd_txt
+declare @glide_txt1
+declare @glide_txt2
+declare @glide_txt3
+declare @glide_txt4
+declare @glide_txt5
+declare @shape_txt
+declare @var_txt
+declare !Tip[25]
+@track_txt := " The corresponding knob for a DOWN interval will automatically" & " track the UP knob. However, if you want to use a different setting for" & " Down intervals, adjust the Down knob last or hold the Alt key while" & " setting the UP knob."
+@bend_txt1 := "Sets the amount of legato bend used for a played interval of one semitone "
+@bend_txt2 := "Sets the slope factor that MinBend is increased by for a played interval" & " of one octave "
+@bend_txt3 := "Sets the time contour for a legato bend "
+@dfd_txt := " NOTE: If you are using Kontakt's DFD mode, you must insure that S.Mod" & " (Wave Editor) is big enough to cover your max setting for SS Offset."
+@glide_txt1 := "Sets the total time taken to glide "
+@glide_txt2 := " over a one-semitone interval."
+@glide_txt3 := "Sets the slope factor that "
+@glide_txt4 := " glide time is increased by when gliding over a one-octave interval."
+@glide_txt5 := "Sets the time contour used for gliding "
+@shape_txt := " Linear in the center, morphing to concave on the left and to convex" & " on the right. You can choose from two shape modes, exponential (Shift-Click)" & " or S-Shaped (Alt-Click). To retain the current shape mode, simply" & " click or drag without using the Alt or Shift keys."
+@var_txt := "Sets the upper limit for a small random variation in the "
+!Tip[0] := "Sets the crossfade time for legato note transitions. BTime will" & " automatically track the XTime setting. If you want to set BTime" & " differently from XTime, set BTime last or hold down the Alt key" & " when you change XTime."
+!Tip[1] := "Sets the bend time for legato note transitions. Usually this is" & " set the same as the crossfade time but this is not a requirement."
+!Tip[2] := @var_txt & "legato crossfade time."
+!Tip[3] := "Sets the sample-start offset used when playing 'inside notes' of a" & " legato phrase." & @dfd_txt
+!Tip[4] := @var_txt & "sample-start offset."
+!Tip[5] := @bend_txt1 & "UPWARD." & @track_txt
+!Tip[6] := @bend_txt2 & "UPWARD." & @track_txt
+!Tip[7] := @bend_txt3 & "UPWARD." & @shape_txt
+!Tip[8] := @var_txt & "MinBend amount."
+!Tip[9] := @glide_txt1 & "UP" & @glide_txt2 & @track_txt
+!Tip[10] := @glide_txt3 & "UP" & @glide_txt4 & @track_txt
+!Tip[11] := @glide_txt5 & "UP." & @shape_txt
+!Tip[12] := "Sets the sample-start offset used when playing connected notes in a glide." & @dfd_txt
+!Tip[13] := "When on, overlapped notes will glide rather than effect a legato transition." & " This switch can be controlled via CC Automation or with a keyswitch Meta" & " function."
+!Tip[14] := "Use this dropdown menu to recall any built-in or previously-saved" & " User Preset."
+!Tip[15] := "Use this dropdown menu to save the current panel settings to one" & " of your User Presets."
+!Tip[16] := @bend_txt1 & "DOWNWARD."
+!Tip[17] := @bend_txt2 & "DOWNWARD."
+!Tip[18] := @bend_txt3 & "DOWNWARD." & @shape_txt
+!Tip[19] := @glide_txt1 & "DOWNWARD" & @glide_txt2 & @track_txt
+!Tip[20] := @glide_txt3 & "DOWNWARD" & @glide_txt4 & @track_txt
+!Tip[21] := @glide_txt5 & "DOWN." & @shape_txt
+!Tip[22] := " When On, this switch will disable the legato and glider effects entirely."
+!Tip[23] := "This switch enables/disables articulation control of Legato User Presets."
+!Tip[24] := "Displays Current Articulation as Active/Next where 'Active' is the" & " currently playing articulation and 'Next' is the pending articulation" & " that will be used for the next note played."
+!ContourPix[0] := "rdvCurves_ExpDn"
+!ContourPix[1] := "rdvCurves_SDn"
+!ContourPix[2] := "rdvCurves_ExpUp"
+!ContourPix[3] := "rdvCurves_SUp"
+!ContourSuffix[0] := " exp"
+!ContourSuffix[1] := " s"
+declare ui_switch $About
+$ui__lock__btn := get_ui_id($About)
+move_control_px($About,0,$ui__height-21)
+set_control_par($ui__lock__btn,$CONTROL_PAR_WIDTH,64)
+set_control_par($ui__lock__btn,$CONTROL_PAR_HEIGHT,18)
+set_control_par_str(get_ui_id($About),$CONTROL_PAR_PICTURE,"rdvClr_Skin")
+set_control_par($ui__lock__btn,$CONTROL_PAR_FONT_TYPE,6)
+set_control_par($ui__lock__btn,$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_text($About,"About")
+declare ui_label $SLSBkg(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($SLSBkg)
+move_control_px($SLSBkg,0,30)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,632)
+if ($ui__height-32>=0)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,$ui__height-32)
+end if
+declare $SLSBkg__cx
+$SLSBkg__cx := $ui__cx
+set_text($SLSBkg,"")
+set_control_par_str(get_ui_id($SLSBkg),$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(get_ui_id($SLSBkg),$CONTROL_PAR_PICTURE_STATE,20)
+inc($ui__cx)
+declare ui_label $SLSBkg__2(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($SLSBkg__2)
+move_control_px($SLSBkg__2,60,0)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,572)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,30)
+set_text($SLSBkg__2,"")
+set_control_par_str(get_ui_id($SLSBkg__2),$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(get_ui_id($SLSBkg__2),$CONTROL_PAR_PICTURE_STATE,20)
+inc($ui__cx)
+$ui__p1 := 216
+$ui__p2 := ($ui__height-145)/2
+inc($ui__cx)
+declare ui_label $AboutDlg__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($AboutDlg__border)
+move_control_px($AboutDlg__border,$ui__p1,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,200)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,145)
+set_text($AboutDlg__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,22)
+dec($ui__cx)
+declare ui_label $AboutDlg(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($AboutDlg)
+move_control_px($AboutDlg,$ui__p1+2,$ui__p2+2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,196)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,141)
+declare $AboutDlg__cx
+$AboutDlg__cx := $ui__cx
+set_text($AboutDlg,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,2)
+declare $AboutDlg__nc := 2
+$ui__cx := $ui__cx+2
+set_control_par(get_ui_id($AboutDlg),$CONTROL_PAR_FONT_TYPE,17)
+set_control_par(get_ui_id($AboutDlg),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$AboutDlg__nc := 5
+declare ui_button $AboutDlg__OK
+%ui__id[$ui__cx] := get_ui_id($AboutDlg__OK)
+move_control_px($AboutDlg__OK,$ui__p1+100-30,$ui__p2+145-27)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,60)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+set_text($AboutDlg__OK,"OK")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$AboutDlg__OK := 1
+inc($ui__cx)
+declare ui_button $AboutDlg__TLock1
+%ui__id[$ui__cx] := get_ui_id($AboutDlg__TLock1)
+move_control_px($AboutDlg__TLock1,$ui__p1,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,12)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,12)
+set_text($AboutDlg__TLock1,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvClr_Skin")
+inc($ui__cx)
+declare ui_button $AboutDlg__TLock2
+%ui__id[$ui__cx] := get_ui_id($AboutDlg__TLock2)
+move_control_px($AboutDlg__TLock2,$ui__p1+200-12,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,12)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,12)
+set_text($AboutDlg__TLock2,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvClr_Skin")
+inc($ui__cx)
+set_text($AboutDlg,"WIPS Version 1.04")
+add_text_line($AboutDlg,"Legato Script   V140")
+add_text_line($AboutDlg,"Last Modified: 1-23-14")
+add_text_line($AboutDlg,"----------------------------")
+add_text_line($AboutDlg,"Scripting by Robert D. Villwock")
+add_text_line($AboutDlg,"October 10, 2011")
+add_text_line($AboutDlg,"Contact rdvillwock@msn.com")
+declare ui_label $Hdr(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($Hdr)
+move_control_px($Hdr,225,4)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,170)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+declare $Hdr__cx
+$Hdr__cx := $ui__cx
+set_text($Hdr,"WIPS Legato Script")
+set_control_par(get_ui_id($Hdr),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($Hdr),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_control_par(get_ui_id($Hdr),$CONTROL_PAR_FONT_TYPE,16)
+set_control_par(get_ui_id($Hdr),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+declare ui_label $Logo(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($Logo)
+move_control_px($Logo,5,45)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,65)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,165)
+declare $Logo__cx
+$Logo__cx := $ui__cx
+set_text($Logo,"")
+inc($ui__cx)
+set_control_par_str(%ui__id[$Logo__cx],$CONTROL_PAR_PICTURE,"rdvLogo_Leg")
+declare ui_switch $NoLeg
+%ui__id[$ui__cx] := get_ui_id($NoLeg)
+move_control_px($NoLeg,518,260)
+declare $NoLeg__cx
+$NoLeg__cx := $ui__cx
+set_text($NoLeg,"Bypass Legato")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_ALLOW_AUTOMATION,0)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+inc($ui__cx)
+set_control_par(get_ui_id($NoLeg),$CONTROL_PAR_WIDTH,75)
+set_control_par(get_ui_id($NoLeg),$CONTROL_PAR_HEIGHT,18)
+set_control_par_str(%ui__id[$NoLeg__cx],$CONTROL_PAR_PICTURE,"rdvRedBtn")
+inc($ui__cx)
+declare ui_label $LegBox__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($LegBox__border)
+move_control_px($LegBox__border,85,23)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,525)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,221)
+set_text($LegBox__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,3)
+dec($ui__cx)
+declare ui_label $LegBox(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($LegBox)
+move_control_px($LegBox,87,25)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,521)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,217)
+declare $LegBox__cx
+$LegBox__cx := $ui__cx
+set_text($LegBox,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,23)
+$ui__cx := $ui__cx+2
+declare ui_label $LegCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($LegCap)
+move_control_px($LegCap,138,25)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,200)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,16)
+declare $LegCap__cx
+$LegCap__cx := $ui__cx
+set_text($LegCap,"--------- Legato Parameters ---------")
+set_control_par(get_ui_id($LegCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($LegCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_control_par(get_ui_id($LegCap),$CONTROL_PAR_FONT_TYPE,12)
+set_control_par(get_ui_id($LegCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+declare ui_label $GldCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($GldCap)
+move_control_px($GldCap,408,25)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,200)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,16)
+declare $GldCap__cx
+$GldCap__cx := $ui__cx
+set_text($GldCap,"------ Glide Parameters ------")
+set_control_par(get_ui_id($GldCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($GldCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_control_par(get_ui_id($GldCap),$CONTROL_PAR_FONT_TYPE,12)
+set_control_par(get_ui_id($GldCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+declare ui_label $VBar(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($VBar)
+move_control_px($VBar,402,46)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,180)
+declare $VBar__cx
+$VBar__cx := $ui__cx
+set_text($VBar,"")
+inc($ui__cx)
+set_control_par_str(get_ui_id($VBar),$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(get_ui_id($VBar),$CONTROL_PAR_PICTURE_STATE,2)
+declare ui_knob $XTime(5, 1000, 1) 
+%ui__id[$ui__cx] := get_ui_id($XTime)
+move_control_px($XTime,93,40)
+declare $XTime__cx
+$XTime__cx := $ui__cx
+set_text($XTime,"XFadeTm")
+set_knob_defval($XTime,60)
+$XTime := 60
+set_knob_unit($XTime,4)
+inc($ui__cx)
+$XTime := 60
+declare ui_knob $BTime(5, 1000, 1) 
+%ui__id[$ui__cx] := get_ui_id($BTime)
+move_control_px($BTime,93,82)
+declare $BTime__cx
+$BTime__cx := $ui__cx
+set_text($BTime,"Bend Tm")
+set_knob_defval($BTime,60)
+$BTime := 60
+set_knob_unit($BTime,4)
+inc($ui__cx)
+$BTime := 60
+declare ui_slider $XTVar(0, 100) 
+%ui__id[$ui__cx] := get_ui_id($XTVar)
+move_control_px($XTVar,94,125)
+declare $XTVar__cx
+$XTVar__cx := $ui__cx
+%ui__ax[$ui__cx] := $ns__ax
+%ns__cx[$ns__ax] := $ui__cx
+%ns__vmin[$ns__ax] := 0
+%ns__vrng[$ns__ax] := 100
+%ns__div[$ns__ax] := 10
+!ns__sfx[$ns__ax] := !ui__sfx[3]
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_MOUSE_BEHAVIOUR,2500)
+set_knob_defval($XTVar,0)
+$XTVar := 0
+%ns__span[$ns__ax] := 69
+select (0)
+case 1
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvSliderB1")
+case 2
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvSliderU2")
+%ns__span[$ns__ax] := 159
+case 3
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvSliderB2")
+%ns__span[$ns__ax] := 159
+end select
+%ns__x0[$ns__ax] := 75
+%ns__y0[$ns__ax] := 106
+inc($ui__cx)
+declare ui_button $XTVar__2
+%ui__id[$ui__cx] := get_ui_id($XTVar__2)
+set_control_par_str(get_ui_id($XTVar__2),$CONTROL_PAR_PICTURE,"rdvFloat_Caption")
+set_control_par(get_ui_id($XTVar__2),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+set_control_par(get_ui_id($XTVar__2),$CONTROL_PAR_FONT_TYPE,12)
+set_control_par(get_ui_id($XTVar__2),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,53)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+inc($ui__cx)
+inc($ns__ax)
+declare ui_label $XTVar1(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($XTVar1)
+move_control_px($XTVar1,95,142)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,84)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,5)
+declare $XTVar1__cx
+$XTVar1__cx := $ui__cx
+set_text($XTVar1,"")
+inc($ui__cx)
+set_control_par_str(%ui__id[$XTVar1__cx],$CONTROL_PAR_PICTURE,"rdvSliderScale")
+declare ui_label $XTVar2(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($XTVar2)
+move_control_px($XTVar2,86,144)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,105)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,16)
+declare $XTVar2__cx
+$XTVar2__cx := $ui__cx
+set_text($XTVar2,"0     Variation     10%")
+set_control_par(get_ui_id($XTVar2),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($XTVar2),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_knob $LOfst(0, 1000, 1) 
+%ui__id[$ui__cx] := get_ui_id($LOfst)
+move_control_px($LOfst,93,165)
+declare $LOfst__cx
+$LOfst__cx := $ui__cx
+set_text($LOfst,"SS Offset")
+set_knob_defval($LOfst,50)
+$LOfst := 50
+set_knob_unit($LOfst,4)
+inc($ui__cx)
+$LOfst := 50
+declare ui_slider $OfstVar(0, 100) 
+%ui__id[$ui__cx] := get_ui_id($OfstVar)
+move_control_px($OfstVar,94,208)
+declare $OfstVar__cx
+$OfstVar__cx := $ui__cx
+%ui__ax[$ui__cx] := $ns__ax
+%ns__cx[$ns__ax] := $ui__cx
+%ns__vmin[$ns__ax] := 0
+%ns__vrng[$ns__ax] := 100
+%ns__div[$ns__ax] := 10
+!ns__sfx[$ns__ax] := !ui__sfx[3]
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_MOUSE_BEHAVIOUR,2500)
+set_knob_defval($OfstVar,0)
+$OfstVar := 0
+%ns__span[$ns__ax] := 69
+select (0)
+case 1
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvSliderB1")
+case 2
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvSliderU2")
+%ns__span[$ns__ax] := 159
+case 3
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvSliderB2")
+%ns__span[$ns__ax] := 159
+end select
+%ns__x0[$ns__ax] := 75
+%ns__y0[$ns__ax] := 189
+inc($ui__cx)
+declare ui_button $OfstVar__2
+%ui__id[$ui__cx] := get_ui_id($OfstVar__2)
+set_control_par_str(get_ui_id($OfstVar__2),$CONTROL_PAR_PICTURE,"rdvFloat_Caption")
+set_control_par(get_ui_id($OfstVar__2),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+set_control_par(get_ui_id($OfstVar__2),$CONTROL_PAR_FONT_TYPE,12)
+set_control_par(get_ui_id($OfstVar__2),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,53)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+inc($ui__cx)
+inc($ns__ax)
+declare ui_label $OfstVar1(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($OfstVar1)
+move_control_px($OfstVar1,95,225)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,84)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,5)
+declare $OfstVar1__cx
+$OfstVar1__cx := $ui__cx
+set_text($OfstVar1,"")
+inc($ui__cx)
+set_control_par_str(%ui__id[$OfstVar1__cx],$CONTROL_PAR_PICTURE,"rdvSliderScale")
+declare ui_label $OfstVar2(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($OfstVar2)
+move_control_px($OfstVar2,86,227)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,105)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,16)
+declare $OfstVar2__cx
+$OfstVar2__cx := $ui__cx
+set_text($OfstVar2,"0     Variation     10%")
+set_control_par(get_ui_id($OfstVar2),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($OfstVar2),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+inc($ui__cx)
+declare ui_label $BendBox__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($BendBox__border)
+move_control_px($BendBox__border,196,41)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,193)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,189)
+set_text($BendBox__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,2)
+dec($ui__cx)
+declare ui_label $BendBox(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($BendBox)
+move_control_px($BendBox,197,42)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,191)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,187)
+declare $BendBox__cx
+$BendBox__cx := $ui__cx
+set_text($BendBox,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,22)
+$ui__cx := $ui__cx+2
+declare ui_label $UpBendCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($UpBendCap)
+move_control_px($UpBendCap,201,44)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,87)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $UpBendCap__cx
+$UpBendCap__cx := $ui__cx
+set_text($UpBendCap,"Up Interval")
+set_control_par(get_ui_id($UpBendCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($UpBendCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_knob $UpMinBend(0, 100, 1) 
+%ui__id[$ui__cx] := get_ui_id($UpMinBend)
+move_control_px($UpMinBend,201,59)
+declare $UpMinBend__cx
+$UpMinBend__cx := $ui__cx
+set_text($UpMinBend,"Min Bend")
+set_knob_defval($UpMinBend,10)
+$UpMinBend := 10
+inc($ui__cx)
+$UpMinBend := 10
+declare ui_knob $UpBScale(10, 120, 10) 
+%ui__id[$ui__cx] := get_ui_id($UpBScale)
+move_control_px($UpBScale,201,101)
+declare $UpBScale__cx
+$UpBScale__cx := $ui__cx
+set_text($UpBScale,"Bend/Oct")
+set_knob_defval($UpBScale,10)
+$UpBScale := 10
+inc($ui__cx)
+$UpBScale := 10
+declare ui_label $UpBShape1(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($UpBShape1)
+move_control_px($UpBShape1,201,139)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,86)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,16)
+declare $UpBShape1__cx
+$UpBShape1__cx := $ui__cx
+set_text($UpBShape1,"- Bend Contour +")
+set_control_par(get_ui_id($UpBShape1),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($UpBShape1),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_text($UpBShape1,"- Bend Contour +")
+declare ui_slider $UpBShape(-100, 100) 
+%ui__id[$ui__cx] := get_ui_id($UpBShape)
+move_control_px($UpBShape,203,154)
+declare $UpBShape__cx
+$UpBShape__cx := $ui__cx
+%ui__ax[$ui__cx] := $ns__ax
+%ns__cx[$ns__ax] := $ui__cx
+%ns__vmin[$ns__ax] := -100
+%ns__vrng[$ns__ax] := 200
+%ns__div[$ns__ax] := 100
+!ns__sfx[$ns__ax] := !ui__sfx[0]
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_MOUSE_BEHAVIOUR,2500)
+set_knob_defval($UpBShape,0)
+$UpBShape := 0
+%ns__span[$ns__ax] := 69
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvSliderB1")
+%ns__x0[$ns__ax] := 184
+%ns__y0[$ns__ax] := 135
+inc($ui__cx)
+declare ui_button $UpBShape__2
+%ui__id[$ui__cx] := get_ui_id($UpBShape__2)
+set_control_par_str(get_ui_id($UpBShape__2),$CONTROL_PAR_PICTURE,"rdvFloat_Caption")
+set_control_par(get_ui_id($UpBShape__2),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+set_control_par(get_ui_id($UpBShape__2),$CONTROL_PAR_FONT_TYPE,12)
+set_control_par(get_ui_id($UpBShape__2),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,53)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+inc($ui__cx)
+inc($ns__ax)
+$UpBShape := 0
+declare ui_label $UpBShape2(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($UpBShape2)
+move_control_px($UpBShape2,202,171)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,90)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,16)
+declare $UpBShape2__cx
+$UpBShape2__cx := $ui__cx
+set_text($UpBShape2,"")
+inc($ui__cx)
+declare ui_label $DnBendCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($DnBendCap)
+move_control_px($DnBendCap,295,44)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,87)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $DnBendCap__cx
+$DnBendCap__cx := $ui__cx
+set_text($DnBendCap,"Down Interval")
+set_control_par(get_ui_id($DnBendCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($DnBendCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_knob $DnMinBend(0, 100, 1) 
+%ui__id[$ui__cx] := get_ui_id($DnMinBend)
+move_control_px($DnMinBend,295,59)
+declare $DnMinBend__cx
+$DnMinBend__cx := $ui__cx
+set_text($DnMinBend,"Min Bend")
+set_knob_defval($DnMinBend,10)
+$DnMinBend := 10
+inc($ui__cx)
+$DnMinBend := 10
+declare ui_knob $DnBScale(10, 120, 10) 
+%ui__id[$ui__cx] := get_ui_id($DnBScale)
+move_control_px($DnBScale,295,101)
+declare $DnBScale__cx
+$DnBScale__cx := $ui__cx
+set_text($DnBScale,"Bend/Oct")
+set_knob_defval($DnBScale,10)
+$DnBScale := 10
+inc($ui__cx)
+$DnBScale := 10
+declare ui_label $DnBShape1(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($DnBShape1)
+move_control_px($DnBShape1,295,139)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,86)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,16)
+declare $DnBShape1__cx
+$DnBShape1__cx := $ui__cx
+set_text($DnBShape1,"- Bend Contour +")
+set_control_par(get_ui_id($DnBShape1),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($DnBShape1),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_slider $DnBShape(-100, 100) 
+%ui__id[$ui__cx] := get_ui_id($DnBShape)
+move_control_px($DnBShape,297,154)
+declare $DnBShape__cx
+$DnBShape__cx := $ui__cx
+%ui__ax[$ui__cx] := $ns__ax
+%ns__cx[$ns__ax] := $ui__cx
+%ns__vmin[$ns__ax] := -100
+%ns__vrng[$ns__ax] := 200
+%ns__div[$ns__ax] := 100
+!ns__sfx[$ns__ax] := !ui__sfx[0]
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_MOUSE_BEHAVIOUR,2500)
+set_knob_defval($DnBShape,0)
+$DnBShape := 0
+%ns__span[$ns__ax] := 69
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvSliderB1")
+%ns__x0[$ns__ax] := 278
+%ns__y0[$ns__ax] := 135
+inc($ui__cx)
+declare ui_button $DnBShape__2
+%ui__id[$ui__cx] := get_ui_id($DnBShape__2)
+set_control_par_str(get_ui_id($DnBShape__2),$CONTROL_PAR_PICTURE,"rdvFloat_Caption")
+set_control_par(get_ui_id($DnBShape__2),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+set_control_par(get_ui_id($DnBShape__2),$CONTROL_PAR_FONT_TYPE,12)
+set_control_par(get_ui_id($DnBShape__2),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,53)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+inc($ui__cx)
+inc($ns__ax)
+$DnBShape := 0
+declare ui_label $DnBShape2(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($DnBShape2)
+move_control_px($DnBShape2,296,171)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,90)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,16)
+declare $DnBShape2__cx
+$DnBShape2__cx := $ui__cx
+set_text($DnBShape2,"")
+inc($ui__cx)
+declare ui_slider $BendVar(0, 100) 
+%ui__id[$ui__cx] := get_ui_id($BendVar)
+move_control_px($BendVar,251,191)
+declare $BendVar__cx
+$BendVar__cx := $ui__cx
+%ui__ax[$ui__cx] := $ns__ax
+%ns__cx[$ns__ax] := $ui__cx
+%ns__vmin[$ns__ax] := 0
+%ns__vrng[$ns__ax] := 100
+%ns__div[$ns__ax] := 10
+!ns__sfx[$ns__ax] := !ui__sfx[3]
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_MOUSE_BEHAVIOUR,2500)
+set_knob_defval($BendVar,0)
+$BendVar := 0
+%ns__span[$ns__ax] := 69
+select (0)
+case 1
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvSliderB1")
+case 2
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvSliderU2")
+%ns__span[$ns__ax] := 159
+case 3
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvSliderB2")
+%ns__span[$ns__ax] := 159
+end select
+%ns__x0[$ns__ax] := 232
+%ns__y0[$ns__ax] := 172
+inc($ui__cx)
+declare ui_button $BendVar__2
+%ui__id[$ui__cx] := get_ui_id($BendVar__2)
+set_control_par_str(get_ui_id($BendVar__2),$CONTROL_PAR_PICTURE,"rdvFloat_Caption")
+set_control_par(get_ui_id($BendVar__2),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+set_control_par(get_ui_id($BendVar__2),$CONTROL_PAR_FONT_TYPE,12)
+set_control_par(get_ui_id($BendVar__2),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,53)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+inc($ui__cx)
+inc($ns__ax)
+declare ui_label $BendVar1(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($BendVar1)
+move_control_px($BendVar1,252,208)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,84)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,5)
+declare $BendVar1__cx
+$BendVar1__cx := $ui__cx
+set_text($BendVar1,"")
+inc($ui__cx)
+set_control_par_str(%ui__id[$BendVar1__cx],$CONTROL_PAR_PICTURE,"rdvSliderScale")
+declare ui_label $BendVar2(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($BendVar2)
+move_control_px($BendVar2,243,210)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,105)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,16)
+declare $BendVar2__cx
+$BendVar2__cx := $ui__cx
+set_text($BendVar2,"0     Variation     10%")
+set_control_par(get_ui_id($BendVar2),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($BendVar2),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_label $UpTmCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($UpTmCap)
+move_control_px($UpTmCap,417,42)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,87)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $UpTmCap__cx
+$UpTmCap__cx := $ui__cx
+set_text($UpTmCap,"Up Interval")
+set_control_par(get_ui_id($UpTmCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($UpTmCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_knob $UpGTime(5, 1000, 1) 
+%ui__id[$ui__cx] := get_ui_id($UpGTime)
+move_control_px($UpGTime,417,57)
+declare $UpGTime__cx
+$UpGTime__cx := $ui__cx
+set_text($UpGTime,"Glide Tm")
+set_knob_defval($UpGTime,250)
+$UpGTime := 250
+set_knob_unit($UpGTime,4)
+inc($ui__cx)
+$UpGTime := 250
+declare ui_knob $UpGScale(10, 50, 10) 
+%ui__id[$ui__cx] := get_ui_id($UpGScale)
+move_control_px($UpGScale,417,99)
+declare $UpGScale__cx
+$UpGScale__cx := $ui__cx
+set_text($UpGScale,"Time/Oct")
+set_knob_defval($UpGScale,10)
+$UpGScale := 10
+inc($ui__cx)
+$UpGScale := 10
+declare ui_label $UpGShape1(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($UpGShape1)
+move_control_px($UpGShape1,417,137)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,86)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,16)
+declare $UpGShape1__cx
+$UpGShape1__cx := $ui__cx
+set_text($UpGShape1,"- Glide Contour +")
+set_control_par(get_ui_id($UpGShape1),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($UpGShape1),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_slider $UpGShape(-100, 100) 
+%ui__id[$ui__cx] := get_ui_id($UpGShape)
+move_control_px($UpGShape,419,152)
+declare $UpGShape__cx
+$UpGShape__cx := $ui__cx
+%ui__ax[$ui__cx] := $ns__ax
+%ns__cx[$ns__ax] := $ui__cx
+%ns__vmin[$ns__ax] := -100
+%ns__vrng[$ns__ax] := 200
+%ns__div[$ns__ax] := 100
+!ns__sfx[$ns__ax] := !ui__sfx[0]
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_MOUSE_BEHAVIOUR,2500)
+set_knob_defval($UpGShape,0)
+$UpGShape := 0
+%ns__span[$ns__ax] := 69
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvSliderB1")
+%ns__x0[$ns__ax] := 400
+%ns__y0[$ns__ax] := 133
+inc($ui__cx)
+declare ui_button $UpGShape__2
+%ui__id[$ui__cx] := get_ui_id($UpGShape__2)
+set_control_par_str(get_ui_id($UpGShape__2),$CONTROL_PAR_PICTURE,"rdvFloat_Caption")
+set_control_par(get_ui_id($UpGShape__2),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+set_control_par(get_ui_id($UpGShape__2),$CONTROL_PAR_FONT_TYPE,12)
+set_control_par(get_ui_id($UpGShape__2),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,53)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+inc($ui__cx)
+inc($ns__ax)
+$UpGShape := 0
+declare ui_label $UpGShape2(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($UpGShape2)
+move_control_px($UpGShape2,418,169)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,88)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,16)
+declare $UpGShape2__cx
+$UpGShape2__cx := $ui__cx
+set_text($UpGShape2,"")
+inc($ui__cx)
+declare ui_label $DnTmCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($DnTmCap)
+move_control_px($DnTmCap,511,42)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,87)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $DnTmCap__cx
+$DnTmCap__cx := $ui__cx
+set_text($DnTmCap,"Down Interval")
+set_control_par(get_ui_id($DnTmCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($DnTmCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_knob $DnGTime(5, 1000, 1) 
+%ui__id[$ui__cx] := get_ui_id($DnGTime)
+move_control_px($DnGTime,511,57)
+declare $DnGTime__cx
+$DnGTime__cx := $ui__cx
+set_text($DnGTime,"Glide Tm")
+set_knob_defval($DnGTime,250)
+$DnGTime := 250
+set_knob_unit($DnGTime,4)
+inc($ui__cx)
+$DnGTime := 250
+declare ui_knob $DnGScale(10, 50, 10) 
+%ui__id[$ui__cx] := get_ui_id($DnGScale)
+move_control_px($DnGScale,511,99)
+declare $DnGScale__cx
+$DnGScale__cx := $ui__cx
+set_text($DnGScale,"Time/Oct")
+set_knob_defval($DnGScale,10)
+$DnGScale := 10
+inc($ui__cx)
+$DnGScale := 10
+declare ui_label $DnGShape1(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($DnGShape1)
+move_control_px($DnGShape1,511,137)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,86)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,16)
+declare $DnGShape1__cx
+$DnGShape1__cx := $ui__cx
+set_text($DnGShape1,"- Glide Contour +")
+set_control_par(get_ui_id($DnGShape1),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($DnGShape1),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_slider $DnGShape(-100, 100) 
+%ui__id[$ui__cx] := get_ui_id($DnGShape)
+move_control_px($DnGShape,513,152)
+declare $DnGShape__cx
+$DnGShape__cx := $ui__cx
+%ui__ax[$ui__cx] := $ns__ax
+%ns__cx[$ns__ax] := $ui__cx
+%ns__vmin[$ns__ax] := -100
+%ns__vrng[$ns__ax] := 200
+%ns__div[$ns__ax] := 100
+!ns__sfx[$ns__ax] := !ui__sfx[0]
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_MOUSE_BEHAVIOUR,2500)
+set_knob_defval($DnGShape,0)
+$DnGShape := 0
+%ns__span[$ns__ax] := 69
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvSliderB1")
+%ns__x0[$ns__ax] := 494
+%ns__y0[$ns__ax] := 133
+inc($ui__cx)
+declare ui_button $DnGShape__2
+%ui__id[$ui__cx] := get_ui_id($DnGShape__2)
+set_control_par_str(get_ui_id($DnGShape__2),$CONTROL_PAR_PICTURE,"rdvFloat_Caption")
+set_control_par(get_ui_id($DnGShape__2),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+set_control_par(get_ui_id($DnGShape__2),$CONTROL_PAR_FONT_TYPE,12)
+set_control_par(get_ui_id($DnGShape__2),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,53)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,17)
+inc($ui__cx)
+inc($ns__ax)
+$DnGShape := 0
+declare ui_label $DnGShape2(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($DnGShape2)
+move_control_px($DnGShape2,512,169)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,88)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,16)
+declare $DnGShape2__cx
+$DnGShape2__cx := $ui__cx
+set_text($DnGShape2,"")
+inc($ui__cx)
+declare ui_knob $GOfst(0, 1000, 1) 
+%ui__id[$ui__cx] := get_ui_id($GOfst)
+move_control_px($GOfst,417,188)
+declare $GOfst__cx
+$GOfst__cx := $ui__cx
+set_text($GOfst,"SS Offset")
+set_knob_defval($GOfst,50)
+$GOfst := 50
+set_knob_unit($GOfst,4)
+inc($ui__cx)
+$GOfst := 50
+declare ui_label $GModeCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($GModeCap)
+move_control_px($GModeCap,522,189)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,66)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $GModeCap__cx
+$GModeCap__cx := $ui__cx
+set_text($GModeCap,"Glider On/Off")
+set_control_par(get_ui_id($GModeCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($GModeCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_switch $GMode
+%ui__id[$ui__cx] := get_ui_id($GMode)
+move_control_px($GMode,524,203)
+declare $GMode__cx
+$GMode__cx := $ui__cx
+set_text($GMode,"Glider On")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+inc($ui__cx)
+set_control_par(get_ui_id($GMode),$CONTROL_PAR_WIDTH,64)
+set_control_par(get_ui_id($GMode),$CONTROL_PAR_HEIGHT,18)
+inc($ui__cx)
+declare ui_label $ArtBox__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtBox__border)
+move_control_px($ArtBox__border,102,252)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,70)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,32)
+set_text($ArtBox__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,3)
+dec($ui__cx)
+declare ui_label $ArtBox(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($ArtBox)
+move_control_px($ArtBox,104,254)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,66)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,28)
+declare $ArtBox__cx
+$ArtBox__cx := $ui__cx
+set_text($ArtBox,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,7)
+$ui__cx := $ui__cx+2
+set_text($ArtBox,"Articulation")
+set_control_par(get_ui_id($ArtBox),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+declare ui_label $ArtData(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtData)
+move_control_px($ArtData,102,266)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,70)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $ArtData__cx
+$ArtData__cx := $ui__cx
+set_text($ArtData,"")
+set_control_par(get_ui_id($ArtData),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($ArtData),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+set_control_par(get_ui_id($ArtData),$CONTROL_PAR_FONT_TYPE,17)
+set_control_par(get_ui_id($ArtData),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+declare ui_button $ArtHelp
+%ui__id[$ui__cx] := get_ui_id($ArtHelp)
+move_control_px($ArtHelp,102,252)
+declare $ArtHelp__cx
+$ArtHelp__cx := $ui__cx
+set_text($ArtHelp,"")
+set_control_par(get_ui_id($ArtHelp),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+inc($ui__cx)
+set_control_par(get_ui_id($ArtHelp),$CONTROL_PAR_WIDTH,70)
+set_control_par(get_ui_id($ArtHelp),$CONTROL_PAR_HEIGHT,32)
+set_control_par_str(get_ui_id($ArtHelp),$CONTROL_PAR_PICTURE,"rdvClr_Skin")
+inc($ui__cx)
+declare ui_label $PreBox__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($PreBox__border)
+move_control_px($PreBox__border,203,249)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,284)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,40)
+set_text($PreBox__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,2)
+dec($ui__cx)
+declare ui_label $PreBox(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($PreBox)
+move_control_px($PreBox,204,250)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,282)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,38)
+declare $PreBox__cx
+$PreBox__cx := $ui__cx
+set_text($PreBox,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,10)
+$ui__cx := $ui__cx+2
+declare ui_label $PreCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($PreCap)
+move_control_px($PreCap,213,251)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,90)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,18)
+declare $PreCap__cx
+$PreCap__cx := $ui__cx
+set_text($PreCap,"- Recall Preset -")
+set_control_par(get_ui_id($PreCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($PreCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_menu $PresetMenu
+%ui__id[$ui__cx] := get_ui_id($PresetMenu)
+move_control_px($PresetMenu,213,264)
+declare $PresetMenu__cx
+$PresetMenu__cx := $ui__cx
+inc($ui__cx)
+set_control_par(get_ui_id($PresetMenu),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(get_ui_id($PresetMenu),$CONTROL_PAR_WIDTH,90)
+set_control_par(get_ui_id($PresetMenu),$CONTROL_PAR_HEIGHT,18)
+declare %LegCX[19]
+declare %DefUser[19] := (42, 42, 25, 233, 25, 18, 38, 25, 18, 50, 300, 10, 100, 300, 10, 43, 35, 0, 0)
+declare %LegPars[475] := (43, 43, 0, 37, 38, 68, 21, 54, 68, 21, 80, 10, 50, 80, 10, 165, 148, 172, 168, 42, 42, 25, 233, 25, 18, 38, 25, 18, 50, 300, 10, 100, 300, 10, 43, 35, 0, 0, 60, 60, 25, ...
+61, 25, 10, 24, 25, 10, 24, 60, 10, 69, 60, 10, 171, 138, 0, 0, 99, 99, 50, 0, 0, 44, 42, 25, 44, 19, 250, 10, 50, 250, 10, 0, 200, 100, 100, 31, 31, 40, 39, 52, ...
+23, 27, 29, 23, 16, 250, 10, 50, 250, 10, 0, 200, 100, 100, 30, 30, 100, 60, 33, 22, 10, 83, 22, 10, 88, 10, 50, 88, 10, 171, 165, 148, 25, 43, 43, 83, 183, 49, 40, 34, ...
+0, 40, 34, 190, 17, 50, 190, 17, 102, 151, 58, 151, 114, 138, 25, 0, 0, 61, 35, 25, 61, 25, 300, 10, 100, 300, 10, 160, 142, 60, 134, 49, 49, 76, 0, 0, 53, 20, 39, 53, ...
+17, 65, 16, 69, 65, 16, 160, 144, 100, 100, 60, 60, 25, 0, 0, 91, 10, 39, 91, 10, 250, 10, 50, 250, 10, 171, 151, 100, 100)
+add_menu_item($PresetMenu,"Current Setup  ",-1)
+add_menu_item($PresetMenu,"-------------",-3)
+add_menu_item($PresetMenu,"Bassoon  ",0)
+add_menu_item($PresetMenu,"Clarinet  ",1)
+add_menu_item($PresetMenu,"Flute  ",2)
+add_menu_item($PresetMenu,"French Horn  ",3)
+add_menu_item($PresetMenu,"Oboe ",4)
+add_menu_item($PresetMenu,"Piccolo  ",5)
+add_menu_item($PresetMenu,"Saxophone ",6)
+add_menu_item($PresetMenu,"Trombone ",7)
+add_menu_item($PresetMenu,"Trumpet  ",8)
+add_menu_item($PresetMenu,"Tuba  ",9)
+declare $_n12
+$_n12 := 1
+while ($_n12<=14)
+add_menu_item($PresetMenu,@User & !Dgts[$_n12-1],10+$_n12)
+inc($_n12)
+end while
+add_menu_item($PresetMenu,"-------------",-4)
+add_menu_item($PresetMenu," * Bypassed *  ",-2)
+%LegCX[0] := $XTime__cx
+%LegCX[1] := $BTime__cx
+%LegCX[2] := $XTVar__cx
+%LegCX[3] := $LOfst__cx
+%LegCX[4] := $OfstVar__cx
+%LegCX[5] := $UpMinBend__cx
+%LegCX[6] := $UpBScale__cx
+%LegCX[7] := $BendVar__cx
+%LegCX[8] := $DnMinBend__cx
+%LegCX[9] := $DnBScale__cx
+%LegCX[10] := $UpGTime__cx
+%LegCX[11] := $UpGScale__cx
+%LegCX[12] := $GOfst__cx
+%LegCX[13] := $DnGTime__cx
+%LegCX[14] := $DnGScale__cx
+%LegCX[15] := $UpBShape__cx
+%LegCX[16] := $DnBShape__cx
+%LegCX[17] := $UpGShape__cx
+%LegCX[18] := $DnGShape__cx
+declare $_m3
+declare $_n14
+$_n14 := 0
+while ($_n14<=14)
+$_m3 := 0
+while ($_m3<19)
+%LegPars[19*(10+$_n14)+$_m3] := %DefUser[$_m3]
+inc($_m3)
+end while
+inc($_n14)
+end while
+declare ui_label $ArtCtlCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ArtCtlCap)
+move_control_px($ArtCtlCap,310,251)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,70)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+declare $ArtCtlCap__cx
+$ArtCtlCap__cx := $ui__cx
+set_text($ArtCtlCap,"Artic Control")
+set_control_par(get_ui_id($ArtCtlCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($ArtCtlCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_switch $ArtCtl
+%ui__id[$ui__cx] := get_ui_id($ArtCtl)
+move_control_px($ArtCtl,313,264)
+declare $ArtCtl__cx
+$ArtCtl__cx := $ui__cx
+set_text($ArtCtl,"On")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+inc($ui__cx)
+$ArtCtl := 1
+set_control_par(get_ui_id($ArtCtl),$CONTROL_PAR_WIDTH,64)
+set_control_par(get_ui_id($ArtCtl),$CONTROL_PAR_HEIGHT,18)
+declare ui_label $SaveCap(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($SaveCap)
+move_control_px($SaveCap,387,251)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,90)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+declare $SaveCap__cx
+$SaveCap__cx := $ui__cx
+set_text($SaveCap,"Save Settings")
+set_control_par(get_ui_id($SaveCap),$CONTROL_PAR_FONT_TYPE,9)
+set_control_par(get_ui_id($SaveCap),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,0)
+inc($ui__cx)
+declare ui_menu $SaveMenu
+%ui__id[$ui__cx] := get_ui_id($SaveMenu)
+move_control_px($SaveMenu,387,264)
+declare $SaveMenu__cx
+$SaveMenu__cx := $ui__cx
+inc($ui__cx)
+set_control_par(get_ui_id($SaveMenu),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+set_control_par(get_ui_id($SaveMenu),$CONTROL_PAR_WIDTH,90)
+set_control_par(get_ui_id($SaveMenu),$CONTROL_PAR_HEIGHT,18)
+add_menu_item($SaveMenu,"Save Setup As  ",-2)
+add_menu_item($SaveMenu,"-------------",-1)
+$_n12 := 1
+while ($_n12<=14)
+add_menu_item($SaveMenu,@User & !Dgts[$_n12-1],0+$_n12)
+inc($_n12)
+end while
+$ui__p1 := 201
+$ui__p2 := ($ui__height-50)/2
+inc($ui__cx)
+declare ui_label $ErrDlg__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($ErrDlg__border)
+move_control_px($ErrDlg__border,$ui__p1,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,230)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,50)
+set_text($ErrDlg__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,2)
+dec($ui__cx)
+declare ui_label $ErrDlg(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($ErrDlg)
+move_control_px($ErrDlg,$ui__p1+2,$ui__p2+2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,226)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,46)
+declare $ErrDlg__cx
+$ErrDlg__cx := $ui__cx
+set_text($ErrDlg,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,10)
+declare $ErrDlg__nc := 2
+$ui__cx := $ui__cx+2
+set_control_par(get_ui_id($ErrDlg),$CONTROL_PAR_FONT_TYPE,17)
+set_control_par(get_ui_id($ErrDlg),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$ErrDlg__nc := 3
+declare ui_button $ErrDlg__OK
+%ui__id[$ui__cx] := get_ui_id($ErrDlg__OK)
+move_control_px($ErrDlg__OK,$ui__p1+115-30,$ui__p2+50-27)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,60)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+set_text($ErrDlg__OK,"OK")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$ErrDlg__OK := 1
+inc($ui__cx)
+set_control_par(get_ui_id($ErrDlg),$CONTROL_PAR_FONT_TYPE,16)
+$ui__p1 := 181
+$ui__p2 := ($ui__height-75)/2
+inc($ui__cx)
+declare ui_label $SuiteErr__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($SuiteErr__border)
+move_control_px($SuiteErr__border,$ui__p1,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,270)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,75)
+set_text($SuiteErr__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,22)
+dec($ui__cx)
+declare ui_label $SuiteErr(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($SuiteErr)
+move_control_px($SuiteErr,$ui__p1+2,$ui__p2+2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,266)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,71)
+declare $SuiteErr__cx
+$SuiteErr__cx := $ui__cx
+set_text($SuiteErr,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,6)
+declare $SuiteErr__nc := 2
+$ui__cx := $ui__cx+2
+set_control_par(get_ui_id($SuiteErr),$CONTROL_PAR_FONT_TYPE,17)
+set_control_par(get_ui_id($SuiteErr),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$SuiteErr__nc := 2
+set_text($SuiteErr,"SCRIPT MISSING OR BYPASSED")
+add_text_line($SuiteErr,"***************************")
+add_text_line($SuiteErr,"This Script cannot function without the")
+add_text_line($SuiteErr,"Articulation Script in the prior slot")
+$ui__p1 := 178
+$ui__p2 := ($ui__height-75)/2
+inc($ui__cx)
+declare ui_label $SetupWarn__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($SetupWarn__border)
+move_control_px($SetupWarn__border,$ui__p1,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,276)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,75)
+set_text($SetupWarn__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,22)
+dec($ui__cx)
+declare ui_label $SetupWarn(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($SetupWarn)
+move_control_px($SetupWarn,$ui__p1+2,$ui__p2+2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,272)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,71)
+declare $SetupWarn__cx
+$SetupWarn__cx := $ui__cx
+set_text($SetupWarn,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,6)
+declare $SetupWarn__nc := 2
+$ui__cx := $ui__cx+2
+set_control_par(get_ui_id($SetupWarn),$CONTROL_PAR_FONT_TYPE,17)
+set_control_par(get_ui_id($SetupWarn),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$SetupWarn__nc := 2
+set_text($SetupWarn,"CAUTION")
+add_text_line($SetupWarn,"***********")
+add_text_line($SetupWarn,"Articulation Script is in SETUP/AUDITION mode")
+add_text_line($SetupWarn,"It must be in PLAY mode to use the Legato effect")
+$ui__p1 := 216
+$ui__p2 := ($ui__height-50)/2
+inc($ui__cx)
+declare ui_label $Sure__border(1, 1) 
+%ui__id[$ui__cx] := get_ui_id($Sure__border)
+move_control_px($Sure__border,$ui__p1,$ui__p2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,200)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,50)
+set_text($Sure__border,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,23)
+dec($ui__cx)
+declare ui_label $Sure(1, 2) 
+%ui__id[$ui__cx] := get_ui_id($Sure)
+move_control_px($Sure,$ui__p1+2,$ui__p2+2)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,196)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,46)
+declare $Sure__cx
+$Sure__cx := $ui__cx
+set_text($Sure,"")
+set_control_par_str(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE,"rdvBG24")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_PICTURE_STATE,7)
+declare $Sure__nc := 2
+$ui__cx := $ui__cx+2
+set_control_par(get_ui_id($Sure),$CONTROL_PAR_FONT_TYPE,17)
+set_control_par(get_ui_id($Sure),$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$Sure__nc := 4
+declare ui_button $Sure__OK
+%ui__id[$ui__cx] := get_ui_id($Sure__OK)
+move_control_px($Sure__OK,$ui__p1+100-30,$ui__p2+50-27)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,60)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+set_text($Sure__OK,"OK")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$Sure__OK := 1
+inc($ui__cx)
+set_control_par(%ui__id[$ui__cx-1],$CONTROL_PAR_POS_X,$ui__p1+100-70)
+declare ui_button $Sure__NO
+%ui__id[$ui__cx] := get_ui_id($Sure__NO)
+move_control_px($Sure__NO,$ui__p1+100+10,$ui__p2+50-27)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_WIDTH,60)
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_HEIGHT,20)
+set_text($Sure__NO,"Cancel")
+set_control_par(%ui__id[$ui__cx],$CONTROL_PAR_TEXT_ALIGNMENT,1)
+$Sure__NO := 1
+inc($ui__cx)
+set_control_help($XTime,!Tip[0])
+set_control_help($BTime,!Tip[1])
+set_control_help($XTVar,!Tip[2])
+set_control_help($LOfst,!Tip[3])
+set_control_help($OfstVar,!Tip[4])
+set_control_help($UpMinBend,!Tip[5])
+set_control_help($UpBScale,!Tip[6])
+set_control_help($UpBShape,!Tip[7])
+set_control_help($BendVar,!Tip[8])
+set_control_help($UpGTime,!Tip[9])
+set_control_help($UpGScale,!Tip[10])
+set_control_help($UpGShape,!Tip[11])
+set_control_help($GOfst,!Tip[12])
+set_control_help($GMode,!Tip[13])
+set_control_help($PresetMenu,!Tip[14])
+set_control_help($SaveMenu,!Tip[15])
+set_control_help($DnMinBend,!Tip[16])
+set_control_help($DnBScale,!Tip[17])
+set_control_help($DnBShape,!Tip[18])
+set_control_help($DnGTime,!Tip[19])
+set_control_help($DnGScale,!Tip[20])
+set_control_help($DnGShape,!Tip[21])
+set_control_help($NoLeg,!Tip[22])
+set_control_help($ArtCtl,!Tip[23])
+set_control_help($ArtHelp,!Tip[24])
+declare $LegPanel
+inc($ui__px)
+inc($ui__px)
+$LegPanel := $ui__px
+$ui__p1 := $SLSBkg__cx
+while ($ui__p1<($SLSBkg__cx+2))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+$ui__p1 := $Hdr__cx
+while ($ui__p1<($SaveMenu__cx+1))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+declare $AboutPanel
+inc($ui__px)
+inc($ui__px)
+$AboutPanel := $ui__px
+$ui__p1 := $SLSBkg__cx
+while ($ui__p1<($AboutDlg__cx+$AboutDlg__nc))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+declare $SurePanel
+inc($ui__px)
+inc($ui__px)
+$SurePanel := $ui__px
+$ui__p1 := $SLSBkg__cx
+while ($ui__p1<($SLSBkg__cx+2))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+if ($Sure__nc<2)
+%ui__psets[$ui__px] := $Sure__cx
+inc($ui__px)
+else
+$ui__p1 := $Sure__cx
+while ($ui__p1<($Sure__cx+$Sure__nc))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+end if
+declare $SuiteErrPanel
+inc($ui__px)
+inc($ui__px)
+$SuiteErrPanel := $ui__px
+$ui__p1 := $SLSBkg__cx
+while ($ui__p1<($SLSBkg__cx+2))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+if ($SuiteErr__nc<2)
+%ui__psets[$ui__px] := $SuiteErr__cx
+inc($ui__px)
+else
+$ui__p1 := $SuiteErr__cx
+while ($ui__p1<($SuiteErr__cx+$SuiteErr__nc))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+end if
+declare $WarnPanel
+inc($ui__px)
+inc($ui__px)
+$WarnPanel := $ui__px
+$ui__p1 := $SLSBkg__cx
+while ($ui__p1<($SLSBkg__cx+2))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+if ($SetupWarn__nc<2)
+%ui__psets[$ui__px] := $SetupWarn__cx
+inc($ui__px)
+else
+$ui__p1 := $SetupWarn__cx
+while ($ui__p1<($SetupWarn__cx+$SetupWarn__nc))
+%ui__psets[$ui__px] := $ui__p1
+inc($ui__px)
+inc($ui__p1)
+end while
+end if
+make_persistent($ArtCtl)
+make_persistent($XTime)
+make_persistent($BTime)
+make_persistent($LOfst)
+make_persistent($UpMinBend)
+make_persistent($UpBScale)
+make_persistent($UpBShape)
+make_persistent($DnMinBend)
+make_persistent($DnBScale)
+make_persistent($DnBShape)
+make_persistent($UpGTime)
+make_persistent($UpGScale)
+make_persistent($UpGShape)
+make_persistent($DnGTime)
+make_persistent($DnGScale)
+make_persistent($DnGShape)
+make_persistent($GOfst)
+make_persistent($GMode)
+make_persistent($XTVar)
+make_persistent($OfstVar)
+make_persistent($BendVar)
+make_persistent($PresetMenu)
+make_persistent(%LegPars)
+declare $_mfn
+declare $_n20
+declare $_legbend
+declare $_contour
+declare $_n19
+declare $_pp2
+declare $_n18
+declare $_pp
+declare $_n17
+declare $_n15
+declare $_saved
+declare $_n13
+declare $_F
+declare $_frac
+declare $_cx2
+declare $_T
+end on
+function save_legato_preset
+$_pp2 := 19*$leg_px
+$_n19 := 0
+while ($_n19<=14)
+%LegPars[$_pp2+$_n19] := get_control_par(%ui__id[%LegCX[$_n19]],$CONTROL_PAR_VALUE)
+inc($_n19)
+end while
+$_n19 := 15
+while ($_n19<=18)
+%LegPars[$_pp2+$_n19] := get_control_par(%ui__id[%LegCX[$_n19]],$CONTROL_PAR_VALUE)+100+(256*%ns__alt[%ui__ax[%LegCX[$_n19]]])
+inc($_n19)
+end while
+end function
+function shape_graphics
+set_control_par_str(%ui__id[$ui__kx+2],$CONTROL_PAR_PICTURE,!ContourPix[$shape__up*2+%ns__alt[%ui__ax[$ui__kx]]])
+!ns__sfx[%ui__ax[$ui__kx]] := !ContourSuffix[%ns__alt[%ui__ax[$ui__kx]]]
+end function
+function load_legato_preset
+$_pp := 19*$leg_px
+$_n18 := 0
+while ($_n18<=14)
+set_control_par(%ui__id[%LegCX[$_n18]],$CONTROL_PAR_VALUE,%LegPars[$_pp+$_n18])
+inc($_n18)
+end while
+$_n18 := 15
+while ($_n18<=18)
+%ns__alt[%ui__ax[%LegCX[$_n18]]] := %LegPars[$_pp+$_n18]/256
+set_control_par(%ui__id[%LegCX[$_n18]],$CONTROL_PAR_VALUE,%LegPars[$_pp+$_n18] mod 256-100)
+$ui__kx := %LegCX[$_n18]
+$shape__up := 18-$_n18 .and. 1
+call shape_graphics
+inc($_n18)
+end while
+set_knob_label($UpMinBend," " & $UpMinBend & " cts")
+set_knob_label($DnMinBend," " & $DnMinBend & " cts")
+end function
+function gen_new_note
+if ($GMode=1 and (pgs_get_key_val(WIPS__NGTKT,0)=1) and ($bypass=0))
+$art_span := 0
+end if
+$play_id := play_note(get_event_par($key_id,$EVENT_PAR_NOTE)+$art_span,get_event_par($key_id,$EVENT_PAR_VELOCITY),$ss_ofst,0)
+set_event_par($play_id,$EVENT_PAR_TUNE,get_event_par($key_id,$EVENT_PAR_TUNE)-($art_span*100000))
+set_event_par($play_id,$EVENT_PAR_0,2)
+set_event_par($play_id,$EVENT_PAR_1,get_event_par($key_id,$EVENT_PAR_1))
+if ($phrase=0 and (pgs_get_key_val(WIPS__GMUTE,0)=1) and (%CC[pgs_get_key_val(WIPS__HOLD_CC,0)]>63) and ($bypass=0))
+set_event_par($play_id,$EVENT_PAR_VOLUME,-200000)
+end if
+end function
+function set_ngroups
+set_event_par_arr($play_id,$EVENT_PAR_ALLOW_GROUP,0,$ALL_GROUPS)
+$_n20 := 0
+while ($_n20<6 and (pgs_get_key_val(WIPS__NGRPS,$_n20) # -1))
+set_event_par_arr($play_id,$EVENT_PAR_ALLOW_GROUP,1,pgs_get_key_val(WIPS__NGRPS,$_n20))
+inc($_n20)
+end while
+end function
+function change_pitch
+change_tune($play_id,$shape__pstep,1)
+$_n15 := 0
+while ($_n15<4)
+change_tune(%FadeQ[$_n15],$shape__pstep,1)
+inc($_n15)
+end while
+$pitch := $pitch+$shape__pstep
+end function
+function format
+if ($fmt__div=0)
+@ui__txt := "" & (sh_right($fmt__val-1,31) .or. 1)
+else
+$_F := 1
+while ($fmt__div>$_F and ($_F<1000))
+$_F := $_F*10
+end while
+while (2000000000/$_F<abs($fmt__val))
+$_F := $_F/10
+end while
+$fmt__val := ($fmt__val*$_F+($fmt__val*$_F mod $fmt__div))/$fmt__div
+$_frac := abs($fmt__val) mod $_F
+@ui__txt := "" & ($fmt__val/$_F)
+if ($fmt__val/$_F=0 and ($fmt__val<0))
+@ui__txt := "-" & @ui__txt
+end if
+if ($_F=1000 and ($_frac<10))
+@ui__txt := @ui__txt & ".00" & $_frac
+else
+if ($_F=1000 and in_range($_frac,10,99) or ($_F=100 and ($_frac<10)))
+@ui__txt := @ui__txt & ".0" & $_frac
+else
+if ($_F=1000 and ($_frac>=100) or ($_F=100 and ($_frac>=10)) or ($_F=10))
+@ui__txt := @ui__txt & "." & $_frac
+end if
+end if
+end if
+end if
+end function
+function show_panel
+$ui__p1 := $ui__active_panel
+while (%ui__psets[$ui__p1]>=0)
+set_control_par(%ui__id[%ui__psets[$ui__p1]],$CONTROL_PAR_HIDE,%ui__vs[%ui__psets[$ui__p1]])
+inc($ui__p1)
+end while
+end function
+function show_art
+set_text($ArtData,pgs_get_key_val(WIPS__ARTIC,0)+1 & "/" & (pgs_get_key_val(WIPS__ARTIC,1)+1))
+end function
+function hide_panel
+$ui__p1 := $ui__active_panel
+while (%ui__psets[$ui__p1]>=0)
+%ui__vs[%ui__psets[$ui__p1]] := get_control_par(%ui__id[%ui__psets[$ui__p1]],$CONTROL_PAR_HIDE)
+set_control_par(%ui__id[%ui__psets[$ui__p1]],$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+inc($ui__p1)
+end while
+end function
+function no_preset
+$PresetMenu := -1
+$last_preset := -1
+end function
+function shape_action
+call no_preset
+call shape_graphics
+end function
+function NI_Slider
+if (get_control_par(%ui__id[$ui__kx],$CONTROL_PAR_KEY_ALT)=1)
+%ns__alt[%ui__ax[$ui__kx]] := 1
+else
+if (get_control_par(%ui__id[$ui__kx],$CONTROL_PAR_KEY_SHIFT)=1)
+%ns__alt[%ui__ax[$ui__kx]] := 0
+end if
+end if
+$fmt__div := %ns__div[%ui__ax[$ui__kx]]
+$fmt__val := get_control_par(%ui__id[$ui__kx],$CONTROL_PAR_VALUE)
+call format
+@ui__txt := @ui__txt & !ns__sfx[%ui__ax[$ui__kx]]
+set_control_par_str(%ui__id[$ui__kx+1],$CONTROL_PAR_TEXT,@ui__txt)
+set_control_par(%ui__id[$ui__kx+1],$CONTROL_PAR_POS_X,($fmt__val-%ns__vmin[%ui__ax[$ui__kx]])*%ns__span[%ui__ax[$ui__kx]]/%ns__vrng[%ui__ax[$ui__kx]]+%ns__x0[%ui__ax[$ui__kx]])
+set_control_par(%ui__id[$ui__kx+1],$CONTROL_PAR_POS_Y,%ns__y0[%ui__ax[$ui__kx]])
+set_control_par(%ui__id[$ui__kx+1],$CONTROL_PAR_HIDE,$HIDE_PART_NOTHING)
+if ($_T<=0)
+$_cx2 := $ui__kx
+$_T := 20
+while ($_T>0)
+wait(100000)
+dec($_T)
+end while
+set_control_par(%ui__id[$_cx2+1],$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+else
+if ($ui__kx # $_cx2)
+set_control_par(%ui__id[$_cx2+1],$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+$_cx2 := $ui__kx
+end if
+$_T := 20
+end if
+end function
+function exit_sure
+if ($ui__active_panel=$SurePanel and ($ui__modal>=1) and (2>$ui__modal))
+$ui__modal := $ui__modal-1
+call hide_panel
+$ui__active_panel := %ui__psets[$SurePanel-1]
+call show_panel
+end if
+$Sure__OK := 1
+$Sure__NO := 1
+$SaveMenu := -2
+end function
+
+on note
+  if (get_event_par($EVENT_ID,$EVENT_PAR_0)=2)
+    $art_preset := get_event_par($EVENT_ID,$EVENT_PAR_1) mod 16
+    $art_span := sh_right(get_event_par($EVENT_ID,$EVENT_PAR_1),8) mod 64-24
+    $art_mks := sh_right(get_event_par($EVENT_ID,$EVENT_PAR_1),14)
+  
+    if ($ArtCtl=1)
+      if ($art_mks=3)
+        $leg_px := 10
+        call load_legato_preset
+        $PresetMenu := $user0_px
+        $_saved := 0
+      else
+      
+        if ($art_mks # 2)          
+          if ($art_mks=1)
+            $_saved := 0
+          end if
+        else        
+          if ($_saved=0)
+            $leg_px := 10
+            call save_legato_preset
+            $user0_px := $PresetMenu
+            $_saved := 1
+          end if
+        end if
+        
+        if ($art_preset # 0)
+          if ($art_preset<15)
+            $leg_px := $art_preset+10
+            call load_legato_preset
+            $PresetMenu := $leg_px
+          else
+            $PresetMenu := -2
+          end if
+        else
+          if ($art_mks=1 and ($PresetMenu=-2))
+            $PresetMenu := -1
+          end if
+        end if
+      end if
+      
+      $bypass := 1-(1+sh_right(abs($PresetMenu--2)-1,31)) .or. $NoLeg
+      $last_preset := $PresetMenu
+    end if
+    
+  $new_ncb := $NI_CALLBACK_ID
+  $key_id := $EVENT_ID
+  ignore_event($key_id)
+  
+  if ($phrase=0 or ($bypass=1))
+    if ($bypass=1)
+      note_off($play_id)
+    end if
+    
+    $pitch := get_event_par($key_id,$EVENT_PAR_NOTE)*100000+get_event_par($key_id,$EVENT_PAR_TUNE)
+    $ss_ofst := 0
+    call gen_new_note
+    call set_ngroups
+    $phrase := 1
+  else
+    $target := get_event_par($key_id,$EVENT_PAR_NOTE)*100000+get_event_par($key_id,$EVENT_PAR_TUNE)
+    note_off(%FadeQ[$qptr])
+    %FadeQ[$qptr] := $play_id
+    
+    if ($GMode=0)
+      $xftime := $XTime*1000
+      $xftime := $xftime+($xftime*random(-$XTVar,$XTVar)/1000)
+      
+      if ($target # $pitch)
+        if ($target>$pitch)
+          $_legbend := $UpMinBend*(1000+((abs($target-$pitch)-100000)*($UpBScale-10)/11000))
+          $shape__alt_mode := %ns__alt[%ui__ax[$UpBShape__cx]]
+          $_contour := $UpBShape
+        else
+          $_legbend := -$DnMinBend*(1000+((abs($target-$pitch)-100000)*($DnBScale-10)/11000))
+          $shape__alt_mode := %ns__alt[%ui__ax[$DnBShape__cx]]
+          $_contour := $DnBShape
+        end if
+        
+        $_legbend := $_legbend+($_legbend*random(-$BendVar,$BendVar)/1000)
+        $pitch := $target-$_legbend
+      end if
+      
+      $bend__time := $BTime*1000
+      $ss_ofst := 1000*$LOfst
+      $ss_ofst := $ss_ofst+($ss_ofst*random(-$OfstVar,$OfstVar)/1000)
+    else
+      if ($target>=$pitch)
+        $xftime := $UpGTime*(1000+((abs($target-$pitch)-100000)*($UpGScale-10)/11000))
+        $shape__alt_mode := %ns__alt[%ui__ax[$UpGShape__cx]]
+        $_contour := $UpGShape
+      else
+        $xftime := $DnGTime*(1000+((abs($target-$pitch)-100000)*($DnGScale-10)/11000))
+        $shape__alt_mode := %ns__alt[%ui__ax[$DnGShape__cx]]
+        $_contour := $DnGShape
+      end if
+      
+      $bend__time := $xftime
+      $ss_ofst := 1000*$GOfst
+    end if
+  
+    $shape__y0 := 100000+(1000*$_contour)
+    
+    if ($shape__alt_mode=1 and ($_contour # 0))
+      $shape__slope := -4000*$_contour
+    else
+      $shape__alt_mode := 0
+      $shape__slope := -2000*$_contour
+    end if
+    
+    $bend__NT := abs($target-$pitch)/2000
+    
+    if ($bend__NT<1000)
+      $bend__NT := 1000
+    end if
+    
+    $bend__tick := ($bend__time+($bend__time mod $Bend__NT))/$Bend__NT
+    $bend__pstep := ($target-$pitch)/$bend__NT
+    
+    call gen_new_note
+    call set_ngroups
+    change_tune($play_id,$pitch-$target,1)
+    fade_in($play_id,$xftime)
+    fade_out(%FadeQ[$qptr],$xftime,1)
+    
+    $qptr := ($qptr+1) mod 4
+    $bend__ticks := 0
+    $shape__pstep := $shape__y0*$bend__pstep/50000
+    wait($bend__tick)
+    
+    while ($new_ncb=$NI_CALLBACK_ID and (abs($target-$pitch)>abs($shape__pstep)) and ($bend__ticks<$bend__NT))
+      call change_pitch
+      inc($bend__ticks)
+      if ($shape__alt_mode=1 and (2*$bend__ticks>=$bend__NT))
+        $shape__pstep := (($shape__y0+($shape__slope*($bend__NT-$bend__ticks)/$bend__NT))*$bend__pstep+(($shape__y0+($shape__slope*($bend__NT-$bend__ticks)/$bend__NT))*$bend__pstep mod 100000))/100000
+      else
+        $shape__pstep := (($shape__y0+($shape__slope*$bend__ticks/$bend__NT))*$bend__pstep+(($shape__y0+($shape__slope*$bend__ticks/$bend__NT))*$bend__pstep mod 100000))/100000
+      end if
+      
+      wait($bend__tick)
+    end while
+    
+    if ($new_ncb=$NI_CALLBACK_ID)
+      $shape__pstep := $target-$pitch
+      call change_pitch
+    end if
+  end if  
+else
+  if (get_event_par($EVENT_ID,$EVENT_PAR_0) # 1)
+    ignore_event($EVENT_ID)
+  end if
+end if
+end on
+
+on release
+if (get_event_par($EVENT_ID,$EVENT_PAR_0)=2 and ($EVENT_ID=$key_id))
+$phrase := 0
+$_n17 := 0
+while ($_n17<4)
+note_off(%FadeQ[$_n17])
+inc($_n17)
+end while
+note_off($play_id)
+$pitch := $target
+end if
+end on
+on pgs_changed
+if ($ui__pinit # 0)
+$ui__pinit := 0
+if ($ui__lock__btn # 0)
+set_control_par($ui__lock__btn,$CONTROL_PAR_WIDTH,49+(15*$ui__lock))
+end if
+$ui__p1 := 0
+while ($ui__p1<$ui__cx)
+%ui__vs[$ui__p1] := get_control_par(%ui__id[$ui__p1],$CONTROL_PAR_HIDE)
+set_control_par(%ui__id[$ui__p1],$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+inc($ui__p1)
+end while
+$ui__active_panel := $LegPanel
+%ui__psets[$LegPanel-1] := $LegPanel
+call show_panel
+$last_preset := $PresetMenu
+set_knob_label($UpMinBend," " & $UpMinBend & " cts")
+set_knob_label($DnMinBend," " & $DnMinBend & " cts")
+set_text($ArtCtl,!OnOffTxt[$ArtCtl])
+$shape__up := 1
+$ui__kx := $UpBShape__cx
+call shape_graphics
+$ui__kx := $UpGShape__cx
+call shape_graphics
+$shape__up := 0
+$ui__kx := $DnGShape__cx
+call shape_graphics
+$ui__kx := $DnBShape__cx
+call shape_graphics
+set_text($GMode,!OnOffTxt[$GMode])
+call show_art
+end if
+$_n13 := 0
+while ($_n13<=4)
+pgs_set_key_val(WIPS__SLOTS,5+$_n13,$CURRENT_SCRIPT_SLOT)
+inc($_n13)
+end while
+if (pgs_get_key_val(WIPS__META,0) .and. 64 # 0)
+$_mfn := pgs_get_key_val(WIPS__META,0) .and. 63
+select ($_mfn)
+case 7 to 8
+if (pgs_get_key_val(WIPS__META,0) .and. 128=0)
+%meta__Last[$_mfn] := get_control_par(%ui__id[$GMode__cx],$CONTROL_PAR_VALUE)
+set_control_par(%ui__id[$GMode__cx],$CONTROL_PAR_VALUE,1-$_mfn+7)
+else
+set_control_par(%ui__id[$GMode__cx],$CONTROL_PAR_VALUE,%meta__Last[$_mfn])
+end if
+set_control_par_str(%ui__id[$GMode__cx],$CONTROL_PAR_TEXT,!OnOffTxt[get_control_par(%ui__id[$GMode__cx],$CONTROL_PAR_VALUE)])
+case 9
+if (pgs_get_key_val(WIPS__META,0) .and. 128=0)
+%meta__Last[$_mfn] := get_control_par(%ui__id[$GMode__cx],$CONTROL_PAR_VALUE)
+set_control_par(%ui__id[$GMode__cx],$CONTROL_PAR_VALUE,1-$GMode)
+else
+set_control_par(%ui__id[$GMode__cx],$CONTROL_PAR_VALUE,%meta__Last[$_mfn])
+end if
+set_control_par_str(%ui__id[$GMode__cx],$CONTROL_PAR_TEXT,!OnOffTxt[get_control_par(%ui__id[$GMode__cx],$CONTROL_PAR_VALUE)])
+case 10 to 11
+if (pgs_get_key_val(WIPS__META,0) .and. 128=0)
+%meta__Last[$_mfn] := get_control_par(%ui__id[$ArtCtl__cx],$CONTROL_PAR_VALUE)
+set_control_par(%ui__id[$ArtCtl__cx],$CONTROL_PAR_VALUE,1-$_mfn+10)
+else
+set_control_par(%ui__id[$ArtCtl__cx],$CONTROL_PAR_VALUE,%meta__Last[$_mfn])
+end if
+set_control_par_str(%ui__id[$ArtCtl__cx],$CONTROL_PAR_TEXT,!OnOffTxt[get_control_par(%ui__id[$ArtCtl__cx],$CONTROL_PAR_VALUE)])
+case 12
+if (pgs_get_key_val(WIPS__META,0) .and. 128=0)
+%meta__Last[$_mfn] := get_control_par(%ui__id[$ArtCtl__cx],$CONTROL_PAR_VALUE)
+set_control_par(%ui__id[$ArtCtl__cx],$CONTROL_PAR_VALUE,1-$ArtCtl)
+else
+set_control_par(%ui__id[$ArtCtl__cx],$CONTROL_PAR_VALUE,%meta__Last[$_mfn])
+end if
+set_control_par_str(%ui__id[$ArtCtl__cx],$CONTROL_PAR_TEXT,!OnOffTxt[get_control_par(%ui__id[$ArtCtl__cx],$CONTROL_PAR_VALUE)])
+case 13 to 14
+if (pgs_get_key_val(WIPS__META,0) .and. 128=0)
+%meta__Last[$_mfn] := get_control_par(%ui__id[$NoLeg__cx],$CONTROL_PAR_VALUE)
+set_control_par(%ui__id[$NoLeg__cx],$CONTROL_PAR_VALUE,1-$_mfn+13)
+else
+set_control_par(%ui__id[$NoLeg__cx],$CONTROL_PAR_VALUE,%meta__Last[$_mfn])
+end if
+case 15
+if (pgs_get_key_val(WIPS__META,0) .and. 128=0)
+%meta__Last[$_mfn] := get_control_par(%ui__id[$NoLeg__cx],$CONTROL_PAR_VALUE)
+set_control_par(%ui__id[$NoLeg__cx],$CONTROL_PAR_VALUE,1-$NoLeg)
+else
+set_control_par(%ui__id[$NoLeg__cx],$CONTROL_PAR_VALUE,%meta__Last[$_mfn])
+end if
+end select
+end if
+call show_art
+end on
+on listener
+if ($NI_SIGNAL_TYPE=$NI_SIGNAL_TIMER_MS)
+if (pgs_get_key_val(WIPS__SLOTS,0+$CURRENT_SCRIPT_SLOT)=($CURRENT_SCRIPT_SLOT+-1))
+if ($ui__active_panel=$SuiteErrPanel and ($ui__modal>=2) and (4>$ui__modal))
+$ui__modal := $ui__modal-2
+call hide_panel
+$ui__active_panel := %ui__psets[$SuiteErrPanel-1]
+call show_panel
+end if
+else
+if ($ui__active_panel # $SuiteErrPanel and (2>$ui__modal))
+$ui__modal := $ui__modal+2
+call hide_panel
+%ui__psets[$SuiteErrPanel-1] := $ui__active_panel
+$ui__active_panel := $SuiteErrPanel
+call show_panel
+end if
+end if
+if (pgs_get_key_val(WIPS__NOPLAY,0)=1)
+if ($ui__active_panel # $WarnPanel and (1>$ui__modal))
+$ui__modal := $ui__modal+1
+call hide_panel
+%ui__psets[$WarnPanel-1] := $ui__active_panel
+$ui__active_panel := $WarnPanel
+call show_panel
+end if
+else
+if ($ui__active_panel=$WarnPanel and ($ui__modal>=1) and (2>$ui__modal))
+$ui__modal := $ui__modal-1
+call hide_panel
+$ui__active_panel := %ui__psets[$WarnPanel-1]
+call show_panel
+end if
+end if
+pgs_set_key_val(WIPS__SLOTS,0+$CURRENT_SCRIPT_SLOT,-10)
+end if
+end on
+on ui_control($AboutDlg__TLock1)
+$AboutDlg__TLock1 := 0
+if ($ui__lock__2 # 0)
+$ui__lock := 1-$ui__lock
+set_control_par($ui__lock__btn,$CONTROL_PAR_WIDTH,49+(15*$ui__lock))
+end if
+$ui__lock__1 := 1
+wait(2000000)
+$ui__lock__1 := 0
+end on
+on ui_control($AboutDlg__TLock2)
+$AboutDlg__TLock2 := 0
+if ($ui__lock__1 # 0)
+$ui__lock := 1-$ui__lock
+set_control_par($ui__lock__btn,$CONTROL_PAR_WIDTH,49+(15*$ui__lock))
+end if
+$ui__lock__2 := 1
+wait(2000000)
+$ui__lock__2 := 0
+end on
+on ui_control($UpBShape)
+$ui__kx := $UpBShape__cx
+$shape__up := 1
+call shape_action
+call NI_Slider
+end on
+on ui_control($DnBShape)
+$ui__kx := $DnBShape__cx
+$shape__up := 0
+call shape_action
+call NI_Slider
+end on
+on ui_control($UpGShape)
+$ui__kx := $UpGShape__cx
+$shape__up := 1
+call shape_action
+call NI_Slider
+end on
+on ui_control($DnGShape)
+$ui__kx := $DnGShape__cx
+$shape__up := 0
+call shape_action
+call NI_Slider
+end on
+on ui_control($XTVar)
+$ui__kx := $XTVar__cx
+call no_preset
+call NI_Slider
+end on
+on ui_control($OfstVar)
+$ui__kx := $OfstVar__cx
+call no_preset
+call NI_Slider
+end on
+on ui_control($BendVar)
+$ui__kx := $BendVar__cx
+call no_preset
+call NI_Slider
+end on
+on ui_control($About)
+$About := 0
+if ($ui__active_panel # $AboutPanel and ($ui__modal=0))
+call hide_panel
+%ui__psets[$AboutPanel-1] := $ui__active_panel
+$ui__active_panel := $AboutPanel
+call show_panel
+end if
+end on
+on ui_control($AboutDlg__OK)
+$AboutDlg__OK := 1
+if ($ui__active_panel=$AboutPanel and ($ui__modal=0))
+call hide_panel
+$ui__active_panel := %ui__psets[$AboutPanel-1]
+call show_panel
+end if
+end on
+on ui_control($ArtCtl)
+set_text($ArtCtl,!OnOffTxt[$ArtCtl])
+end on
+on ui_control($BTime)
+call no_preset
+end on
+on ui_control($DnBScale)
+call no_preset
+end on
+on ui_control($DnGScale)
+call no_preset
+end on
+on ui_control($DnGTime)
+call no_preset
+end on
+on ui_control($DnMinBend)
+set_knob_label($DnMinBend," " & $DnMinBend & " cts")
+call no_preset
+end on
+on ui_control($GMode)
+set_text($GMode,!OnOffTxt[$GMode])
+end on
+on ui_control($GOfst)
+call no_preset
+end on
+on ui_control($LOfst)
+call no_preset
+end on
+on ui_control($PresetMenu)
+if ($PresetMenu<0)
+$PresetMenu := $last_preset
+else
+$leg_px := $PresetMenu
+call load_legato_preset
+$last_preset := $PresetMenu
+end if
+end on
+on ui_control($SaveMenu)
+if ($SaveMenu>=0)
+set_text($Sure,"OK to overwrite User Preset " & $SaveMenu & "?")
+if ($ui__active_panel # $SurePanel and (1>$ui__modal))
+$ui__modal := $ui__modal+1
+call hide_panel
+%ui__psets[$SurePanel-1] := $ui__active_panel
+$ui__active_panel := $SurePanel
+call show_panel
+end if
+else
+$SaveMenu := -2
+end if
+end on
+on ui_control($Sure__NO)
+call exit_sure
+end on
+on ui_control($Sure__OK)
+$leg_px := $SaveMenu+10
+call save_legato_preset
+call exit_sure
+end on
+on ui_control($UpBScale)
+if (get_control_par(get_ui_id($UpBScale),$CONTROL_PAR_KEY_ALT) # 0)
+$DnBScale := $UpBScale
+end if
+call no_preset
+end on
+on ui_control($UpGScale)
+if (get_control_par(get_ui_id($UpGScale),$CONTROL_PAR_KEY_ALT) # 0)
+$DnGScale := $UpGScale
+end if
+call no_preset
+end on
+on ui_control($UpGTime)
+if (get_control_par(get_ui_id($UpGTime),$CONTROL_PAR_KEY_ALT) # 0)
+$DnGTime := $UpGTime
+end if
+call no_preset
+end on
+on ui_control($UpMinBend)
+if (get_control_par(get_ui_id($UpMinBend),$CONTROL_PAR_KEY_ALT) # 0)
+$DnMinBend := $UpMinBend
+set_knob_label($DnMinBend," " & $DnMinBend & " cts")
+end if
+set_knob_label($UpMinBend," " & $UpMinBend & " cts")
+call no_preset
+end on
+on ui_control($XTime)
+if (get_control_par(get_ui_id($XTime),$CONTROL_PAR_KEY_ALT) # 0)
+$BTime := $XTime
+end if
+call no_preset
+end on
+

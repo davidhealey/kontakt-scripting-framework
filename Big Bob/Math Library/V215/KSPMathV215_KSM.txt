@@ -1,0 +1,1214 @@
+{ --------------------------------------------------------------------------------
+Title: KSP Math Library
+Author: R.D.Villwock aka 'Big Bob'
+First Written: October 2, 2006
+Current Version: 2.15
+Last Modified: April 2, 2009
+----------------------------------------------------------------------------------}
+
+{ This module provides a number of useful math functions not included with the
+  basic KSP scripting language. These functions can support scripts that perform
+  various forms of equal-power crossfading and other forms of sophisticated volume
+  control. The Log/Exp and Root3 routines may also be useful for various
+  tempo/pitch calculations. In addition, utility routines are provided to aid the
+  process of format conversion (such as forward/reverse conversion between engine
+  parameters and their analogs). 
+  
+  NOTE: This Library is written as an 'import' module to be compiled with your
+  main, host script using Nils Liberg's KScript Editor V1.25.6 or higher.
+  Importing this Library will not 'bloat your code'. Nothing will be added to
+  your code except what is needed to support the functions you actually use. If
+  you don't use any of the Library's functions, no code or data declarations
+  will be added. Be sure to turn on at least the 'Optimize Compiled Code' and
+  the 'Compact Output' options if you want to minimize the compiled source code.
+  
+  With the exception of the CVHex routine, all functions automatically declare
+  any needed data structures so all you need do to use any Library function is
+  to simply reference it in your code. To use CVHex however, you need to
+  include a call to UseHex in your ICB before the first use of CVHex.
+  
+        INPUT PARAMETERS: All the Library Routines treat input arguments as
+        read-only so you can pass variables or constants (symbolic or literal)
+        if desired. Passing input expressions will not always work properly
+        since the expression string is passed as is without regard for operator
+        precedence inside the body of the routine where it will be used.
+        Generally, it is best to pass expressions by first assigning the
+        expression to a simple variable and then passing the simple variable.
+        
+        OUTPUT PARAMETERS: Many of the Library Routines use output variables
+        to hold interim values and therefore you should always use a simple
+        variable for your output arguments. If you need to set a control from
+        the output of a Library Routine, pass it 'through' a simple variable.
+                 
+  ----------------------------- The Standard Functions -------------------------- 
+  ATFade(cv,rng,atn)    This function maps a MIDI CC value, 'cv', to control
+                        overall attenuation, 'atn', with an audio-taper and
+                        range adjustment
+
+  Ang90                 This constant (currently = 1000 dg) is available if your
+                        script references any Trig functions. It is useful for
+                        angle conversion from arbitrary right-angle units. For
+                        example, if you want to use a MIDI CC to cover tha range
+                        from 0..90 degrees, you can use:  angle = CC*Ang90/127.
+
+  exp(lgx,X)            This function returns an integer 'X' which is the natural
+                        antilog of the scaled input 'lgx', ie  X = e^(lgx/1000000) 
+                        where 0.0 < lgx < 21.487562 * 10^6
+
+  Exp2(lgx,X)           This function returns an integer 'X' which is the binary
+                        antilog of the scaled input 'lgx', ie X = 2^(lgx/1000000)
+                        where: 0.0 < lgx < 30.999999 * 10^6
+
+  Exp10(lgx,X)          This function returns an integer 'X' which is the common
+                        antilog of the scaled input 'lgx', ie X = 10^(lgx/1000000)
+                        where: 0.0 < lgx < 9.331929 * 10^6
+                         
+  Ln(X,lgx)             This function accepts an input of 0 < 'X' < 2^16 and
+                        returns the base e logarithm, 'lgx', scaled by 10,000.
+                        This routine is less accurate and accepts a narrower
+                        input range than XLn but executes faster.
+                        
+  Log2(X,lgx)           This function accepts an input of 0 < 'X' < 2^16 and
+                        returns the base 2 logarithm, 'lgx', scaled by 10,000.
+                        This routine is less accurate and accepts a narrower
+                        input range than XLog2 but Log2 executes faster.
+                        
+  Log10(X,lgx)          This function accepts an input of 0 < 'X' < 2^16 and
+                        returns the base 10 logarithm, 'lgx', scaled by 10,000.
+                        This routine is less accurate and accepts a narrower
+                        input range than XLog10 but Log10 executes faster.
+                        
+  Muted                 This constant (currently -200,000 mdb) is available if
+                        your script references ATFade, ep_to_mdb, Get_db,
+                        or VR_to_mdb,
+                        
+  Root3(X,r)            This function accepts any input integer -2^31 <= X < 2^31
+                        and returns r, the cube root of X scaled by 100,000.
+                        
+  SinCos(ang,sin,cos)   This function accepts an input angle in the first
+                        quadrant (0..1000 deci-grads) and returns both sine and
+                        cosine scaled by 10,000. For the full integer range of
+                        angles, use XSinCos.
+                        
+  Tangent(ang,tan)      This function accepts an input angle in the first
+                        quadrant (0..1000 deci-grads) and returns the tangent
+                        scaled by 10,000. For the full integer range of angles,
+                        use XTangent.
+                        
+----------------------------------- Extended Functions --------------------------
+  XLn(X,lgx)            This extended precision function accepts any positive
+                        integer (0 < 'X' < 2^31) as input and returns its
+                        natural (base e) logarithm, 'lgx', scaled by 1,000,000.
+                        However, this routine is not as fast as Ln.
+                        
+  XLog2(X,lgx)          This extended precision function accepts any positive
+                        integer (0 < 'X' < 2^31) as input and returns its
+                        binary (base 2) logarithm, 'lgx', scaled by 1,000,000.
+                        However, this routine is not as fast as Log2.
+                        
+  XLog10(X,lgx)         This extended precision function accepts any positive
+                        integer (0 < 'X' < 2^31) as input and returns its
+                        common (base 10) logarithm, 'lgx', scaled by 1,000,000.
+                        However, this routine is not as fast as Log10.
+
+  XSinCos(ang,sin,cos)  This extended range function accepts any input angle
+                        in deci-grads and returns both the sine and cosine
+                        scaled by 10,000
+                        
+  XTangent(ang,tan)     This extended range function accepts any input angle
+                        in deci-grads and returns the tangent scaled by 10,000.
+                        For tan(1000), this routine returns 100,000,000
+
+------------------------------ Format Conversion Routines --------------------
+  AtkTime_to_ep(t,N)    This function converts envelope attack time, 't'
+                        in ms to the equivalent engine parameter, 'N'
+                        Using the formula:  N = 77683*[Lg(t + 2) - 1]
+                        
+  DRTime_to_ep(t,N)     This function converts envelope decay or release time,
+                        't' in ms to the equivalent engine parameter, 'N'
+                        Using the formula:  N = 73477*[Lg(t + 2) - 1]
+
+  EqBW_to_ep(B,N)       Convert Bandwidth (scaled by 10), 'B' to its
+                        equivalent engine parameter, 'N', using the formula:
+                        N = 1000000*(B - 3)/27
+
+  EqFreq_to_ep(F,N)     Convert EQ Frequency, 'F', in Hz to its equivalent
+                        engine parameter, 'N', using the formula:
+                        N = K*Lg(F/20)
+
+  EqGain_to_ep(G,N)     Convert Gain in db, 'G' (scaled by 10) to its
+                        equivalent engine parameter, 'N' using the formula:
+                        N = 500000*G/180 + 500000 
+
+  ep_to_AtkTime(N,t)    This function converts an engine parameter, 'N' to
+                        the equivalent envelope attack time, 't' in ms
+                        Using the formula:  t = 2*2^(N/77683) - 2
+
+  ep_to_DRTime(N,t)     This function converts an engine parameter, 'N' to the
+                        equivalent envelope decay or release time, 't' in ms
+                        Using the formula:  t = 2*2^(N/73477) - 2
+
+  ep_to_EqBW(N,B)       Convert Engine Parameter value, 'N', to its equivalent
+                        Bandwidth, 'B' (scaled by 10), using the formula:
+                        B = 3 + 27*N/1000000
+
+  ep_to_EqFreq(N,F)     Convert Engine Parameter value, 'N', to its equivalent
+                        EQ Frequency, 'F' in Hz, using the formula:
+                        F = 20*2^(N/K)
+
+  ep_to_EqGain(N,G)     Convert Engine Parameter value, 'N', to its equivalent
+                        Gain in db, 'G' (scaled by 10 ) using the formula:
+                        G = 180*(N - 500000)/1000000
+                        
+  ep_to_mdb(N,Vol)      This function converts an Engine Parameter 'N' to its
+                        equivalent Volume in mdb using the formula: 
+                        'Vol' = 20000*log(N/Nm)^3 + 12000
+                        where 'Vol' is in mdb and Nm = 1,000,000
+  ep_to_Pitch(N,P)      Convert Engine Parameter, 'N', to its equivalent
+                        Pitch value, 'P' in cents using the formula:
+                        P = 1200*[(N - 500000)/500000]^3
+
+  ep_to_Speed(N,S)      Convert Engine Parameter value, 'N', to its equivalent
+                        Speed value, 'S' in percent (0..800%) using the formula:
+                        S = 2^[K*(X^3 + 1) + A] - 50/3
+                        where X = (N - 500000)/500000, K = 2.807354922,
+                        and A = 4.05889369 
+
+  mdb_to_ep(Vol,N)      This function converts Volume in mdb to its equivalent ep
+                        value N using the formula: N = Nm*10^(Vol - 12000)/60000 
+                        where 'Vol' is in mdb and Nm = 1,000,000.
+                        
+  Pitch_to_ep(P,N)      This function converts pitch in cts, -1200 <= P <= +1200
+                        to the corresponding ep value N using the formula:
+                        N = 500000*(P/1200)^1/3 + 500000
+                        
+  Speed_to_ep(S,N)      Convert Speed in percent (0..800%) to its equivalent
+                        engine parameter, N using the formula:
+                        N = 500000*[Lg(3*S + 50)/K - B]^1/3 + 500000
+                        Where K = 2.807354922 and B = 3.010382137 
+
+  VR_to_ep(VR,N)        This function takes an input scaled volume ratio,
+                        'VR' = 10000(V/V0), and returns the corresponding ep
+                        using the formula: N = Nm*(0.25*V/V0)^1/3, where
+                        Nm = 1,000,000 and N = Nm when V/V0 = 4.0
+
+  VR_to_mdb(VR,Vol)     This function takes an input scaled volume ratio,
+                        'VR' = 10000(V/V0) and returns the equivalent volume,
+                        'Vol', in mdb using the formula Vol = 20000*log|V/V0|.
+                        This function is the same as the legacy function named
+                        Get_db except that V/V0 can be as high as 4.0000.
+                        
+  Get_db(VR,Vol)        This function is provided as an 'alias' for older
+                        scripts. New scripts should simply use the VR_to_mdb
+                        routine which performs the same function (but also
+                        allows an input ratio up to 4.0000.
+
+  ------------------------------ Script Development -----------------------------
+  CVHex(num,str)        Converts any integer 'num' to its equivalent 8-character
+                        Hexadecimal String, placing the result in 'str'. To use
+                        this function you must first invoke the UseHex data
+                        function somewhere in your ICB. This function is provided
+                        more for use in testing than for final script support.
+                        
+  -------------------------------------------------------------------------------
+                           Library Functions Source Code
+  -------------------------------------------------------------------------------
+  ATFade(cv,rng,atn)     Audio-Taper MIDI Fader Function 
+  
+  'cv'  = control value input 0..127
+  'rng' = control range input 0..100%
+  'atn' = attenuation output -200,000..0 mdb
+  
+  Accepts a linear control value, and returns an audio-taper
+  attenuation value. At 'cv' = 127, 'atn' = 0 db. As 'cv' swings
+  from 127..0, 'atn' increases from 0 db toward some maximum
+  negative value determined by the 'rng' input. At 'rng' = 100%,
+  'atn' swings through the full range from 0..-200 db (muted).
+  For 'rng' values of 100..0%, the max 'atn' value (at 'cv' = 0)
+  changes from -200..0 db. Thus, with 'rng' at 0%, 'atn' = 0 db
+  for any 'cv' value (ie 'cv' has NO control range).
+    
+  For the full range of attenuation, 'rng' = 100%, a 3-segment
+  linear db relationship is used. The 'working' zone from 0..-25 db
+  is assigned to 'cv' = 127..50. The 'soft' zone from -25..-60 db
+  is assigned to 'cv' = 50..17, and the 'fade-out' zone from
+  -60..-200 db is assigned to 'cv' = 17..0. This provides smooth
+  and accurate volume control throughout the entire audio range. }
+
+function ATFade(cv,rng,atn)
+  DefineMuted     { This generates no runtime code }
+  declare const 30K := 30000  
+  declare const 50K := 50000
+  declare const 60K := 60000
+  declare const 70K := 70000
+  declare const 280K := 280000  
+  declare cx  { Range-mapped 'cv' }
+     { node 0: c0 = 0,  a0 = -200000 mdb
+       node 1: c1 = 17, a1 = -60000 mdb
+       node 2: c2 = 50, a2 = -25000 mdb }
+         
+  cx := 127 + rng*(cv - 127)/100  { Set range for cx }
+  select cx
+    case 50 to 127      { 'Working' zone, -25..0 db }
+      atn := (50K*(cx - 127) - 72)/154
+      { atn := a2*(127 - cx)/(127 - c2) rounded }
+    case 17 to 49       { Soft zone, -60..-25 db }
+      atn := -60K + (70K*(cx - 17) + 33)/66
+      {  atn := a1 + (a2 - a1)*(cx - c1)/(c2 - c1) rounded }
+    case 0 to 16        { Fade-out zone, -200..60 db }
+      atn := Muted + (280K*cx + 17)/34
+      { atn := a0 + (a1 - a0)*cx/c1 rounded }
+  end select
+end function { ATFade }
+
+{ ------------------------------------------------------------------------------
+    exp(lgx,X))  Natural AntiLog Function (base e) 
+  
+            'lgx' = Input value (scaled by 1000000)
+              'X' = e^(lgx/1000000) ie Base e Antilog of input when
+                    input is in the range 0.0 <= lgx <= 21.487562
+            
+    NOTE: For lgx > 21.487562, result X is clamped to MaxInt = 2,147,483,647
+          For lgx < 0.0, result X is set to zero.  }
+
+function exp(lgx,X)
+  declare const MaxInt := 0x7FFFFFFF  { Maximum positive integer, 2^31 - 1 }
+  declare rbx  { Re-based value of lgx }
+  
+  if lgx > 21487562
+    X := MaxInt
+  else  { Rebase rbx = lgx/Ln(2) }
+    rbx := ((lgx/1000000)*70692057 + 25)/49 + ((lgx mod 1000000)*1649 + 571)/1143
+    XP2.Core(rbx,X)  { Compute antilog of re-based lgx: 0.0 <= rbx < 31.0 }
+  end if
+end function { exp}
+
+{ ------------------------------------------------------------------------------
+    Exp2(lgx,X))  Binary AntiLog Function (base 2) 
+  
+            'lgx' = Input value (scaled by 1000000)
+              'X' = 2^(lgx/1000000) ie Base 2 Antilog of input when
+                    input is in the range 0.0 <= lgx <= 30.999999
+            
+    NOTE: For lgx > 30.999999, result X is clamped to MaxInt = 2,147,483,647
+          For lgx < 0.0, result X is set to zero. }
+          
+function Exp2(lgx,X)
+  declare const MaxInt := 0x7FFFFFFF  { Maximum positive integer, 2^31 - 1 }
+  
+  if lgx > 30999999
+    X := MaxInt
+  else
+    XP2.Core(lgx,X)  { Compute the antilog of 0.0 <= lgx <= 30.999999 }
+  end if
+end function { Exp2 }
+
+{ -------------------------------------------------------------------------
+    Exp10(lgx,X))  Common AntiLog Function (base 10) 
+  
+            'lgx' = Input value (scaled by 1000000)
+              'X' = 10^(lgx/1000000) ie Base 10 Antilog of input when
+                    input is in the range 0.0 <= lgx <= 9.331929
+            
+    NOTE: For lgx > 9.331929, result X is clamped to MaxInt = 2,147,483,647
+          For lgx < 0.0, result X is set to zero.  }
+
+function Exp10(lgx,X)
+  declare const MaxInt := 0x7FFFFFFF  { Maximum positive integer, 2^31 - 1 }
+  declare rbx  { Re-based value of lgx }
+  
+  if lgx > 9331929
+    X := MaxInt
+  else  { Rebase rbx = lgx/log(2) }
+    rbx := ((lgx/1000000)*106301699 + 16)/32 + ((lgx mod 1000000)*2136 + 321)/643 
+    XP2.Core(rbx,X)  { Compute antilog of re-based lgx: 0.0 <= rbx < 31.0 }
+  end if
+end function { Exp10 }
+
+{ -------------------------------------------------------------------------
+  Ln(X,lgx))    Natural Logarithm Function (base e)
+  
+    'X' = Input positive integer value 1..65,536
+  'lgx' = Ln(x) scaled by 10,000  ie Ln(x) = 'lnx'/10,000
+
+          NOTE: For X <= 0, result lgx is set to NAL = -100.0000
+                For X > 65,535, result lgx is clamped to Ln(65536) = 11.0904 }
+                
+function Ln(X,lgx)
+  Log2(X,lgx)   { Get binary log of X }
+  if lgx > 0    { Convert Base if necessary }
+    lgx := (lgx*7050 + 5085)/10171  { Ln(X) = Ln(2)*Log2(X) }   
+  end if
+end function { Ln }   
+
+{ -------------------------------------------------------------------------
+  Log2(X,lgx))   Binary Logarithm Function (base 2) 
+  
+              'X' = Input integer value 1..65,536
+            'lgx' = Log2(X) scaled by 10,000  ie Log2(X) = 'lgx'/10,000
+            
+        NOTE: For X <= 0, result lgx is set to NAL = -100.0000
+              For X > 65,536, result lgx is clamped to Log2(65536)=16.0000 
+                          
+  This routine uses a fast approximation devised by John DeVos (circa 2001). }
+                     
+function Log2(X,lgx)
+  declare const LogScale := 10000      { Scaling for output logarithm }
+  declare const MaxLog := 16*LogScale  { Log(Xmax), Xmax = 65536 }
+  declare const NAL := -1000000   { Value used for undefined log, 'Not a Log' }
+  declare const Lm3 := 6*LogScale { 3*LmScale }  
+  { Pe = 0.014830 = 16,313/1.1M   1.1M = 110*LogScale }
+  declare const SPe := 32626      { Scaled-Pe = Pe*220*LogScale }
+  declare const SPe3 := 97584     { Scaled-Pe3 = 2.991*SPe }
+  declare const PeScale := 220    { Extra Pe scale factor (above LogScale) }
+  declare const PeRound := PeScale/2 { To half-adjust Pe error correction }   
+  declare err { Error Correction term for mantissa }
+  declare Lc  { Log2(x) characteristic }
+  declare Lm  { Log2(x) mantissa approximation }
+  declare X0  { X0 = 2^Lc, Lower end of mantissa 'interval' for input X } 
+  
+  if X <= 0         { First, filter out the extremes in the input X }
+    lgx := NAL      { Log not defined for zero or negative X }
+  else if X > 65535 { Equal or greater than maximum allowed X = 65536 }
+    lgx := MaxLog   { Log2(65536)*10000 = maximum log output }
+  else { Valid x range }  
+    X0 := 0x8000    { Highest mantissa interval base }
+    Lc := 15        { Max characteristic }
+    while X .and. X0 = 0   { Loop to find highest 'on' bit }
+      X0 := sh_right(X0,1) { Keep track of high bit value }
+      dec (Lc)      { Keep track of high bit position from 15..0 }
+    end while       { On loop exit, Lc = unscaled characteristic, X0 = 2^Lc }
+    if X = X0
+      lgx := Lc*LogScale { For exact powers of 2, mantissa = 0 so we're done }
+    else { mantissa > 0 }
+      Lm := Lm3*(X - X0)/(X + X0)           { Mantissa scaled by 2*LogScale }
+      err := sh_right(X*SPe,Lc - 1) - SPe3  { SPe*2*x/X0 - SPe3 }
+      err := SPe - err*err/SPe              { Error scaled by PeScale*LogScale }
+      err := (sh_left(err,1) + PeRound)/PeScale     { Reduce to 2*LogScale }
+      lgx := Lc*LogScale + sh_right(Lm - err + 1,1) { Remove 2* mantissa scale }
+    end if  { Final Result scaled only by LogScale }
+  end if
+end function { Log2 }
+
+{ -------------------------------------------------------------------------
+  Log10(X,lgx))    Common Logarithm Function (base 10)
+  
+         'X' = Input integer value 1..65,536
+      'logx' = Log10(X) scaled by 10,000  ie Log10(X) = 'lgx'/10,000
+  
+           NOTE: For X <= 0, the output lgx is set to NAL = -100.0000
+                 For X > 65,536, lgx is clamped to Log10(65536) = 4.8165 }
+                 
+function Log10(X,lgx)
+  Log2(X,lgx)     { Get binary log of input X }
+  if lgx > 0      { Convert base if necessary }
+    lgx := (lgx*12655 + 21019)/42039  { lgx = Log10(2)*Log2(X) } 
+  end if  
+end function { Log10 }
+
+{ -------------------------------------------------------------------------------
+  Root3(X,r)  Computes the cube-root of any input integer
+  
+              X = Input integer,  -2^31 <= x < 2^31
+              r = Cube Root of X, scaled by 10^5 
+               
+              This routine uses a hybrid algorithm which determines the integer
+              part of the cube root using Newton's Method and then derives the
+              fractional part using a single iteration of Halley's Method. By
+              using a 16-value lookup table to obtain the intial estimate for
+              the root, only one Newton iteration is required. See the
+              Technical Guide for a detailed discussion of this algorithm. }
+
+function Root3(X,r)
+  BuildR3Table 
+  declare S   { Normalization, bit-trio shift counter }
+  declare A   { Absolute value of input X }
+  declare M   { M = Rem/r = A/r - r*r, where Rem = A - r*r*r }
+  
+  if X = 0x80000000   { Watch out for -2^31, it has no positive counterpart }
+    r := -129015915   { Return pre-computed, negative cube root }
+  else
+    A := abs(X)       { Force radicand to positive value }
+    if A < 2          { If radicand is 0 or 1, root = X.000000 }
+      r := 100000*X
+    else              { Begin calculation of cube root for 1 < A < 2,147,483,648 }
+      S := 0          { Normalize A so that top nibble is from 1 to 7 inclusive }
+      while A .and. 0x70000000 = 0
+        A := sh_left(A,3)
+        inc(S)
+      end while
+      r := R3Tbl[sh_right(A,26) - 4] { Initial estimate for integer part }
+      r := (2*r + A/(r*r))/3         { Only one iteration needed to converge }
+      M := A/r - r*r                 { M = Rem/r, where -2859 < M < 3790 }
+      r := 400000*r + 400000*M/(3*r + M/r)  { Combine with fractional part }
+      r := sh_right(sh_right(r,S) + 2,2)    { Denormalize and round result }
+      if X < 0        
+        r := -r       { If input is negative, negate the root }
+      end if
+    end if
+  end if
+end function { Root3 }
+
+{ ------------------------------------------------------------------  
+  SinCos(ang,sin,cos)   First Quadrant Sine/Cosine Function 
+  
+    'ang' = 1st quadrant input angle in deci-grads (0..1000)
+          NOTE: 1000 deci-grads = 90 degrees = PI/2 radians
+    'sin' = Scaled Sine of input angle: 'sin'/10000 = sin(ang)
+    'cos' = Scaled Cosine of input angle: 'cos'/10000 = cos(ang) 
+  
+  NORE: No input angle checking is performed. Caller should confine
+        'ang' to the range 0 <= 'ang' <= 1000 dg. }
+        
+function SinCos(ang,sin,cos)
+  BuildAngleTable  { Declare Ang90, AngScale, and scaled Atan table }
+  declare const Ang45 := Ang90/2 { Initial 45 degree rotation }
+  declare const cK := 607252935  { Cordic K*10^9 (15 or more iterations) }
+  declare const DownScale := 100000 { Reduce scaling from 10^9 to 10^4 }
+  declare const DownRound := DownScale/2  { Half adjust scale down }
+  declare dx { Change in X resulting from current rotation }
+  declare dy { Change in Y resulting from current rotation }  
+  declare n  { Iteration index }
+  declare x  { X-component of Cordic vector scaled by 10^9 }
+  declare y  { Y-component of Cordic vector scaled by 10^9 }
+  declare z  { Residual Cordic Angle }
+  
+  x := cK  { Pre-rotate reference vector K by 45 degrees so  }
+  y := cK  {  that iteration for n = 0 need not be performed }
+  z := (ang - Ang45)*AngScale { Scaled input angle referenced to 500 dg } 
+  for n := 1 to TrigBits { Use 15 iterations ( about 4-digit precision }
+    dx := sh_right(y,n)  { Rotated change in current x }
+    dy := sh_right(x,n)  { Rotated change in current y }
+    if z < 0  { Rotate vector clockwise }
+      x := x + dx   { Compute new rotated X }
+      y := y - dy   { Compute new rotated Y }
+      z := z + AngTbl[n]  { Update residual angle }
+    else      { Rotate vector counter-clockwise }  
+      x := x - dx   { Compute new rotated X }
+      y := y + dy   { Compute new rotated Y }
+      z := z - AngTbl[n]  { Update residual angle } 
+    end if
+  end for
+  sin := (y + DownRound)/DownScale  { Reduce scale to 10^4 and round }
+  cos := (x + DownRound)/DownScale  { Both are positive in 1st quadrant }
+end function { SinCos }         
+
+{  -------------------------------------------------------------------
+  Tangent(ang,tan)   First-Quadrant Tangent Function 
+  
+    'ang' = 1st quadrant input angle in deci-grads (0..1000)
+          NOTE: 1000 deci-grads = 90 degrees = PI/2 radians
+    'tan' = Scaled Tangent of input angle: 'tan'/10000 = tan(ang)
+    
+    NOTE: No input angle checking is performed. Caller should confine
+          'ang' to range 0 <= 'ang' <= 1000 dg. Also note that the
+          tangent function is discontinuous at +/-90 degrees, that is:
+          tan(1000) -> infinity.    Since tan(999) is 6,250,000
+          (625 scaled by 10K), for tan(1000) this routine returns an
+          even larger value MaxTan = 100M as a flag value for tan(1000) } 
+
+function Tangent(ang,tan)
+  declare const TrigScale := 10000         { Trig output scaling }
+  declare const MaxTan := 10000*TrigScale  { Scaled sentinel for tan(1000) }
+  declare sin
+  declare cos
+  
+  if ang = Ang90   { Tangent of 1000 dg is infinite, use 100M }
+    tan := MaxTan  {  as a sentinel  ie tan(1000) = 10K*Scale }
+  else { ang < 90 degrees }
+    SinCos(ang,sin,cos)      { Compute sine and cosine }
+    tan := sin*TrigScale/cos { Output is scaled ratio of sin/cos }
+  end if
+end function { Tangent }
+
+{ ---------------------------- Extended Functions ------------------------------
+   These routines extend the input argument range and/or extend overall accuracy
+  ------------------------------------------------------------------------------}
+{   XLn(X,lgx)    Extended Natural Logarithm Function (base e)
+  
+             'X' = Input can be any integer value
+           'lgx' = Ln(X) scaled by 1,000,000  ie Ln(x) = 'lgx'/1000000
+
+          NOTE: For X <= 0, result lgx is set to NAL = -100.000000 }
+                
+function XLn(X,lgx)
+  declare const NAL := -100000000 { Token for Ln(0) or negative X, -100.000000 } 
+  declare c  { Log characteristic }
+  declare m  { Log mantissa }
+  
+  if X <= 0
+    lgx := NAL             { Log is not defined, return NAL }
+  else
+    XLg.Core(X,c,m)        { Get binary log of 1 <= X <= 2,147,483,647 }
+    lgx := (c*49906597+36)/72 + (m*1588+1145)/2291  { Ln(X) = Ln(2)*Log2(X) }
+  end if   
+end function { XLn } 
+
+{ -------------------------------------------------------------------------
+    XLog2(X,lgx)   Extended Binary Logarithm Function (base 2) 
+  
+              'X' = Input can be any integer value
+            'lgx' = Log2(X) scaled by 1,000,000  ie Log2(X) = 'lgx'/1000000
+
+          NOTE: For X <= 0, result lgx is set to NAL = -100.000000 }
+          
+function XLog2(X,lgx)
+  declare const NAL := -100000000   { Token for undefined lgx } 
+  declare c  { Log characteristic }
+  declare m  { Log mantissa }
+  
+  if X <= 0
+    lgx := NAL            { Log is not defined, return NAL }
+  else
+    XLg.Core(X,c,m)       { Get binary log of 1 <= X <= 2,147,483,647 }
+    lgx := c*1000000 + m  { Log2(X) }
+  end if   
+end function { XLog2 }
+
+{   XLog10(X,lgx)   Extended Common Logarithm Function (base 10)
+  
+             'X' = Input can be any integer value
+           'lgx' = Log10(X) scaled by 1,000,000  ie Log10(X) = 'lgx'/1000000
+
+          NOTE: For X <= 0, result lgx is set to NAL = -100.000000 }
+                
+function XLog10(X,lgx)
+  declare const NAL := -100000000   { Token for undefined lgx } 
+  declare c  { Log characteristic }
+  declare m  { Log mantissa }
+  
+  if X <= 0
+    lgx := NAL             { Log is not defined, return NAL }
+  else
+    XLg.Core(X,c,m)        { Get binary log of 1 <= X <= 2,147,483,647 }
+    lgx := (c*70139989+116)/233 + (m*1268/407*83+400)/859  
+    { Convert Log2(X) to Log10(X) = Log10(2)*Log2(X) }
+  end if   
+end function { XLog10 } 
+
+{ -------------------------------------------------------------------
+   XSinCos(ang,sin,cos)    Extended-Angle Sine/Cosine Function 
+  
+    'ang' = Input angle in deci-grads (1000 deci-grads = 90 degrees)
+            Angle may be any value of a 32-bit signed-integer
+    'sin' = Scaled Sine of input angle: 'sin'/10000 = sin(ang)
+    'cos' = Scaled Cosine of input angle: 'cos'/10000 = cos(ang) }
+
+function XSinCos(ang,sin,cos)
+  declare ra    { Reduced and reflected angle }
+  declare quad  { Geometric Quadrant, I..IV }
+  
+  ra := ang            { Copy of caller's angle }
+  ReduceAngle(ra,quad) { Reduce and reflect angle as needed }
+  SinCos(ra,sin,cos)   { Compute sin & cos of reduced, Q1 angle, 'ra' }
+  select quad          { Attach appropriate signs per quadrant }
+    case 2
+      cos := -cos
+    case 3
+      cos := -cos
+      sin := -sin
+    case 4
+      sin := -sin
+  end select  
+end function { XSinCos }
+
+{  -------------------------------------------------------------------
+    XTangent(ang,tan)   Extended-Angle Tangent Function 
+  
+     'ang' = Input angle in deci-grads (1000 deci-grads = 90 degrees)
+             Angle may be any value of a 32-bit signed-integer
+     'tan' = Scaled Tangent of input angle: 'tan'/10000 = tan(ang)
+    
+    NOTE: The tangent function is discontinuous at +/-90 degrees, 
+          that is: tan(1000) -> infinity. Since tan(999) is 6,250,000
+          (625 scaled by 10K), for tan(1000) this routine returns an
+          even larger value MaxTan = 100M as a sentinel for tan(1000) } 
+
+function XTangent(ang,tan)
+  declare ra   { Reduced angle }
+  declare quad
+  
+  ra := ang            { Copy of caller's angle }
+  ReduceAngle(ra,quad) { Reduce and reflect angle as needed }
+  Tangent(ra,tan)      { Compute Tangent of reduced, Q1 angle, 'ra' }
+  if quad = 2 or quad = 4  { Now attach correct sign for quadrant }
+    tan := -tan            { Tangent is negative in quadrants 2 & 4 }
+  end if
+end function { XTangent }
+
+{ ------------------------------------------------------------------------------
+                           Format Conversion Routines
+  ------------------------------------------------------------------------------
+  AtkTime_to_ep(t,N) Convert Envelope Attack Time, 't' in ms
+                     to equivalent Engine Parameter
+
+      't' = Envelope Attack Time in msec, 0..25,000
+      'N' = Output engine parameter, 0..1,000,000  
+      
+      Uses the Math Library Fast Log2 function }
+
+function AtkTime_to_ep(t,N)
+  Time2ep(t,N,77683)
+end function { AtkTime_to_ep }
+  
+{-------------------------------------------------------------------  
+  DRTime_to_ep(t,N) Convert Envelope Decay or Release Time, 't' in ms
+                    to equivalent Engine Parameter 'N'
+
+      't' = Envelope Decay or Release Time in msec, 0..25,000
+      'N' = Output engine parameter, 0..1,000,000  
+      
+      Uses the Math Library's fast Log2 function }
+
+function DRTime_to_ep(t,N)
+  Time2ep(t,N,73477)  
+end function { DRTime_to_ep }
+
+{--------------------------------------------------------------------  
+  EqBW_to_ep(B,N)   Convert Bandwidth, B, (scaled by 10) to 
+                    its equivalent engine parameter, N
+
+      'B' = Input Bandwidth = 0.3..3.0 octaves, scaled by 10
+      'N' = Output Engine Parameter, 0..1,000,000
+     
+      This function implements N = 1000000*(B - 3)/27, with rounding }
+
+function EqBW_to_ep(B,N)
+  N := (2000000*B - 5999973)/54 
+end function { EqBW_to_ep }
+
+{--------------------------------------------------------------------  
+  EqFreq_to_ep(F,N)  Convert EQ Frequency, F, in Hz to its
+                     equivalent engine parameter, N
+
+      'F' = Input Frequency in Hz, 20..20,000 Hz
+      'N' = Output Engine Parameter, 0..1,000,000
+     
+      This function implements N = K*Lg(F/20), with rounding
+      wherr K = 100343 and Lg is the binary logarithm }
+
+function EqFreq_to_ep(F,N)
+  declare x
+  
+  x := F
+  Log2(x,N)
+  N := (2338*N + 116)/233 - 433675
+end function { EqFreq_to_ep }
+
+{--------------------------------------------------------------------  
+  EqGain_to_ep(G,N)  Convert Gain in db, G, (scaled by 10) to 
+                     its equivalent engine parameter, N
+
+      'G' = Input Gain = -18.0..+18.0 db, scaled by 10
+      'N' = Output Engine Parameter, 0..1,000,000
+     
+      This function implements N = 500000*G/180 + 500000, with rounding }
+
+function EqGain_to_ep(G,N)  { G = 10*Gain in db, N = ep }
+  N := (50000*G + abs(G)/G*9)/18 + 500000
+end function { EqGain_to_ep }
+
+{--------------------------------------------------------------------  
+  ep_to_AtkTime(N,t)   Convert Engine Par 'N' to equivalent
+                       Envelope Attack Time, 't' in ms 
+
+      'N' = Input engine parameter, 0..1,000,000
+      't' = Envelope Attack Time in msec, 0..15,000 ms
+     
+     This utility routine uses the Math Library's Exp2 routine }
+
+function ep_to_AtkTime(N,t)
+  ep2Time(N,t,77683)
+end function { ep_to_AtkTime }
+
+{--------------------------------------------------------------------  
+  ep_to_DRTime(N,ms)   Convert Engine Par 'N' to equivalent Envelope
+                       Decay or Release Time, 't' in ms 
+
+      'N' = Input engine parameter, 0..1,000,000
+      't' = Envelope Decay or Release Time in msec, 0..25,000 ms
+     
+     This utility routine uses the Math Library's Exp2 routine }
+
+function ep_to_DRTime(N,t)
+  ep2Time(N,t,73477)
+end function { ep_to_DRTime }
+
+{--------------------------------------------------------------------  
+  ep_to_EqBW(N,B)   Convert Engine Parameter value, N, to 
+                    its equivalent Bandwidth, B, scaled by 10
+
+      'N' = Input Engine Parameter, 0..1,000,000
+      'B' = Output Bandwidth = 0.3..3.0 octaves, scaled by 10
+     
+      This function implements B = 3 + 27*N/1000000, with rounding }
+
+function ep_to_EqBW(N,B)
+  B := (N*27 + 500000)/1000000 + 3
+end function { ep_to_EqBW }
+
+{--------------------------------------------------------------------  
+  ep_to_EqFreq(N,F)   Convert Engine Parameter value, N, to
+                      its equivalent EQ Frequency, F, in Hz
+
+      'N' = Input Engine Parameter, 0..1,000,000
+      'F' = Output Frequency in Hz, 20..20,000Hz
+     
+      This function implements F = 20*2^(N/K), with rounding 
+      where K = 100343 }
+
+function ep_to_EqFreq(N,F)
+  declare x
+  
+  x := (1166*N + 58)/117 + 4321928
+  Exp2(x,F)
+end function { ep_to_EqFreq(N,F) }
+
+{--------------------------------------------------------------------  
+  ep_to_EqGain(N,G)   Convert Engine Parameter value, N, to 
+                      its equivalent Gain, G, in db scaled by 10
+
+      'N' = Input Engine Parameter, 0..1,000,000
+      'G' = Output Gain, -18.0..+18.0 db, scaled by 10
+     
+      This function implements G = 180*(N - 500000)/500000, 
+      or G = (9*N - 4500000)/25000 plus half-adjust rounding }
+
+function ep_to_EqGain(N,G)
+  G := 9*N - 4500000               { G' = 9*N -4500000 }
+  G := (G + abs(G)/G*12500)/25000  { G = (G' =/- 12500)/25000 }
+end function { ep_to_EqGain }
+
+{------------------------------------------------------------------------------  
+  ep_to_mdb(N,Vol)   Convert Engine Par 'N' to equivalent volume in mdb 
+
+      'N' = Input engine parameter, 0..1,000,000
+    'Vol' = Corresponding Volume in mdb
+
+     This function uses Kontakt's 18db/octave relationship as follows:
+     vol = 20000*log(N/Nm)^3 + 12000   where 'Vol' is in mdb and Nm = 1,000,000
+     ie Vol = 60000*log(N) - 60000*log(Nm) + 12000 = 60000*log(N) - 348000
+     and thus: Vol = 0.06*XLog10(N) - 348000 ( since the output of XLog10 )
+                                             ( is scaled by 1,000,000     )
+     
+     NOTE: If N = 0, Vol is set to -6,348,000 mdb } 
+
+function ep_to_mdb(N,Vol)
+  DefineMuted     { This generates no runtime code }
+
+  XLog10(N,Vol)   { Vol = 1000000*log(N) or -100,000,000 if N = 0 }
+  Vol := (3*Vol + 25)/50 - 348000  { Vol = 0.06*Log10(N) - 348000 }
+end function { ep_to_mdb }
+
+{--------------------------------------------------------------------
+  ep_to_Pitch(N,P)   Convert Engine Parameter value, N, to
+                     its equivalent Pitch value in cents
+
+      'N' = Input Engine Parameter, 0..1,000,000
+      'P' = Output Pitch value, -1200..+1200 cents
+     
+      This function implements P = 1200*X^3, with rounding
+         where X = (N - 500000)/500000 }
+
+function ep_to_Pitch(N,P)
+  declare u
+                                   { X = (N - 500000)/500000 }
+  u := N/50 - 10000                { u = 10,000*X }
+  u := u*((u*u + 500)/1000)/5      { u = 200,000,000*X^3 } 
+  P := (6*u + u/abs(u)*500000)/1000000 { P = 1200*X^3, rounded }
+end function { ep_to_Pitch }
+
+{--------------------------------------------------------------------  
+  ep_to_Speed(N,S)   Convert Engine Parameter value, N,
+                     to its equivalent Speed value, S
+
+      'N' = Input Engine Parameter, 0..1,000,000
+      'S' = Output Speed value, 0..800%
+     
+      This function implements S = 2^[K*(X^3 + 1) + A] - 50/3
+      where X = (N - 500000)/500000, K = 2.807354922,
+      and A = 4.05889369 } 
+
+function ep_to_Speed(N,S)
+  declare u
+                                   { X = (N - 500000)/500000 }
+  u := (N + 25)/50 - 10000         { u = 10000*X }
+  u := u*((u*u + 500)/1000)/1000   { u = 1000000*X^3 } 
+  u := (991*(u + 1000000) + 177)/353 + 4058894 { u = 1000000*[K*(X^3 + 1) + A] }
+  Exp2(u,S)           { S' = 2^[K*(X^3 + 1) + A }
+  S := (6*S - 97)/6   { S = S' - 50/3 }
+end function { ep_to_Speed }
+
+{ --------------------------------------------------------------------------------
+  mdb_to_ep(Vol,N)   Convert Volume in mdb to its equivalent ep value N
+
+    'Vol' = Volume in mdb
+      'N' = Equivalent engine parameter, 0..1,000,000
+      
+     This function uses Kontakt's 18db/octave relationship as follows:
+     Vol = 20000*log(N/Nm)^3 + 12000   where 'Vol' is in mdb and Nm = 1,000,000
+     Therefore: log(N/Nm) = (Vol - 12000)/60000 or N/Nm = 10^(Vol - 12000)/60000
+     Thus: N = Nm*10^(Vol - 12000)/60000 = Nm*10^(Vol + 200000)/60000*10^K
+           where K = -212000/60000
+     and therefore:  N = 292.864*10^(Vol + 200000)/60000, or
+       N = 292.864*Exp10[(1000000/60000)*(Vol + 200000)] 
+         = 292.864*Exp10[(100/6)*(Vol + 200000)]
+     
+     NOTE: If Vol < -200,000 mdb, it is treated muted and N is set to 0 }
+
+function mdb_to_ep(Vol,N)
+  declare vx
+
+  vx := 100*(Vol + 200003)/6 { Rounded Positive volume exponent * 10^6 } 
+  Exp10(vx,N)                { N = 10^(vx/1000000) }
+  N := (N*292864 + 500)/1000 { Multiply by 292.864 }
+end function { mdb_to_ep } 
+
+{ --------------------------------------------------------------------------------
+     Pitch_to_ep(P,N)  Compute Engine Parameter for Input Pitch value 
+
+      'P' = Pitch in cents over the range -1200 <= P <= +1200 
+      'N' = Corresponding Engine Parameter (0..1,000,000)
+     
+     Using Kontakt's 18db/octave control taper, this routine computes the ep using
+     N = 500000*(P/1200)^1/3 + 500000, or N = 500*(10^9*P/1200)^1/3 + 500000,
+     which reduces to N = 500*(833333*P)^1/3 + 500000. The cube root is calculated
+     with the Root3 library routine which returns (833333*P)^1/3 scaled by 10^5 so
+     it must be divided by 200 to get the final desired result. }
+
+function Pitch_to_ep(P,N)
+  Root3(833333*P,N)
+  N := (N + N/abs(N)*100)/200 + 500000
+end function { Pitch_to_ep }
+
+{--------------------------------------------------------------------  
+  Speed_to_ep(S,N)   Convert Speed value, S, to its
+                     equivalent engine parameter, N
+
+      'S' = Input Speed value, 0..800%
+      'N' = Output Engine Parameter, 0..1,000,000
+     
+      This function implements X = [Lg(3*S + 50)/K - B]^1/3
+      where X = (N - 500000)/500000, K = 2.807354922,
+      and B = 3.010382137 } 
+
+function Speed_to_ep(S,N)
+  declare u
+                          { X = (N - 500000)/500000 or N = 500000*X + 500000 }
+  u := 3*S + 50
+  Log2(u,N)               { N' = 10000*Lg(3*S + 50) }
+  u := 100*N - 8451211    { u = 1000000*[Lg(3*S + 50) - B*K] }
+  Root3(u,N)              { N' = 10^7*[Lg(3*S + 50) - B*K]^1/3 = X*10^7*K^1/3}
+  N := (131*N + 1848)/3696 + 500000  { N = K'*N' + 500000 }
+  { where K' = 500000/(10^7*K^1/3) = 0.03544357852 = 131/3696 }
+end function { Speed_to_ep }  
+
+{ --------------------------------------------------------------------------------
+     VR_to_ep(VR,N)  Compute Engine Parameter for Input Volume Ratio 
+
+     'VR' = Volume ratio scaled by 10,000   ie (V/V0)*10000
+      'N' = Corresponding Engine Parameter (0..1,000,000) for 0.0 <= V/V0 <= 4.0000
+     
+     Using Kontakt's 18db/octave control taper, this routine computes the Engine
+     Parameter, ep, as N = 10^6*(0.25*V/V0)^1/3, or N = 1000*(25000*VR)^1/3, which
+     sets N = 629,961 (0db) when VR = 1.0000 and to N = 1,000,000 (+12db) when
+     VR = 4.0000. The cube root is calculated using the Root3 library routine.}
+
+function VR_to_ep(VR,N)
+  Root3(25000*VR,N)
+  N := (N + 50)/100
+end function { VR_to_ep }
+
+{ ------------------------------------------------------------------------------
+  VR_to_mdb(VR,Vol)   Converts scaled input volume ratio to mdb equivalent
+  
+   'VR' = Input volume ratio 0.0 < V/V0 <= 4.0000 as an integer scaled by 10,000
+  'Vol' = 20000*Log(V/V0) or 20000*Log(VR/10000) = 20000*Log(VR) - 80000 mdb
+  
+     Since the Library routine, Log10, returns the log scaled by 10,000
+     we can use:          Vol = 2*Log10(VR) - 80000 mdb
+
+     Thus for VR = 0.0001, Vol = -80,000 mdb and for VR = 1.0000, Vol = 0 mdb.
+     For VR = 4.0000, Vol = +12,000 mdb. And, for VR <= 0, Log(V/V0) is not
+     defined, so Vol is set to a muted value of -2,080,00 mdb.
+          
+   NOTE: This routine performs the same function as the legacy routine Get_db
+         except that Get_db limited the input range to 0.0 < V/V0 <= 1.0 whereas
+         VR_to_mdb allows the wider input range of 0.0 < V/V0 <= 4.0. New scripts
+         should only use VR_to_mdb but the library still provides an alias for
+         Get_db to support old scripts without need to modify them. }
+          
+function VR_to_mdb(VR,Vol)
+  DefineMuted          { This generates no runtime code }
+
+  Log10(VR,Vol)        { Vol = Log10(VR) = 10000*Log(VR) } 
+  Vol := 2*Vol - 80000 { Vol = 20000*log(VR) - 80000 }
+end function { VR_to_mdb }
+
+function Get_db(VR,Vol)  { Alias for Legacy routine }
+{ New scripts should use VR_to_mdb, see header comments }
+  VR_to_mdb(VR,Vol)  
+  if Vol > 0   { If input exceeds 1.0000 }
+    Vol := 0   { Clamp output to 0 db }
+  end if
+end function { Get_db }
+
+{ ------------------------------------------------------------------------------
+                       Script Development Utilities
+  ------------------------------------------------------------------------------
+  CVHex(num,str)   Convert integer 'num' to an 8-digit Hexadecimal string, 'str' 
+
+      'num' = Input 32-bit integer
+      'str' = 8-digit Hex representation of input number 
+      
+      NOTE: In order to use this function in your script, you must invoke the
+            routine named UseHex in your ICB before the first usage of CVHex. }
+
+function CVHex(num,str)
+  declare n
+  declare x
+  x := num    { Copy of num }
+  str := ''   { Reset the output string to null }
+  for n := 1 to 8   { Derive 8 digits from low to high }
+    if x .and. 0xF < 10
+      str := x .and. 0xF & str  { Add new digit 0..9 on left of string }
+    else                        { Fetch hex digit A..F and add to left of string }
+      str := HexDgt[(x .and. 0xF) - 10] & str
+    end if
+    x := sh_right(x,4)          { Shift next 4-bits into view }
+  end for
+end function { CVHex }
+
+function UseHex { Call this function in the ICB to use CVHex in your script }
+  declare global !HexDgt[6]
+  HexDgt[0] := 'A'
+  HexDgt[1] := 'B'
+  HexDgt[2] := 'C'
+  HexDgt[3] := 'D'
+  HexDgt[4] := 'E'
+  HexDgt[5] := 'F'  
+end function { UseHex }
+
+{ ------------------------------------------------------------------
+                         Library Support Routines 
+  ------------------------------------------------------------------ 
+  BuildAngleTable    Data Function to declare the arctangent table, 
+                     AngTbl, its scaling constant AngScale, and the
+                     right-angle constant Ang90 for Trig functions.
+                     As coded angles are assumed to be in deci-grads
+                     and are scaled by 10^6.
+
+  NOTE: To change to a different angular unit or resolution,
+        only this Data Function need be edited appropriately,
+        see Technical Guide }
+
+function BuildAngleTable
+  declare global const TrigBits := 15   { Precision in bits (#of iterations ) }
+  declare global const AngScale := 1000000  { Input Angle scaling factor }
+  declare global AngTbl[TrigBits+1] :=  { Angle Table (in dg scaled by 10^6) } ...
+    { AngTbl[n] = arctan(2^-n) and AngTbl[0] is not used } (500000000, ...
+     295167235, 155958261, 79166848,  39737049, 19887896, ...
+       9946375,   4973491,   2486783,  1243396,   621699, ...
+        310849,    155425,     77712,    38856,    19428)  
+  declare global const Ang90 := 1000 { Right angle (90 degrees) = 1000 dg } 
+end function { BuildAngleTable }
+
+{ ---------------------------------------------------------------------------
+  BuildLogTable      Data Function to declare the Logs table used by the
+                     XP2.Core and XLg.Core functions. Currently the Logs
+                     array elements are scaled by 10^9. 
+
+  NOTE: The Logs array elements contain the value Logs[n] = Lg(1+2^-n) for each
+        n from 1 to LogBits, Logs[0] is not used. Both XLg.Core and XP2.Core
+        use a rounding 'constant' named LSB2 which is set to Logs[LogBits]/2.
+        If LogBits is changed, the value of this rounding constant must also be
+        changed. Therefore, it is defined here to keep it with he Logs table. }
+
+function BuildLogTable
+  declare global const LogBits := 20  { Precision bits (or #of loop iterations) }
+  declare global Logs[LogBits+1] :=   { Table Lg(1+2^-n), 0 < Logs[n] < 1 } ... 
+       (1000000000, 584962501, 321928095, 169925001, 87462841, 44394119, ... 
+        22367813, 11227256, 5624549, 2815016, 1408195, 704269, 352178, ...
+        176099, 88052, 44028, 22014, 11006, 5504, 2751, 1376)
+  declare global const LSB2 := 688    { Rounding Bias, Logs[LogBits]/2 }
+end function { BuildLogTable }
+
+{ ---------------------------------------------------------------------------------
+  BuildR3Table       Data Function to declare the R3Tbl used by the
+                     Root3 function to obtain an initial estimate
+                     of the root for the subesequent Newton Iteration. 
+
+    NOTE: While only 16 estimates are required by Root3, some of those
+          estimates are duplicated in the table in order to simplify the
+          code required to access the table. Thus the actual array
+          contains 28 elements. }
+
+function BuildR3Table  { Table of initial estimates for cube root }
+  declare global R3Tbl[28] := (671,717,758,795,829,861,890,917,956,956, ...
+                    1002,1002,1045,1045,1084,1084,1121,1121,1156,1156, ...
+                    1204,1204,1204,1204,1263,1263,1263,1263)
+end function { BuildR3Table } 
+
+{ ------------------------------------------------------------------ 
+  DefineMuted     Data function to declare 'Muted' constant }
+
+function DefineMuted
+  declare global const Muted := -200000 { -200 db in mdb }
+end function { DefineMuted }
+
+{-------------------------------------------------------------------
+  ep2Time(N,t,K) Convert Engine Par 'N' to equivalent Envelope
+                 Attack, Decay, or Release Time 't' in ms 
+
+      'N' = Input engine parameter, 0..1,000,000
+      't' = Corresponding Time in msec
+      'K' = 77683 for Attack Time or 73477 for Decay or Release Time
+     
+       This support routine computes envelope time based on the
+       formula: t = 2000*[2^(ep/K) - 1], t in usec 
+            or: t = 2*[2^(ep/K) - 1], t in msec    }
+     
+function ep2Time(N,t,K)
+  declare x
+  
+  x := N*1000/K*1000
+  Exp2(x,t)
+  t := 2*t - 2
+end function { ep2time }
+
+{ ------------------------------------------------------------------  
+  ReduceAngle(ang,quad)    Reduces and reflects the input angle
+  
+        'ang' = Input angle over full signed integer range. Returns
+                a 1st quadrant angle from 0..1000 dg (0..90 deg)
+       'quad' = Returns the geometric quadrant number from 1..4 
+       
+       NOTE: Quadrature angles are still considered to be in the
+             'approach' quadrant. For example (in degrees), +90d is
+             in Q1 while -270d is in Q2. Similarly, +180d is in Q2
+             while -180 is in Q3, etc. The exception to this is that
+             angles of 0d, 360d, -360d, etc. are considered to have
+             just passed the quadrant. For example,720d is considered
+             in quadrant 1 and -720d is considered in quandrant 4 }
+
+function ReduceAngle(ang,quad)
+  BuildAngleTable
+  declare const Ang360 := 4*Ang90 { Full circle, 360 degrees }
+  declare ra                      { Reduced and reflected angle }
+  
+  ra := abs(ang mod Ang360)   { ra in range 0 <= ra < 4000 dg }
+  quad := (ra - 1)/Ang90 + 1  { Quadrant of reduced, positive angle }
+  ra := ra - Ang90*(quad - 1) { Quadrant-excess angle }
+  if quad = 2 or quad = 4
+    ra := Ang90 - ra   { Use complementary angle in Q2 & Q4 }
+  end if
+  if ang < 0
+    quad := 5 - quad   { Complement quadrant for negative 'ang' }
+  end if
+  ang := ra  { Return reduced angle }  
+end function { ReduceAngle }
+
+{-----------------------------------------------------------------------
+  Time2ep(t,N,K) Convert Envelope Time in ms to equivalent Engine Par
+
+      't' = Envelope Time in msec, 0..15,000 or 0..25,000
+      'N' = Output engine parameter, 0..1,000,000
+      'K' = 77683 for Attack Time or 73477 for Decay or Release Time
+      
+       This support routine computes engine parameter based on the
+       formula: ep = K*Lg(t/2000 + 1), t in usec 
+            or: ep = K*[Lg(t + 2) - 1], t in msec     
+            
+       NOTE: K is determined from: K = 1,000,000/[(Lg(Tm + 2) - 1]
+             where Tm is the maximum value of the envelope time. }
+     
+function Time2ep(t,N,K)
+  declare x
+  
+  x := t + 2
+  Log2(x,N)
+  N := (K/5*N - 2000*K + 1000)/2000
+end function { Time2ep }
+
+{ ----------------------------------------------------------------------
+   XLg.Core(X,c,m)  Support Function for Extended Binary Logs  
+  
+            'X' = Input, Positive Integer in the range 0 < X < 2^31
+            'c' = Output, Charcteristic of Log2(X)
+            'm' = Output, Manitissa of Log2(X) scaled by 10^6
+                    
+          This routine uses a CORDIC-Like algorithm that utilizes the same
+          Logs array as that used by the exponential support routine XP2.Core. }
+          
+function XLg.Core(X,c,m)
+  BuildLogTable    { Declare LogBits (precision) and Logs array }
+  declare const Bit30 := 0x40000000  { Value of highest positive bit position }   
+  declare n    { Iteration index }
+  declare nx   { Normalized X, with binary point between bits 29 & 30 }
+  declare sx   { Shifted nx }
+  
+  nx := X      { Copy of input X to be normalized }
+  c := 30      { X = nx*2^30 }
+  while nx < Bit30       { Normalize 1.0 <= nx < 2.0      }
+    nx := sh_left(nx,1)  {  and adjust exponent as needed }
+    dec(c)
+  end while
+  if nx = Bit30   { nx = 1.0 }
+    m := 0        { X is an integral power of 2 }
+  else { Mantissa must be calculated for 1.0 < nx < 2.0 }
+    m := 1000000000 - LSB2 { m = 1.0 - LSB/2 for rounding, scaled by 10^9 }
+    n := 1
+    while n <= LogBits and nx >= 0  { More bits to go and nx not exactly 2.0 yet }
+      { Cordic loop to drive nx -> 2.0 as m -> log2(nx) }
+      sx := sh_right(nx,n) { Next increment to make nx -> 2.0 } 
+      if (-nx - sx) < 0    
+        { Is sx + nx <= 2.0, ie can we add sx without exceeding 2.0? }
+        nx := nx + sx      { Yes, increase nx by sx }
+        m := m - Logs[n]   { Continue to make m -> Log2(nx) }
+      end if
+      inc(n)
+    end while
+    m := (m + 500)/1000    { Downscale m from 10^9 to 10^6 } 
+  end if
+end function { XLg.Core }
+
+{ -------------------------------------------------------------------------
+   XP2.Core(Z,X)  Support Function for Binary AntiLogs  
+  
+              'Z' = Input, essentially a base 2 logarithm (scaled by 10^6)
+              'X' = Output, 2^(Z/1000000) ie the Base 2 Antilog of 'Z'
+                    where 'Z' is in the range from 0.0 <= Z <= 30.9999
+                    
+          This routine uses a CORDIC-Like algorithm that utilizes the same
+          Logs array as that used by the log support routine XLg.Core. }
+
+function XP2.Core(Z,X)
+  BuildLogTable { Declare LogBits (precision) and Logs array }
+  declare const Bit30 := 0x40000000  { Value of highest positive bit position }
+  declare C     { Integer part of Z, ie the characteristic }
+  declare M     { Fractonal part of Z, ie the mantissa }
+  declare n     { Iteration index }
+  
+  if Z < 0
+    X := 0      { 2^-Z = 0 in integer domain }
+  else  { 0.0 <= Z < 31.000000 }
+    C := Z/1000000        { Characteristic of Z }
+    M := Z mod 1000000    { Mantissa of Z, scaled by 10^6 }
+    X := Bit30            { Use X as temp for SX = 1.0 scaled by 2^30 }
+    if M # 0              { Skip mantissa iteration loop for even powers of two }
+      M := M*1000 + LSB2  { Rescale M to match table (10^9) and bias by LSB/2 }
+      n := 1
+      while n <= LogBits  { Execute Cordic Loop to drive M -> 0.0 and SX -> 2^M }
+        if M >= Logs[n]
+          M := M - Logs[n]
+          X := X + sh_right(X,n)  { Accumulating scaled product for SX = 2^M }
+        end if
+        inc(n)
+      end while  { SX now = 2^M * 2^30 }
+    end if 
+    { If C = 30, X = SX; else X = SX*2^(C-30) }
+    if C < 30 { Right shift SX by (30-C) with rounding }
+      X := sh_right(sh_right(X,29-C)+1,1) .and. 0x7FFFFFFF  
+    end if
+  end if
+end function { XP2.Core } 

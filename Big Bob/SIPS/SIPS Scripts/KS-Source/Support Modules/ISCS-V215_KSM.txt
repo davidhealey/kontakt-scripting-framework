@@ -1,0 +1,1035 @@
+{---------------------------------------------------------------------
+Module: Inter-Script Communication System
+Author: R.D.Villwock aka 'Big Bob'
+First Written: January 29, 2007
+Current Version: 2.15
+Last Modified: June 11, 2008
+----------------------------------------------------------------------
+  This module can be used for both Interscript Communication and
+  Intrascript pseudo Calls. The ISCS uses a messenger note (MIDI Note
+  zero) and its associated event parameters (EPs) for communication
+  and bi-directional data transfers. EP[3] of MsgNote functions as an
+  operation descriptor, and normally contains four fields as follows:
+  
+    MsgNote EVENT_PAR[3] Descriptor Layout Format 
+      Fields | Msg-Code | Sender-SID | Reply-Code | Client-SID |
+      Bits   | 31    27 | 26      16 | 15      11 | 10       0 |
+      
+  For interscript communication, the remaining event parameters, EP[0],
+  EP[1], and EP[2] can be used to pass data forward or backward through
+  the script chain. To use the ISCS, each hosting script is assigned a
+  unique Script ID (SID) code which should not be used by any other
+  hosting script. The SID allocation range is from 1..2000 (with the
+  remaining codes being reserved for use by the ISCS).
+
+  The function 'SendMsg' is used to send a message to one specific
+  Client (SID = 1..2000) and data can be carried both to the client
+  and back to the sender. A handshake Reply-Code from the client is used
+  to inform the sender that the message was received and/or to provide
+  info about how it was acted upon. Reply codes 0 and 1 (mrNone and mrOK)
+  are pre-defined by the ISCS as standard replies. Custom reply codes
+  can be defined by the Client Script author using any of the codes from
+  2..25. The remaining codes from 26..31 are reserved for future use by
+  the ISCS. Message codes (in the range from 1..25) are also to be defined
+  and published by the author of the Client Script. Message code 31 is used
+  by the ISCS for the TestEcho function and the remaining Msg-Code values
+  from 26..30 (as well as 0) are reserved for future use by the ISCS.
+  
+  When the Client-SID field is set to 2046 = No_SID (as it is by the
+  'SendOmniMsg' function), the ISCS sends an omni-message directed
+  to all Clients. Omni messages carry data forward only and no Reply
+  handshake is used. Omni-message codes (in the range from 1..25) are
+  defined and published by the Sending script Author.
+  
+  When the Client-SID field is set to 2047 = PCall, it indicates that
+  the MsgNote is being used by the Intrascript Pseudo-Call logic. This
+  feature allows you to access certain functions as though they were 
+  subroutines. Such subroutines can be called from mulitple places in
+  your script with only a few lines of code instead of a lengthy inline
+  expansion. In addition to the subroutine Call/Return function, the
+  ISCS provides a simple form of Task management. Tasks are procedures
+  that need to run whenever certain data changes (in order to process
+  the corresponding data). The ISCS can restart or 'awaken' an idle Task
+  from anywhere in your script with just a few lines of code (instead of
+  repeating the Task inline multiple places). For many larger scripts,
+  the ISCS Subroutine 'Call'and 'RunTask' features can considerably
+  reduce the size of your script (with all the attendant benefits).
+
+  NOTE: To use the ISCS with any given instrument, MsgNote must be an
+        unused zone (in all groups). If you have an instrument that
+        actually uses note zero you will have to remap note 0.
+----------------------------------------------------------------------
+                           ISCS Initialization
+----------------------------------------------------------------------
+  on_init_ISCS(SID,XICB,LastTask)   ISCS Data Constructor
+
+       'SID' = Script ID number assigned to the hosting script.
+      'XICB' = Boolean, to denote whether or not an extended ICB
+               'startup' function should be executed at the first
+               MIDI CC event after the ICB finishes running.
+  'LastTask' = Higest used task index for the hosting script. This is
+               used by the CheckWatchDog routine to reduce unnecessary
+               recovery time under Task lockup conditions.
+               
+  This function should be called in the Host's ICB at the end of the ISCS
+  Interface Section (after defining the host-specific and Sender/Client
+  constants). Host scripts with no registered SID assignment can utilize a
+  limited subset of the ISCS services by giving 'No_SID' as their SID. Such
+  'guest' hosts can then receive omni messages and use the pseudo-calling
+  facility of the ISCS but cannot SEND any messages (Client or Omni). 
+  
+  If you wish to execute a 'startup' function (as an extension of the ICB),
+  supply a non-zero value for 'XICB' and provide the name of the function
+  with the 'ISCS_CCB' function. If you don't want to use a 'startup' function,
+  simply provide a zero value for 'XICB' and omit using the ISCS_CCB function.}
+
+function on_init_ISCS(SID,XICB,LastTask)
+                          { System Constants }
+  declare const Echo := 31     { MsgCode to test for active presence of Client }
+  declare const MaxTask := 50  { Max allowed user Task index }
+  declare const BlinkTask := MaxTask + 1  { ISCS index for StatMsg blinker task }
+  declare const MaxSub := 50   { Maximum allowed Subroutine index }
+  declare const MsgNote := 0   { MIDI note # for Messenger Note }
+  declare const No_SID := 2046 { Special Client code used for omni-messages }
+  declare const PCall := 2047  { Special Client code used for Pseudo calls }
+  declare const TCall := 2045  { Special Client code used for Task triggers }
+                        { Data extraction masks }    
+  declare const Msg_Mask := 0x1F  { Bit mask for MsgCode/ReplyCode isolation }  
+  declare const SID_Mask := 0x7FF { Bit mask for Sender/Client-SID isolation }
+               { Standard, Pre-defined Message Reply Codes }
+  declare const mrNONE  := 0   { Default reply code (set by Sender) }
+  declare const mrOK  := 1     { Normal successful handshake (set by Client) }
+                     { ISCS Variables and Arrays }
+  declare ActvTasks
+  declare BlinkCount       { Blinking Status message period counter }
+  declare DoStartup        { Execute Startup routine after ICB when this flag is set }                
+  declare InParm[4]        { Temp buffer for Call input parameters }
+  declare MsgID            { MsgNote ID for current client message, 0 = Idle }
+  declare OmniID           { MsgNote ID for current Omni message, 0 = Idle }
+  declare OutParm[4]       { Temp buffer for Call return parameters } 
+  declare pTx              { Polyvars get clobbered by GS stuff, use routine to save/rtn }
+  declare QTask[MaxTask+1] { Queue of active tasks }
+  declare ReplyBfr[4]      { Temp buffer for message reply code and data }
+  declare StartActv        { Flag set during XICB 'startup' function execution }
+  declare @StatMsg         { Status warning or error message to be blinked }
+    StatMsg := ''
+  declare TopTask := MaxTask { Highest Task index used by host script }
+  declare WaitTime           { Accumulated TWait time in microseconds }
+  declare WatchTask          { Watchdog expiration time for Task system }
+  declare WatchSub           { Watchdog expiration time for Subroutine system }
+  declare XSub               { Subroutine index: 0 < XSub <= MaxSub, 0 = Idle }
+  declare XTsk               { Task index: 0 < XTsk <= MaxTask, 0 = Idle }
+                { Self-SID of the hosting script }
+  declare HostSID            { This is set to the host's uniquely  }
+    HostSID := SID           {  assigned (ie Registered) Script ID }
+    DoStartup := XICB        { Set startup flag if XICB is required }
+    if in_range(LastTask,0,TopTask)
+      TopTask := LastTask    { This is the highest used task index }
+    end if 
+    XSub := XICB             { Lockout normal Calls until 'startup' is completed }
+end function { on_init_ISCS }
+
+{------------------------------------------------------------------------
+                      Callback Interface Functions
+-------------------------------------------------------------------------
+  ISCS_CCB(startup)    Insert ISCS_CCB at the head of the host's CCB if
+                       you specify a non-zero value for 'XICB' when you
+                       initialize the ISCS.
+
+           'startup' = Name of any User Function
+           
+  The specified 'startup' function will be executed after the first MIDI
+  CC event to occur once the ICB finishes. Usually, the 'startup' function
+  will contain a series of 'ICalls' to subroutines that will build the
+  initial control panel for your script (and as such it is a 'delayed'
+  extension of the host's ICB). If some of these panel-building routines
+  need to be invoked again later (from callbacks other than the ICB),
+  there may be a decided advantage to executing them from the 'startup'
+  function rather than from the ICB itself.
+  
+  If your script doesn't need to execute any special 'startup' routine,
+  simply specify 'XICB' = 0 for initialization and omit inserting this
+  ISCS_CCB function into your CCB. 
+
+  NOTE: If you specify 'XICB' = 0 for initialization, inserting this
+  function in your CCB will do nothing (other than to waste code space). 
+  
+  For more information on using the 'startup' function, see the comment
+  section at the end of this module. }
+          
+function ISCS_CCB(Startup)
+  if DoStartup # 0  { Do this only for the first CC event after the ICB }
+    DoStartup := 0
+    StartActv := true
+    Startup             { Execute the extended ICB function }
+    StartActv := false  { Now allow normal Calls }
+    XSub := 0
+  end if
+end function { ISCS_CCB }
+
+{ ISCS_NCB(MsgHandler,OmniHandler)
+                    Insert ISCS_NCB at the head of the NCB if your
+                    script needs to receive/respond to messages
+                    (specific or omni) from earlier scripts. You
+                    might also want to use ISCS_NCB if the prior
+                    script uses the ISCS and you don't want your
+                    script to 'see' MsgNote events.
+
+     'MsgHandler' = Host Script-supplied user function to process
+                    client-specific messages from sender.
+     'OmniHandler = Host Script-supplied user function to process
+                    sender-specific (omni) messages.
+       
+  'MsgHandler' decodes the 16-bit Msg-Code/Sender-SID fields, takes any
+  needed parameters (from EP[0]..EP[2]) and then executes the desired
+  action and/or returns any requested data in the EPs. Client-specific
+  messages will (as a minimum) always return an appropriate Reply-Code
+  in EP[3] as a handshake to the Sender. 
+  
+  'OmniHandler' decodes the Msg-Code/Sender-SID fields, utilizing any
+  needed parameters sent with the message (in EP[0]..EP[2]), and takes
+  appropriate action. No return handshake is required, nor can any data
+  be returned. 
+  
+  For more information on writing 'MsgHandler'and 'OmniHandler', see
+  the comment section at the end of this module. }
+                      
+function ISCS_NCB(MsgHandler,OmniHandler)
+  declare Client
+  declare MsgCode
+  declare Reply
+  declare Sender
+
+  if EVENT_NOTE = MsgNote    { ISCS MsgNote received }
+    Client := EVENT_PAR[3] .and. SID_Mask { Extract Client field }
+    if Client = PCall
+      ignore_event(EVENT_ID) { Call messenger from prior script, }
+      exit                   {  inhibit further propagation      }
+    end if
+    if Client = No_SID or Client = HostSID        { Omni or Specific-Client }
+      Sender := sh_right(EVENT_PAR[3],16) .and. SID_Mask   { Extract Sender }
+      MsgCode := sh_right(EVENT_PAR[3],27) .and. Msg_Mask { Extract MsgCode }
+    end if    
+    if Client = No_SID       { Process as an Omni message }
+      OmniHandler(Sender,MsgCode)
+      exit
+    end if
+    if Client = HostSID      { Message is specifically for this host }
+      ignore_event(EVENT_ID) { Stop further propagation }
+      if MsgCode = Echo      { Echo test, simply acknowledge active presence }
+        set_event_par(EVENT_ID,3,EVENT_PAR[3] .or. sh_left(mrOK,11))
+      else    { Use MsgHandler to decode message to this specific host }
+        MsgHandler(Sender,MsgCode,Reply)
+        set_event_par(EVENT_ID,3,EVENT_PAR[3] .or. sh_left(Reply,11))        
+      end if  { Add reply code to EP[3] }
+    end if                   
+    exit      { End of MsgNote processing }
+  end if
+end function { ISCS_NCB }
+
+{ ISCS_RCB(UserRCB,CallHandler,TaskHandler)
+
+        Insert ISCS_RCB in the RCB of your script if it uses SendMsg,
+        SendOmniMsg, or TestEcho, or if your script uses Subroutines
+        or Tasks. If you use ISCS_RCB, there must be nothing else
+        coded in your RCB. All your normal release processing should
+        be contained in the 'UserRCB' function as explained below.
+        
+           'UserRCB' = Host supplied function for normal RCB processing
+       'CallHandler' = Host supplied function for directing Calls
+       'TaskHandler' = Host supplied function for triggering Tasks
+
+  'UserRCB' is a User Function that provides the normal release callback
+  processing for your script. NOTE: If you are using Tasks, you must NOT
+  use the 'exit' function in UserRCB because the ISCS task management
+  logic is positioned at the end of the RCB (after calling 'UserRCB').
+  
+  For information on writing 'CallHandler' and 'TaskHandler', see the
+  comment section at the end of this module. }
+
+function ISCS_RCB(UserRCB,CallHandler,TaskHandler)
+  CheckWatchDog            { Recover from any K2 aborts }
+  if EVENT_NOTE = MsgNote  { MsgNote release }
+    ignore_event(EVENT_ID) { Inhibit further propagation }
+    if EVENT_ID = MsgID
+      { This host sent a client-specific message and this is the reply }
+      ReplyBfr[3] := sh_right(EVENT_PAR[3],11) .and. Msg_Mask
+      MsgID := -1  { Allow SendMsg to proceed after exit from RCB }
+      if sh_right(EVENT_PAR[3],27) .and. Msg_Mask = Echo
+        exit       { TestEcho response, only the Reply-Code is expected }
+      end if
+      if ReplyBfr[3] # mrNone        { Client has responded }
+        ReplyBfr[0] := EVENT_PAR[0]  { Copy any EP data from Client }
+        ReplyBfr[1] := EVENT_PAR[1]  {  to temporary Reply buffer   }
+        ReplyBfr[2] := EVENT_PAR[2]
+      end if
+      exit    { MsgNote processing completed, end this thread }
+    end if { MsgID }
+    if EVENT_PAR[3] .and. SID_Mask = PCall and XSub > 0 { Subroutine Call }
+      WatchSub := ENGINE_UPTIME + 100  { Give the routine 100ms to run }
+      CallHandler(XSub)                { Execute the indexed Subroutine }
+      if StartActv = true              { Startup function still running }             
+        XSub := -XSub  { Let ICall proceed, use non-zero XSub to inhibit normal calls }
+      else   { Startup function is completed, all normal Calls now }
+        XSub := 0                      { Let Call proceed }
+      end if
+    else if EVENT_PAR[3] .and. SID_Mask # TCall
+      exit         { MsgNote must be from OmniMSg, just end this thread }      
+    end if
+    { If we get to here, MsgNote must be a Task trigger or a subroutine has ended }
+  else             { Not a messenger note RCB }
+    UserRCB        { Do User's Normal release processing }
+  end if
+  if XTsk > 0            { Before exit, check for a possible RunTask request }
+    pTx := XTsk          { Hang onto this index until Task completes }
+    if pTx = BlinkTask   { If this is the ISCS Index for StatMsg blinker task, }
+      pTx := 0           {  Map the index to zero as the Task Queue index      }
+    end if
+    WatchTask := ENGINE_UPTIME + 500  { Give all tasks 500ms more to finish up }
+    WaitTime := 0                     { Reset fractional ms accumulator }
+    QTask[pTx] := 1                   { Mark the task as running }
+    XTsk := 0                         { Allow other Task Triggers }
+    inc(ActvTasks)                    { Tally total of running tasks }
+    if pTx = 0
+      BlinkTask_                      { Run the ISCS blinker task }
+    else
+      TaskHandler(pTx)                { Run the user-designated Task }
+    end if
+    dec(ActvTasks)
+    QTask[pTx] := 0                   { Mark Task as Idle again }
+    if ActvTasks = 0                  { If this was the last running task, }
+      WatchTask := 0                  {  Reset the watchdog task timer     }
+    end if
+  end if
+end function { ISCS_RCB }
+
+{------------------------------------------------------------------------
+                      Callback Interface Support
+-------------------------------------------------------------------------}
+function BlinkTask_  { Blinks StatMsg for On/Off intervals of 300ms }
+  while BlinkCount >= 0 
+    if BlinkCount .and. 1 = 0
+      message('')
+    else
+      message(StatMsg)
+    end if
+    TWait(300000)  { Pause for 300 ms }
+    dec(BlinkCount)
+  end while
+  StatMsg := ''  { Erase status message }
+  pTx := 0       { Return the call index }
+end function { BlinkTask_ }
+
+function CheckWatchDog  { Check for Task or Subroutine watchdog time expiration }
+  declare n
+  { Under certain conditions, such as toggling the Release Trigger button, K2
+    may abort callbacks at the next 'wait' function. When this happens, the
+    ISCS subroutine and/or Task machinery can 'lockup' and prevent further
+    Calls and/or RunTask commands from working. In an attempt to 'detect' when
+    K2 has caused such a lockup to occur, a set of watchdog timers are used.
+    When all is working normally, this watchdog timer will never be allowed to
+    'expire' but when K2 causes a 'lockup', the watchdog timer WILL expire and
+    when this happens, this ISCS function will execute a recovery sequence to
+    restore proper operation from then on.
+
+    Each time a subroutine is called, the WatchSub timer is set for 100ms and when
+    the subroutine exits normally, WatchSub is reset to zero. Similarly, when a
+    Task is triggered, the WatchTask timer is set for 500ms. If a subroutine or
+    task needs more time to execute normally (because of an imbedded 'wait' loop),
+    the watchdog interval can be extended by using the ISCS-supplied function
+    SWait or TWait respectively. These functions not only provide the desired
+    'wait' time but also 'pump up' the associated watchdog timer interval left. }
+  
+  if in_range(WatchTask,1,ENGINE_UPTIME)  { Task watchdog interval has expired }
+    WatchTask := 0       { Execute recovery sequence to restore Task operation }
+    for n := 0 to TopTask
+      QTask[n] := 0
+      ActvTasks := 0
+    end for
+  end if
+  if in_range(WatchSub,1,ENGINE_UPTIME)  { Subroutine watchdog interval expired }
+    XSub := 0      { Allow any new callers to proceed }
+    WatchSub := 0
+  end if
+end function { CheckWatchDog }
+
+{----------------------------------------------------------------------
+                 Intrascript Calling/Triggering Functions
+-----------------------------------------------------------------------
+{ Call(fn,cparms,rparms)   Call the subroutine (whose index is 'fn') in
+                           the Host's CallHandler and optionally pass
+                           up to 4 input and/or 4 output, 'thread-safe'
+                           data values to/from the subroutine.
+                             
+        'fn' = A call index value used to specify which subroutine will
+               execute in the CallHandler. 'fn' must be a positive integer
+               between 1 and MaxSubs (currently defined as 50).
+    'cparms' = Name of a user function that will transfer any input values
+               (supplied by the caller) to the temporary ISCS InParm buffer.
+    'rparms' = Name of a user function that will transfer any output values
+               from the temporary ISCS OutParm buffer to the caller's
+               desired destination. 
+                                  
+  Use 'Call' to execute one of a number of 'subroutines' in the CallHandler
+  from various places throughout your code. The 'fn' parameter must be an
+  integer constant (or literal) from 1 to MaxSub (currently defined as 50).
+  Subroutines may NOT call other subroutines and you may NOT invoke 'Call'
+  from either the RCB or the ICB. Subroutines are executed one at a time, thus
+  the 'Call' function provides mutual exclusion in that a running subroutine
+  cannot be re-entered by another caller nor can another subroutine be started
+  until the current subroutine finishes.
+
+  If the called subroutine needs no input parameters, simply use the ISCS
+  function named 'none' for 'cparms'. Similarly, if the subroutine returns
+  no parameters, use 'none' for 'rparms'. See the comment section at the
+  end of this module for more information on the 'Call' function and for
+  writing the 'CallHandler' function.}
+         
+function Call(fn,cparms,rparms)
+  { Compile nothing if fn <= 0 or if fn > MaxSub index }
+  if fn > 0 and fn <= MaxSub  
+    while XSub # 0 or WatchSub # 0
+      wait(100)   { Wait until last sub is inactive and XSub is free }
+    end while
+    XSub := fn    { Pass subroutine index to RCB }
+    cparms        { Caller's routine to load InParms buffer }
+    set_event_par(play_note(MsgNote,1,0,1),3,PCall) { Trigger 'tagged' RCB }  
+    while XSub # 0
+      wait(100)   { Wait here until this call 'returns' }
+    end while
+    rparms        { Caller's routine to accept OutParms buffer }
+    WatchSub := 0 { Let one of the 'waiting' callers proceed }
+  end if
+end function { Call }
+
+{ ICall(fn,cparms,rparms)  Call the subroutine (whose index is 'fn') in
+                           the Host's CallHandler and optionally pass
+                           up to 4 input and/or 4 output, 'thread-safe'
+                           data values to/from the subroutine.
+
+  YOU MUST USE this form of the 'Call' function for any calls you make
+  from the 'startup' routine. Other than the restriction that it can
+  only be invoked from the 'startup' function (and 'Call' cannot), 'ICall'
+  performs exactly the same function as 'Call'.}
+
+function ICall(fn,cparms,rparms)
+  { Conditional Compilation, Compile nothing if fn <= 0 or if fn > MaxSub index }
+  if fn > 0 and fn <= MaxSub    
+    XSub := fn    { No need to wait for XSub, Pass subroutine index to RCB }
+    cparms        { Caller's routine to load InParms buffer }
+    set_event_par(play_note(MsgNote,1,0,1),3,PCall) { Trigger 'tagged' RCB }  
+    while XSub # -fn
+      wait(100)   { Wait here until this ICall 'returns' }
+    end while
+    rparms        { Caller's routine to accept OutParms buffer }
+    WatchSub := 0
+  end if    
+end function { ICall }
+
+{ RunTask(fn)   If Idle, start the specified Task in the Host's TaskHandler
+                             
+         'fn' = An index value used to specify which Task in the host's
+                TaskHandler should be started. 'fn' must be a positive
+                integer constant or literal between 1 and MaxTask
+                (currently defined as 50).
+               
+         Unlike the 'Call' function which cannot be invoked from either the
+         RCB or ICB, the 'RunTask' function can be invoked from the RCB
+         with certain restrictions. Tasks can also be triggered from a
+         subroutine but the trigger occurs when the subroutine finishes.
+         For more information about Tasks and writing the 'TaskHandler',
+         see the comment section at the end of this module. }
+
+function RunTask(fn)
+  { Conditional Compilation, Compile nothing if fn <= 0 or if fn > MaxTask index }
+  if fn > 0 and fn <= MaxTask  
+    while XTsk # 0            { Wait until index variable is available }
+      wait(100)
+    end while
+    if QTask[fn] = 0          { If task isn't currently running }
+      XTsk := fn              { Set XTsk to the task's index }
+      { If caller isn't in the RCB, start a new thread }
+      set_event_par(play_note(MsgNote,1,0,1),3,TCall)
+    end if
+  end if
+end function { RunTask }
+
+{----------------------------------------------------------------------
+                     Interscript Message Functions
+-----------------------------------------------------------------------
+{ SendMsg(Client,MsgCode,sdata,rdata)   Send MsgCode and optional data
+                                        to the specified Client Script
+
+       'Client' = SID (1..2000) for the receiving Script
+      'MsgCode' = Encoded message (1..25) to be sent to the 'Client' Script
+        'sdata' = Name of a user function that will copy the sender's data
+                  values to the corresponding EPs using the MsgID context.      
+        'rdata' = Name of a user function that will transfer the Client's
+                  Reply-Code and any returned data from the temporary ISCS
+                  ReplyBfr to the caller's desired destination.
+
+  Use SendMsg to send a message to or request data from another specific
+  script higher in the chain. The permissible 'MsgCode' values should be
+  published by the author of the 'Client' Script. Before the message is
+  sent, the 'sdata' function will be executed to put the caller's input
+  data values into the EPs. When SendMsg exits, the 'rdata' function will
+  have executed and the Client's Reply-Code and any returned data will be
+  where it was put by 'rdata'. If the Client is not active in the system
+  or not functioning properly, the Reply-Code returned will be set to the
+  default value of mrNONE. If you don't need to send any data, simply use
+  the ISCS 'none' function for 'sdata'. If the Client returns no data
+  (or no data of interest), the 'rdata' function need merely copy the
+  Reply-Code from ReplyBfr[3]. This can most easily be done using the
+  ISCS function named mr0. See the TestEcho function for an illustration
+  of how to use this function. For more info on SendMsg and writing the
+  'MsgHandler' routine, see the comment section at the end of this module.
+  
+  NOTE: SendMsg and TestEcho CANNOT be used in the RCB or ICB and 
+        therefore cannot be invoked from a subroutine or task either. }
+
+function SendMsg(Client,MsgCode,sdata,rdata)
+  while MsgID # 0    { One message customer at a time }
+    wait(100)
+  end while
+  MsgID := play_note(MsgNote,1,0,100) { Allow 100us for chain to respond }
+  set_event_par(MsgID,3,sh_left(MsgCode,27) + sh_left(HostSID,16) + Client)
+  sdata     { Put data to be sent in EP[0]..EP[2] using MsgID context }  
+  while MsgID # -1   { MsgID set to -1 in ISCS_RCB after } 
+    wait(100)        {  handshake or default reply       } 
+  end while
+  rdata       { Move reply data from buffer to desired destination }
+  MsgID := 0  { Allow next message to be sent }
+end function { SendMsg }
+
+{ SendOmniMsg(MsgCode,sdata)      Send MsgCode and optional Data
+                                  to ALL higher Scripts
+
+      'MsgCode' = Encoded message (1..25) to be sent to all Scripts
+        'sdata' = Name of a user function that will copy any sender
+                  data to corresponding EPs using OmniID context.
+
+  Use SendOmniMsg to send a message to all scripts higher in the chain.
+  The meaning of the 'MsgCode' values should be published by the author
+  of the sending script. Since the message is for all scripts, no data
+  nor any Reply-Code is returned to the sender. Before the message is
+  sent, the user function 'sdata' will be executed to move any optional
+  data values from the sender to the EPs. If no data needs to be sent,
+  just use the ISCS 'none' function for 'sdata'.
+
+  NOTE: SendOmniMsg can be used in any callback EXCEPT the ICB. Therefore,
+        you CAN also invoke SendOmniMsg from a subroutine or task. }
+  
+function SendOmniMsg(MsgCode,sdata)
+  OmniID := play_note(MsgNote,1,0,100) { Pulse an Omni-tagged message note }
+  set_event_par(OmniID,3,sh_left(MsgCode,27) + sh_left(HostSID,16) + NO_SID)
+  sdata    { Put any data to be sent in EP[0]..EP[2] using OmniID context } 
+end function { SendOmniMsg }
+
+{ TestEcho(Client,reply)      Test for the 'active' presence
+                              of a Specific-Client Script
+                              
+       'Client' = SID (1..2000) of the script being sought
+        'reply' = Caller's variable to accept the Reply-Code
+                  
+  Use this function to determine if any given Client script is in
+  the active chain following your script. If the script is present,
+  'reply' will be set to mrOK = 1. If the script is not present
+  (or it is bypassed), 'reply' will be set to mrNONE = 0. No other
+  data is returned.
+
+  NOTE: TestEcho and SendMsg CANNOT be used in the RCB or ICB
+        nor can it be invoked from a subroutine or task.}
+
+function TestEcho(Client,reply)
+  SendMsg(Client,Echo,none,mr0(reply))  { Send 'Echo' as message }
+end function  { TestEcho }
+
+{----------------------------------------------------------------------
+                              Utility Functions
+----------------------------------------------------------------------- }
+{ BlinkStatMsg(time)   Blink K2 status line message for 'time' seconds
+
+         'time' = A constant or literal value in seconds
+
+  Before calling this routine, put the desired status line message in
+  the ISCS string variable named StatMsg. When this routine is invoked,
+  the 'internal' ISCS task named BlinkTask will be triggered and the
+  StatMsg string will be blinked 3 times per second for 'time' seconds.
+  
+  NOTE: BlinkStatMsg can be used in any callback EXCEPT the ICB. This
+        function can also be invoked from a Subroutine however, like
+        any task triggered from a subroutine, the trigger will not
+        occur until the subroutine finishes. }
+
+function BlinkStatMsg(time)
+  if time > 0 and time < 21 { Conditional Compilation, when 'time' is a constant }
+    BlinkCount := time*33/10 .or. 1  { Convert secs to On/Off counter }
+    while XTsk # 0      { Wait until task index variable is available }
+      wait(100)
+    end while
+    if QTask[0] .and. 1 = 0   { If BlinkTask isn't currently running }
+      XTsk := BlinkTask       { Set XTsk to the index of BlinkTask }
+      { In case caller isn't in the RCB, start a new RCB thread }
+      set_event_par(play_note(MsgNote,1,0,1),3,TCall)
+    end if
+  end if  
+end function { BlinkStatMsg }
+
+{ Cancel_Startup    Cancel execution of the special 'startup' function
+  
+  You can invoke this function from the ICB if an error occurs and you
+  no longer want to execute the 'startup' function. For example, if your
+  script performs a version update in the ICB (using persistent variables)
+  but determines that something is wrong. You would then want to display
+  an error message and stop. In this case, you would want to prevent the
+  control panel from initializing and you would also want to prevent MIDI
+  events from triggering Tasks or Subroutine Calls. The 'Cancel_Startup'
+  function (if invoked while still in the ICB) will cancel execution of
+  the 'startup' function and will also stop 'Call' and 'RunTask' requests }
+  
+function Cancel_Startup
+  DoStartup := 0  { Cancel startup function and Block all callers }
+  XSub := 1 
+end function { Cancel_Startup }
+
+{ SWait and TWait  These functions can be used in Subroutines and Tasks
+                   to provide 'watchdog-extended' waits. SWait is in
+                   milliseconds while TWait is in microseconds }
+
+function SWait(time)  { time is in msecs }
+  WatchSub := WatchSub + time
+  wait(1000*time) 
+end function { SWait }
+
+function TWait(time)  { time is in usecs }
+  WaitTime := WaitTime + time  { Add wait time to usec accumulator }
+  if WaitTime >= 1000          { When at least 1 ms has been accumulated }
+    WatchTask := WatchTask + WaitTime/1000  { Increase WatchTask time by ms }
+    WaitTime := WaitTime mod 1000     { Retain fractional ms in accumulator }
+  end if
+  wait(time)   { Now actually pause for 'time' usec }
+end function { TWait }
+
+{----------------------------------------------------------------------
+                 Convenient Parameter Passing Functions
+-----------------------------------------------------------------------}
+            { Subroutine Call Input Parameter Functions }
+function cp1(p1)          { Send 1 input parm to subroutine }
+  InParm[0] := p1
+end function { cp1 }
+
+function cp2(p1,p2)       { Send 2 input parms to subroutine }
+  InParm[0] := p1
+  InParm[1] := p2
+end function { cp2 }
+
+function cp3(p1,p2,p3)    { Send 3 input parms to subroutine }
+  InParm[0] := p1
+  InParm[1] := p2
+  InParm[2] := p3
+end function { cp3 }
+
+function cp4(p1,p2,p3,p4) { Send 4 input parms to subroutine }
+  InParm[0] := p1
+  InParm[1] := p2
+  InParm[2] := p3
+  InParm[3] := p4
+end function { cp4 }
+
+function cpa(pa)         { Send 4-element array to subroutine }
+  InParm[0] := pa[0]
+  InParm[1] := pa[1]
+  InParm[2] := pa[2]
+  InParm[3] := pa[3]
+end function { cpa }
+               { Subroutine Return Parameter Functions }
+function rp1(p1)          { Accept 1 output parm from subroutine }
+  p1 := OutParm[0]
+end function { rp1 }
+
+function rp2(p1,p2)       { Accept 2 output parms from subroutine }
+  p1 := OutParm[0]
+  p2 := OutParm[1]
+end function { rp2 }
+
+function rp3(p1,p2,p3)    { Accept 3 output parms from subroutine }
+  p1 := OutParm[0]
+  p2 := OutParm[1]
+  p3 := OutParm[2]
+end function { rp3 }
+
+function rp4(p1,p2,p3,p4) { Accept 4 output parms from subroutine }
+  p1 := OutParm[0]
+  p2 := OutParm[1]
+  p3 := OutParm[2]
+  p4 := OutParm[3]
+end function { rp4 }
+                  { SendMsg Optional Sender Data Functions }
+function md1(d1)          { Send 1 data word with msg }
+  set_event_par(MsgID,0,d1)
+end function { md1 }
+
+function md2(d1,d2)       { Send 2 data words with msg }
+  set_event_par(MsgID,0,d1)
+  set_event_par(MsgID,1,d2)
+end function { md2 }
+
+function md3(d1,d2,d3)    { Send 3 data words with msg }
+  set_event_par(MsgID,0,d1)
+  set_event_par(MsgID,1,d2)
+  set_event_par(MsgID,2,d3)
+end function { md3 }
+
+function mda(da)          { Send 3 element data array with msg }
+  set_event_par(MsgID,0,da[0])
+  set_event_par(MsgID,1,da[1])
+  set_event_par(MsgID,2,da[2])  
+end function { mda }
+         { SendMsg Optional Reply Data and Reply-Code Functions }
+function mr0(reply)          { Accept Reply-Code only from client (no data) }
+  reply := ReplyBfr[3]
+end function { mr0 }
+
+function mr1(d1,reply)       { Accept Reply-Code and 1 Data value from client }
+  d1 := ReplyBfr[0]
+  reply := ReplyBfr[3]
+end function { mr1 }
+
+function mr2(d1,d2,reply)    { Accept Reply-Code and 2 Data words from client }
+  d1 := ReplyBfr[0]
+  d2 := ReplyBfr[1]
+  reply := ReplyBfr[3]
+end function { mr2 }
+
+function mr3(d1,d2,d3,reply) { Accept Reply-Code and 3 Data words from client }
+  d1 := ReplyBfr[0]
+  d2 := ReplyBfr[1]
+  d3 := ReplyBfr[2]
+  reply := ReplyBfr[3]
+end function { mr3 }
+       { General 'empty' function for the zero parm/data situation }
+function none
+  { Empty 'cparms', 'rparms', or 'sdata' function }
+end function { none }
+               { SendOmniMsg Optional Sender Data Functions }
+function od1(d1)          { Send 1 data word with omni msg }
+  set_event_par(OmniID,0,d1)
+end function { od1 }
+
+function od2(d1,d2)       { Send 2 data words with omni msg }
+  set_event_par(OmniID,0,d1)
+  set_event_par(OmniID,1,d2)
+end function { od2 }
+
+function od3(d1,d2,d3)    { Send 3 data words with omni msg }
+  set_event_par(OmniID,0,d1)
+  set_event_par(OmniID,1,d2)
+  set_event_par(OmniID,2,d3)
+end function { od3 }
+
+function oda(da)          { Send 3 element data array with omni msg }
+  set_event_par(OmniID,0,da[0])
+  set_event_par(OmniID,1,da[1])
+  set_event_par(OmniID,2,da[2])  
+end function { oda }
+
+{--------------------------------------------------------------------------------
+                         Writing the NCB User Functions
+---------------------------------------------------------------------------------
+  If a hosting script uses ISCS_NCB you need to provide host-specific functions
+  named 'MsgHandler' and 'OmniHandler'. While any name may be used for these
+  routines (as long as you pass those same names when you call ISCS_NCB), for the
+  sake of uniformity it is recommended that all Script Authors using the ISCS,
+  name these functions 'MsgHandler' and 'OmniHandler'. 
+---------------------------------------------------------------------------------
+                               Writing MsgHandler
+--------------------------------------------------------------------------------- 
+  The general format for MsgHandler is as follows:
+  
+  function MsgHandler(sender,msgcode,reply)
+     :
+     :
+  end function
+  
+  Input parameters 'sender' and 'msgcode' are provided by the ISCS and contain
+  the SID of the sender and the message code sent, respectively. MsgHandler is
+  called from the NCB in the context of the messenger note's EVENT_ID. Thus,
+  if the Sender has included any data with the message, you can obtain it from
+  EP[0]..EP[2] as needed. You also need to return the ouput parameter 'reply'.
+  Two reply codes are predefined by the ISCS as follows:
+    
+        mrNONE  = 0   This is the default reply (set by the sender)
+          mrOK  = 1   This is the standard successful reply
+        
+  Reply codes 26..31 are reserved for future use by the ISCS. Therefore each
+  Client-script Author is free to assign and publish the remaining codes
+  from 2..25 to convey whatever is desired to the sender. Usually, the body
+  of the 'MsgHandler' function will consist of a select-case construct to
+  'decode' the permissible message codes and act upon them accordingly.
+  However, the Sender's ID is also available, should you want to respond
+  only to certain senders and perhaps exclude others.
+  
+  If you have defined one or more message codes as data requests to your script,
+  then you must return the requested data in EP[0]..EP[2] (using EVENT_ID for
+  context). Therefore, if there is sender-supplied data, you must utilize or
+  copy it first before overwriting it with the data you return. The format of
+  data received and returned is also specified and published by the Author of
+  the message-receiving Client script. However, as a standard convention, when
+  passing less than 3 values, you should always use the lower EPs first. For
+  example, if you only need to return 2 values, use EP[0] and EP[1].
+  
+  The Sending script, using the ISCS function SendMsg, expects to receive any
+  requested data (along with an mrOK) within 100us. Should your script 'xyz'
+  need more time to get the requested data ready, you can define and publish
+  additional reply codes like 'xyzHOLD' or 'xyzDISCARD' along with some
+  protocol (and possibly additional message codes) that the sender can use to
+  obtain the 'sluggish' data. Whether you can have data requests ready in
+  time or not, it is essential that you promptly send a 'reply' code other
+  than the default mrNONE. Otherwise, the Sender will receive the mrNONE code
+  by default and the sender will then likely assume that your script is not
+  present. In such a case, the sender script may switch to its standalone mode.
+--------------------------------------------------------------------------------
+                              Writing OmniHandler
+--------------------------------------------------------------------------------   
+  The general format for OmniHandler is as follows: 
+    
+  function OmniHandler(sender,msgcode)
+     :
+     :
+  end function
+  
+  Input parameters 'sender' and 'msgcode' are provided by the ISCS and contain
+  the SID of the sender and the message code sent respectively. OmniHandler is
+  called from the NCB in the context of the messenger note's EVENT_ID. Thus,
+  if the Sender has included any data with the message, you can obtain it from
+  EP[0]..EP[2] as needed. Since omni messages are sent to all scripts, no
+  Reply-Code is required nor can you return any data to the sender.
+  
+  Omni message codes 0, and 26..31 are reserved by the ISCS for special and
+  future use. Therefore, sending scripts can assign and publish any of the
+  remaining message codes from 1..25.  Usually, the body of the 'OmniHandler'
+  function will consist of a select-case construct to 'decode' the sender-
+  defined message codes and act upon them accordingly. However, since
+  omni-message codes are defined by the Authors of the sending scripts, you
+  may need several sets of decoding case statements, one for each sender you
+  wish to receive omni-messages from. Your OmniHandler can thus decode up to
+  25 messages from each Sender you intend to work with. Duplicate message
+  codes assigned independently can be resolved using the 'sender' SID.
+  
+  If your script only needs to receive one or the other but not both Client-
+  Specific and Omni messages, you still need to supply both handlers. However,
+  the body of the unused handler function can be left empty if desired.
+  
+---------------------------------------------------------------------------------
+                          Writing the ISCS_RCB Functions
+---------------------------------------------------------------------------------  
+  If your script uses ISCS_RCB, you must provide host-specific functions named 
+  'UserRCB','CallHandler' and 'TaskHandler'. The 'UserRCB' function is merely
+  all the code you would normally write for the release callback except that you
+  need to encapsulate it into a User Function so it can be 'named' as the first
+  argument of the ISCS_RCB function. However, there is one caveat that you need
+  to be aware of. If your script uses one or more Tasks, you not only must
+  provide the 'TaskHandler' function (to be described later), but, you must also
+  write your 'UserRCB' routine WITHOUT any KSP 'exit' calls. This may require you
+  to use more nested if-else clauses than you would ordinarily. NOTE: The supplied
+  function BlinkStatMsg, triggers an internal ISCS task. So, even if your script
+  uses no other tasks, you must still avoid using the 'exit' function in your
+  'UserRCB' function (although you need not provide any body for the TaskHandler).
+---------------------------------------------------------------------------------
+                             Writing the CallHandler
+--------------------------------------------------------------------------------- 
+  The general format for the 'CallHandler' function is as follows:
+    
+  function CallHandler(fn)
+     :
+     :    
+  end function
+  
+  The input parameter 'fn' is passed to 'CallHandler' by the ISCS and is the same
+  index value you pass to the 'Call' function. 'CallHandler' is run from an RCB
+  thread. Input parameters can be obtained from InParms[n] and any output para-
+  meters can be passed to OutParms[n]. The parameter buffers InParms and OutParms
+  should only be used by the caller in conjunction with the optional 'cparms' and
+  'rparms' functions (similar to the supplied cpx and rpx functions). Since the
+  ISCS only allows one subroutine to be active at any time, these buffers are
+  safe during execution of any given subroutine.
+  
+  The 'fn' index value can most easily be used with a select-case construct to
+  select and execute the corresponding function. However, since calls are only
+  used locally within the host script, you do not need to publish a list of the
+  indices nor the subroutines they link to. CAUTION: be careful that you do not
+  modify the index while in the 'CallHandler'. The 'fn' index parameter must
+  remain unchanged during the entire call/return process. For the most compact
+  calling code sequence, 'fn' should be a literal or constant. The Call function
+  itself uses the code optimization feature of the KScript Editor and when 'fn'
+  is a constant, fewer lines of code will be compiled for each Call. It is also
+  important that the subroutines you include in your CallHandler not 'Call' any
+  other sub-routines; nor any of the ISCS functions (such as SendMsg) that are
+  disallowed in the RCB. However, it is permissible to trigger a Task from the
+  body of a Subroutine but it won't actually be started until the subroutine
+  exits.
+  
+  If you use the ISCS_RCB function, even if your script uses no subroutines,
+  you must still provide the 'CallHandler' function (although the body of the
+  function can be left empty. 
+---------------------------------------------------------------------------------
+                            Writing the TaskHandler
+--------------------------------------------------------------------------------- 
+  The general format for the 'TaskHandler' function is as follows:
+    
+  function TaskHandler(fn)
+     :
+     :    
+  end function
+  
+  The input parameter 'fn' is passed to 'TaskHandler' by the ISCS and is the same
+  index value you pass to the 'RunTask' function. The 'TaskHandler' is positioned
+  near the exit point of the RCB, just after 'UserRCB' is invoked. This allows
+  the 'RunTask' function to be used in the body of 'UserRCB' as well as in any
+  other callback (except the ICB). Since an invokation of 'RunTask' merely
+  'triggers' or starts the designated task, no parameters are passed to or back
+  from a task. Tasks are often lengthy, iterative routines paced by 'wait'
+  statements. So, once triggered they may run for a while and several other
+  attempts may be made (from different places in your script) to restart a task.
+  However, the way the ISCS logic is designed, if a caller tries to start a task
+  that is already running, it is perfectly harmless because nothing will happen.
+  Basically, a task has to be Idle before 'RunTask' will try to start it.
+  
+  The 'fn' index value can most easily be used with a select-case construct to
+  select and execute the corresponding function. However, since tasks are only
+  used locally within the host script, you do not need to publish a list of the
+  indices nor the tasks that they link to. The 'fn' index parameter must remain
+  unchanged during the entire triggering process. For the most compact triggering
+  code sequence, 'fn' should be a literal or constant. The Call function itself
+  uses the code optimization feature of the KScript Editor and when 'fn' is a
+  constant, fewer lines of code will be compiled for each Call. Since tasks are
+  executed in the RCB, it is also important that tasks do not 'Call' subroutines
+  nor any of the ISCS functions (such as SendMsg) that are disallowed in the RCB.
+  However, since Tasks can be triggered from the RCB, it is permissible for a
+  Subroutine to trigger a Task (but it won't happen until the subroutine exits).
+
+  Due to KSP limitations, a new RCB thread cannot be started from the RCB itself.
+  As a result of this, a 'deadly embrace' possibility exists when invoking a
+  series of 'RunTask' requests from the UserRCB body. If 'RunTask' is invoked
+  within your the UserRCB function, the ISCS handles the request by merely
+  'falling through' to your 'TaskHandler' rather than starting another RCB
+  thread (which can't be done from the RCB). Since each Task that is started
+  must have its own RCB thread, only one task can be started from any given RCB
+  thread. Therfore, you must not attempt to start more than one task per pass
+  through any given RCB thread (including the UserRCB function). For example,
+  if you were to issue two RunTask requests in a row (from UserRCB) and both
+  tasks happened to be idle, the 2nd request would have to wait for the first
+  to be completed and that would be impossible since the UserRCB could never
+  'fall through' to the TaskHandler. Please note however that you CAN issue a
+  series of RunTask requests from callbacks other than the RCB (excluding the
+  ICB of course).
+   
+  If you use the ISCS_RCB function, even if your script uses no tasks, you must
+  still provide the 'TaskHandler' function (although the body of the function
+  can be left empty. 
+---------------------------------------------------------------------------------
+                      Parameter Passing Support Functions
+--------------------------------------------------------------------------------- 
+  The ISCS provides a number of useful parameter passing functions to simplify
+  the use of such services as Call, SendMsg, etc (which require you to provide
+  user functions for passing input and/or output parameters). One good example
+  should illustrate the use of the predefined parameter passing functions.
+  
+  Suppose you want to send a client-specific message, GiveMeData, to a script
+  whose SID is SuperScript. Suppose that this client script requires that you
+  send two data values to it along with the GiveMeData message and the client
+  script will be returning one data value (as well as the Reply-Code). Suppose
+  also that the two data values you want to send are in your variables named S1
+  and S2. Further, suppose that you want to put the data value (returned by the
+  client script) in your variable named RData and that you want the Reply-Code
+  deposited in your variable named MyReply. To do all this you would write:
+  
+  SendMsg(SuperScript,GiveMeData,md2(S1,S2),mr1(RData,MyReply))
+  
+  Note the use of the predefined parameter passing functions named md2 and mr1.
+  There is a complete set of such functions for passing all numbers of parms
+  (including 'none') for each function that uses parameter passing functions.
+---------------------------------------------------------------------------------
+                          The ISCS Startup Feature
+---------------------------------------------------------------------------------   
+  When you initialize the ISCS with a non-zero value for 'XICB', you also specify
+  a 'startup' routine with ISCS_CCB(startup) at the head of your script's CCB.
+  This 'startup' function will then be executed when the KSP receives the first
+  MIDI CC event after the ICB runs, thus acting somewhat like an extension of the
+  ICB itself. 
+  
+  In many scripts, some of the panel-building functions need to be invoked not
+  only in the ICB but also from other callbacks during the course of running
+  the script. Normally, even if these routines are written as subroutines,
+  they must still be repeated inline when they are invoked from the ICB (since
+  you cannot call subroutines from the ICB). However, by investing a small
+  effort to get things started, many of these duplicated inline calls in the
+  ICB can be eliminated. To accomplish this, instead of building your control
+  panel entirely in the ICB, simply declare the controls but don't 'position'
+  them yet (ie leave out all the 'move_control' instructions). **
+  
+  Put all the code that positions the controls (as well as all the code that
+  initializes and builds the panel details) into a collection of subroutines
+  that can be called one after the other from your 'startup' function. Then
+  declare and position a big 6x6 label with some text in it that will prompt
+  the user to initially 'Move a CC'. When the host script starts and runs the
+  ICB, this big label will be the only thing the user sees until a MIDI CC
+  event occurs. Once a CC event does occur, the 'startup' routine will run
+  and the normal control panel will then appear.
+  
+  When you write the 'startup' function, it will most often consist of a series
+  of subroutine calls (so those subroutines can also be used elsewhere in your
+  script). However, the 'startup' function requires that you use a 'special'
+  form of the 'Call' function named 'ICall'. 'ICall' works the same way as
+  'Call' but the overall ISCS logic for startup is such that the 'startup'
+  function is GUARANTEED to execute completely before any other 'Call' or 
+  'RunTask' invokations can take effect. This allows you to completely finish
+  the extended ICB operations before any other callers or task starters will
+  be processed. Thus, the 'startup' routine truly functions as an 'extension'
+  of the ICB except for a possible delay in waiting for the first CC event.
+  
+   ** NOTE: Unfortunately, knobs seem to behave differently than all the other
+  ui controls (when not positioned) and instead of being 'covered up' by the
+  6x6 label, they all pile up to the top-left of the panel (over the Bypass
+  and Script loading buttons). Therefore, to hide them, you will have to
+  overtly position all KNOBS to (0,0) within the ICB. There may be other
+  conditions for which an 'unpositioned' control might 'gum up the works' so
+  the safest way to handle things would be to initially 'move' all controls
+  in the ICB to their 'hidden' position before the 'startup' routine executes.
+---------------------------------------------------------------------------------
+                               Automatic Startup
+---------------------------------------------------------------------------------
+  For the relatively minor inconvenience of being prompted to wiggle the pitch
+  wheel (in order to bring up the initial control panel), the extended ICB option
+  of the ISCS can often provide some noteworthy code size reductions. But, there
+  are some special 'tricks' that can be used to lessen even the minor inconvenience
+  of responding to a 'prompting' message. One such technique is to use a small
+  'starter' script in Slot 1.
+  
+  While it is NOT possible for you to generate a CC event within a single script,
+  it is possible to generate a CC event in some prior script. By merely including
+  a set_controller(122,0) statement at the end of the prior script's ICB, your
+  script will receive the CC message whenever the prior script is run. If you save
+  such a 'starter' script along with your other script(s) when you save your
+  instrument, whenever you load the instrument, the control panels will come up
+  without the user ever being aware of any prompting message. The 'starter' script
+  can be simply that or the set_controller command can be added to any prior script
+  that might perform some other useful function(s) (provided that this slot 1 script
+  doesn't use the ISCS. NOTE: any CC number can be used but to avoid conflicts with
+  normally used CCs, CC122 has been chosen as the default for timing and startup
+  functions.
+  
+  The 'starter' script can also include a set_controller command in the on ui_update
+  callback (assuming the user is running K2.2 or higher). This callback is invoked
+  whenever the user hits the Apply button (for any of the script slots). Without
+  the 'on ui_update' set_controller command, whenever you recompile a script that
+  uses the ISCS, the prompting message will re-appear until another MIDI CC event
+  occurs. However, with the 'on ui_update' technique added to the 'starter' script,
+  whenever you hit the Apply button, the prompting message will be bypassed and 
+  the control panels will be brought up straight away.
+  
+  The only situation for which a 'starter' script will not help is when you load
+  or reload a script that uses the ISCS. This situation will bring up the prompting
+  panel and the normal panel will not appear until a MIDI CC event is received
+  from the outside world. }
+

@@ -1,0 +1,57 @@
+{ --------------------------------------------------------------------------------
+Title: NKA Utility Script
+Author: R.D.Villwock aka 'Big Bob'
+First Written: April 20, 2011
+Current Version: 1.00
+Last Modified: June 6, 2013
+----------------------------------------------------------------------------------
+  This script can be used to generate the .nka files needed to support the
+  fast-mode versions of the Math Library functions. To use this script, you
+  must first compile it using Nils Liberg's KScript Editor (KSE) V1.5.2 or
+  higher (new compiler mode). Since this script imports the KSP Math Library,
+  V451, you must have it positioned alongside this script (or edit the import
+  path accordingly).
+
+  Prior to running this script, make sure that the hosting instrument has
+  been set up with a resource Data folder to receive the .nka files that
+  will be written. Once the resource Data folder has been properly setup
+  and the instrument is pointed to it, you can compile this script in the
+  KSE and then paste the compiled script into the desired script slot of
+  the instrument and hit Apply. To write any given .nka file to the resource
+  Data folder, select the file type you want to write using the drop-down
+  menu. When you click the menu selection, the corresponding .nka file will
+  be written. Repeat this for each nka file you want to write.
+  
+  V450 of the Math Library uses features of the new KSE compiler to
+  preserve the .nka file names whether or not you use the compact name
+  option of the KSE. With this script as supplied, it will write the .nka
+  files with the names FLog.nka, FExp.nka, or FSin.nka regardless of
+  whether you use the compact name option. However, if your host script
+  will import the Math Library 'as xxx', you will need to make the following
+  edits to this 2-line script in order to write the nka file names properly.
+  
+  1. Edit the import line by appending the 'as xxx'.
+  2. Edit the macro invokation line write_nka, changing it to xxx.write_nka
+  
+  For example, if your host script will import the Math Library 'as Math', you
+  need to edit this script as follows:
+  
+  import "KSPMathV451.txt" as Math
+  Math.write_nka
+
+  With the above edits, this script will write the nka file names as:
+  Math__FLog.nka, Math__FExp.nka, or Math__FSin.nka. These are the correct
+  names required by an application that imports the library 'as Math'.
+         
+  If you follow the above instructions, the .nka files will be named properly
+  for your host script to access them (via the Math Library). Remember, you
+  cannot achieve the same thing by simply renaming the Standard .nka files
+  because K4 embeds the original array name when it writes the file so it
+  cannot be loaded later into an array with a different name. Please refer to
+  the V450 User's Guide for more information on how to use this script. }
+
+import "KSPMathV451.txt"
+
+write_nka
+
+{---------------------------- End of NKA Utility Script ------------------------------}

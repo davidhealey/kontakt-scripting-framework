@@ -1,0 +1,12 @@
+{ SIPS-Starter, Version 205 7-17-08 }
+on init
+set_controller(122,0)
+message("")
+end on
+
+on ui_update
+set_controller(122,0)
+end on
+
+
+

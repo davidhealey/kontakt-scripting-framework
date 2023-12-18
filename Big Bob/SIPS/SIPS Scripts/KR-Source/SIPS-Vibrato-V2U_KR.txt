@@ -1,0 +1,1022 @@
+{ SIPS-Vibrato, Version 2 Update Bridge, 8-26-07 }
+on init
+declare const $AfterTouch := 129
+declare const $KSP_Timer := 119
+declare const $MaxNote := 127
+declare const $MinNote := 2
+declare const $SLS_ID := 1001
+declare const $SVS_ID := 1002
+declare const $V2UP   := 103
+declare const $V200   := 104
+declare const $SID := $SVS_ID
+declare const $PFC := $V2UP
+declare const $V105  := 100
+declare const $V110  := 101
+declare const $V150  := 102
+declare const $vSID := 0
+declare const $vPFC := 1
+declare %Version[6]
+declare %Global[128]
+declare $LowIR
+declare $TopIR
+%Global[0] := 1000
+%Global[1] := $MinNote
+%Global[2] := $MaxNote
+%Global[5] := $SID
+%Global[6] := $PFC
+_read_persistent_var(%Global)
+if (%Global[0] # 1000)
+%Version[$vSID] := %Global[5]
+%Version[$vPFC] := %Global[6]
+else
+%Version[$vSID] := $SID
+%Version[$vPFC] := $PFC
+end if
+if (%Global[1] < $MinNote)
+%Global[1] := $MinNote
+end if
+$LowIR := %Global[1]
+if (%Global[2] > $MaxNote)
+%Global[2] := $MaxNote
+end if
+$TopIR := %Global[2]
+declare const $NumSubs := 0
+declare const $Echo := 31
+declare const $Latency := 100
+declare const $MsgNote := 0
+declare const $No_SID := 2046
+declare const $PCall := 2047
+declare const $Msg_Mask := 31
+declare const $SID_Mask := 2047
+declare const $mrNONE  := 0
+declare const $mrOK  := 1
+declare %Mark[27] := ($MARK_1,$MARK_2,$MARK_3,$MARK_4,$MARK_5,$MARK_6,$MARK_7, ...
+$MARK_8,$MARK_9,$MARK_10,$MARK_11,$MARK_12,$MARK_13,$MARK_14, ...
+$MARK_15,$MARK_16,$MARK_17,$MARK_18,$MARK_19,$MARK_20)
+declare const $ALL_HELD := $MARK_28
+declare %InParm[4]
+declare $MsgID
+declare $OmniID
+declare %OutParm[4]
+declare polyphonic $pRet
+declare %QSub[$NumSubs+1]
+declare %ReplyBfr[4]
+declare $StartupSub
+declare $StopLoop
+declare $Watch
+declare $XRet
+declare $XSub
+declare $HostSID
+$StartupSub := 0
+$XSub := $StartupSub
+$HostSID := $SVS_ID
+declare const $KeyParms := 15
+declare const $MainPresets := 10
+declare const $MainSize := $MainPresets * $KeyParms
+declare const $MaxParms := 51
+declare const $NameChars := 15
+declare const $CharSetSize := 73
+declare const $UserPresets := 10
+declare const $PresetBfrSize := ($MaxParms+7)/3*3
+declare %PresetBfr[$PresetBfrSize]
+declare const $Amt_and_Env := 1
+declare const $Amt_Only := 2
+declare const $SVS_Off := 3
+declare const $DefBal := 0
+declare const $DefEfx := 100
+declare const $No_Cmd  := -1
+declare const $MaxAmt := 100
+declare const $MaxBal := 100
+declare const $MaxDecay := 100
+declare const $MaxOnset := 25
+declare const $MaxRise := 20
+declare const $MaxShape := 90
+declare const $MaxSpdDrft := 30
+declare const $MaxSpeed := 600
+declare const $MaxTrem := 500
+declare const $MaxVar := 30
+declare const $MaxVib := 3000
+declare const $MinBal := -100
+declare const $MinSpeed := 200
+declare const $TopCC := 118
+declare const $Full_Env := 1000
+declare const $ModWheel := 1
+declare const $NoID := 0
+declare const $NoParm := -100000
+declare const $false := 0
+declare const $true := 1
+declare const $PitchWheel := 128
+declare const $Tick := 100
+declare const $Restart := 0
+declare const $Onset_Delay := 1
+declare const $Ramp_To_Full := 2
+declare const $Diminuendo := 3
+declare @LowCap
+@LowCap := " Low Key: "
+declare @TopCap
+@TopCap := " High Key: "
+declare $i
+declare !CC_Name[$TopCC+2]
+$i := 3
+while ($i <= $TopCC)
+!CC_Name[$i] := "Undefined"
+inc($i)
+end while
+!CC_Name[0]   := "  - Aftertouch -"
+!CC_Name[1]   := "Mod Wheel"
+!CC_Name[2]   := "Breath Control"
+!CC_Name[4]   := "Foot Controller"
+!CC_Name[5]   := "Portamento Time"
+!CC_Name[6]   := "Data Entry MSB"
+!CC_Name[7]   := "Channel Volume"
+!CC_Name[8]   := "Balance"
+!CC_Name[10]  := "Pan"
+!CC_Name[11]  := "Expression"
+!CC_Name[12]  := "Efx Ctl 1"
+!CC_Name[13]  := "Efx Ctl 2"
+!CC_Name[16]  := "General Ctl #1"
+!CC_Name[17]  := "General Ctl #2"
+!CC_Name[18]  := "General Ctl #3"
+!CC_Name[19]  := "General Ctl #4"
+!CC_Name[32]  := "LSB for CC 0"
+!CC_Name[33]  := "LSB for CC 1"
+!CC_Name[34]  := "LSB for CC 2"
+!CC_Name[35]  := "LSB for CC 3"
+!CC_Name[36]  := "LSB for CC 4"
+!CC_Name[37]  := "LSB for CC 5"
+!CC_Name[38]  := "LSB for CC 6"
+!CC_Name[39]  := "LSB for CC 7"
+!CC_Name[40]  := "LSB for CC 8"
+!CC_Name[41]  := "LSB for CC 9"
+!CC_Name[42]  := "LSB for CC 10"
+!CC_Name[43]  := "LSB for CC 11"
+!CC_Name[44]  := "LSB for CC 12"
+!CC_Name[45]  := "LSB for CC 13"
+!CC_Name[46]  := "LSB for CC 14"
+!CC_Name[47]  := "LSB for CC 15"
+!CC_Name[48]  := "LSB for CC 16"
+!CC_Name[49]  := "LSB for CC 17"
+!CC_Name[50]  := "LSB for CC 18"
+!CC_Name[51]  := "LSB for CC 19"
+!CC_Name[52]  := "LSB for CC 20"
+!CC_Name[53]  := "LSB for CC 21"
+!CC_Name[54]  := "LSB for CC 22"
+!CC_Name[55]  := "LSB for CC 23"
+!CC_Name[56]  := "LSB for CC 24"
+!CC_Name[57]  := "LSB for CC 25"
+!CC_Name[58]  := "LSB for CC 26"
+!CC_Name[59]  := "LSB for CC 27"
+!CC_Name[60]  := "LSB for CC 28"
+!CC_Name[61]  := "LSB for CC 29"
+!CC_Name[62]  := "LSB for CC 30"
+!CC_Name[63]  := "LSB for CC 31"
+!CC_Name[64]  := "Sustain On/Off"
+!CC_Name[65]  := "Portamento On/Off"
+!CC_Name[66]  := "Sustenuto On/Off"
+!CC_Name[67]  := "Soft Pedal On/Off"
+!CC_Name[68]  := "Legato Footswitch"
+!CC_Name[69]  := "Hold 2"
+!CC_Name[70]  := "Sound Ctl 1"
+!CC_Name[71]  := "Sound Ctl 2"
+!CC_Name[72]  := "Sound Ctl 3"
+!CC_Name[73]  := "Sound Ctl 4"
+!CC_Name[74]  := "Sound Ctl 5"
+!CC_Name[75]  := "Sound Ctl 6"
+!CC_Name[76]  := "Sound Ctl 7"
+!CC_Name[77]  := "Sound Ctl 8"
+!CC_Name[78]  := "Sound Ctl 9"
+!CC_Name[79]  := "Sound Ctl 10"
+!CC_Name[80]  := "General Ctl #5"
+!CC_Name[81]  := "General Ctl #6"
+!CC_Name[82]  := "General Ctl #7"
+!CC_Name[83]  := "General Ctl #8"
+!CC_Name[84]  := "Portamento Ctl"
+!CC_Name[91]  := "Efx 1 Depth"
+!CC_Name[92]  := "Efx 2 Depth"
+!CC_Name[93]  := "Efx 3 Depth"
+!CC_Name[94]  := "Efx 4 Depth"
+!CC_Name[95]  := "Efx 5 Depth"
+!CC_Name[96]  := "Data Inc"
+!CC_Name[97]  := "Data Dec"
+!CC_Name[98]  := "NRPN LSB"
+!CC_Name[99]  := "NRPN MSB"
+!CC_Name[100] := "RPN LSB"
+!CC_Name[101] := "RPN MSB"
+!CC_Name[$TopCC+1] := "  - Pitch Wheel -"
+declare !char[$CharSetSize]
+declare const $TopSymbol := 41
+declare const $LC_Ofst := 46
+!char[0] := " "
+!char[1] := "A"
+!char[2] := "B"
+!char[3] := "C"
+!char[4] := "D"
+!char[5] := "E"
+!char[6] := "F"
+!char[7] := "G"
+!char[8] := "H"
+!char[9] := "I"
+!char[10] := "J"
+!char[11] := "K"
+!char[12] := "L"
+!char[13] := "M"
+!char[14] := "N"
+!char[15] := "O"
+!char[16] := "P"
+!char[17] := "Q"
+!char[18] := "R"
+!char[19] := "S"
+!char[20] := "T"
+!char[21] := "U"
+!char[22] := "V"
+!char[23] := "W"
+!char[24] := "X"
+!char[25] := "Y"
+!char[26] := "Z"
+!char[27] := "0"
+!char[28] := "1"
+!char[29] := "2"
+!char[30] := "3"
+!char[31] := "4"
+!char[32] := "5"
+!char[33] := "6"
+!char[34] := "7"
+!char[35] := "8"
+!char[36] := "9"
+!char[37] := "#"
+!char[38] := "<"
+!char[39] := ">"
+!char[40] := "+"
+!char[41] := "-"
+!char[47] := "a"
+!char[48] := "b"
+!char[49] := "c"
+!char[50] := "d"
+!char[51] := "e"
+!char[52] := "f"
+!char[53] := "g"
+!char[54] := "h"
+!char[55] := "i"
+!char[56] := "j"
+!char[57] := "k"
+!char[58] := "l"
+!char[59] := "m"
+!char[60] := "n"
+!char[61] := "o"
+!char[62] := "p"
+!char[63] := "q"
+!char[64] := "r"
+!char[65] := "s"
+!char[66] := "t"
+!char[67] := "u"
+!char[68] := "v"
+!char[69] := "w"
+!char[70] := "x"
+!char[71] := "y"
+!char[72] := "z"
+declare !Tones[12]
+!Tones[0] := "C"
+!Tones[1] := "C#"
+!Tones[2] := "D"
+!Tones[3] := "D#"
+!Tones[4] := "E"
+!Tones[5] := "F"
+!Tones[6] := "F#"
+!Tones[7] := "G"
+!Tones[8] := "G#"
+!Tones[9] := "A"
+!Tones[10] := "A#"
+!Tones[11] := "B"
+declare $markx := -1
+declare $0db
+declare $0tune
+declare $ActiveID := $NoID
+declare $Bending
+declare $BlinkCount
+declare $Command := $No_Cmd
+declare $Env_State
+declare $LastCC
+declare $LastMode
+declare $MenuActv
+declare $New_Note
+declare $OldMode
+declare $Pitch_Step
+declare $SLS_Off
+declare $Vib_Actv
+declare $Vol_Step
+declare %PMap[36]
+declare const $uTrem     := 0
+declare const $uVib      := 1
+declare const $uSpeed    := 2
+declare const $uShape    := 3
+declare const $uVibVar   := 4
+declare const $uTremVar  := 5
+declare const $uSpdDrft  := 6
+declare const $uWavDrft  := 7
+declare const $uOnset    := 8
+declare const $uRise     := 9
+declare const $uDecay    := 10
+declare const $uSustain  := 11
+declare const $uAmt      := 12
+declare const $uBal      := 13
+declare const $uSVSMode  := 14
+declare const $uBalCC    := 15
+declare const $pBalRng1  := 16
+declare const $pBalRng2  := 17
+declare const $uSpdCC    := 18
+declare const $pSpdRng1  := 19
+declare const $pSpdRng2  := 20
+declare const $uAmtCC    := 21
+declare const $pAmtRng1  := 22
+declare const $pAmtRng2  := 23
+declare const $uModeCC   := 24
+declare const $pLowKey   := 25
+declare const $pTopKey   := 26
+declare const $UP_Empty := $uOnset
+declare const $uPreset   := 51
+declare const $uAlpha    := 52
+declare const $uBackSp   := 53
+declare const $uEntChr   := 54
+declare const $uLoCase   := 55
+declare const $uErase    := 56
+declare const $uCancel   := 57
+declare const $uCCMenu   := 58
+declare const $uCCPMenu  := 59
+declare const $uWarnBtn  := 60
+declare const $tAbout    := 61
+declare const $tNameDsp  := 62
+declare const $tModCap   := 63
+declare const $tWavCap   := 64
+declare const $tVarCap   := 65
+declare const $tEnvCap   := 66
+declare const $tIRCap    := 67
+declare const $tIRBox    := 68
+declare const $MaxControl := $tIRBox
+declare const $xxx       := -1
+declare %MainParms[$MainSize] := ...
+ ...
+(  0, 300,400,33, 0, 0, 0, 0, 1, 1, 1,100,100, 0,2, ...
+  62, 200,400,33,15,15,10,20,10, 5,35, 55,100, 0,1, ...
+ ...
+   0, 750,483,32,16, 0, 3,11, 1, 5,35, 42,100, 0,1, ...
+  10, 992,381,13,12,11,10,10, 1, 3,71, 66,100, 0,1, ...
+ ...
+  62, 908,460,29,15,15,10,20, 4, 3,35, 55,100, 0,1, ...
+  62, 752,400,33,15,15,10,20, 1, 2,35, 55,100, 0,1, ...
+ 124,1688,400,22, 9, 9,10,20, 1, 3,35, 55,100, 0,1, ...
+ ...
+  75,1251,425,20,12,15, 7,18, 2, 3, 5, 65,100, 0,1, ...
+  80,1600,400,37,15,15, 9,15, 2, 3, 4, 70,100, 0,1, ...
+  80,1000,350,25,15,15, 8,20, 2, 3, 5, 65,100, 0,1)
+declare $ImpActv
+declare %PresetParms[512]
+declare %UserParms[512]
+declare !UP_Name[$UserPresets]
+declare %UPNames[10*15]
+declare %UserNames[20*15] := ...
+ (13,71,0,16,64,51,65,51,66,0,37,28,0,0,0, ...
+  13,71,0,16,64,51,65,51,66,0,37,29,0,0,0, ...
+  13,71,0,16,64,51,65,51,66,0,37,30,0,0,0, ...
+  13,71,0,16,64,51,65,51,66,0,37,31,0,0,0, ...
+  13,71,0,16,64,51,65,51,66,0,37,32,0,0,0, ...
+  13,71,0,16,64,51,65,51,66,0,37,33,0,0,0, ...
+  13,71,0,16,64,51,65,51,66,0,37,34,0,0,0, ...
+  13,71,0,16,64,51,65,51,66,0,37,35,0,0,0, ...
+  13,71,0,16,64,51,65,51,66,0,37,36,0,0,0, ...
+ 13,71,0,16,64,51,65,51,66,0,37,28,27,0,0)
+_read_persistent_var(%PresetParms)
+_read_persistent_var(%UserParms)
+_read_persistent_var(%UserNames)
+declare $_i
+$_i := 0
+while ($_i <= num_elements(%UPNames) - 1)
+%UPNames[$_i] := %UserNames[$_i]
+inc($_i)
+end while
+declare $_i6
+declare $_j3
+$_i6 := 0
+while ($_i6 <= $UserPresets - 1)
+!UP_Name[$_i6] := ""
+$_j3 := 0
+while ($_j3 <= $NameChars - 1)
+!UP_Name[$_i6] := !UP_Name[$_i6] & !char[%UPNames[$_i6*$NameChars + $_j3]]
+inc($_j3)
+end while
+inc($_i6)
+end while
+declare ui_menu $Preset
+add_menu_item ($Preset," -- Presets --",$No_Cmd)
+$Preset := $No_Cmd
+add_menu_item ($Preset,"* Basic Setup *",           0)
+add_menu_item ($Preset,"Bassoon               AK7", 4)
+add_menu_item ($Preset,"Clarinet 1              BB",1)
+add_menu_item ($Preset,"Clarinet 2             AK8",5)
+add_menu_item ($Preset,"Soft Flute            TK12",2)
+add_menu_item ($Preset,"French Horn          MN3",  9)
+add_menu_item ($Preset,"Trombone 1           TK13", 3)
+add_menu_item ($Preset,"Trombone 2           MN2",  8)
+add_menu_item ($Preset,"Trumpet 1             MN1", 7)
+add_menu_item ($Preset,"Trumpet 2            AK9",  6)
+declare const $User0   := 50
+declare const $Rename  := -2
+declare const $Save_As := -3
+declare const $Import  := -4
+declare const $Export  := -5
+add_menu_item ($Preset," -- Save As --",$Save_As)
+add_menu_item($Preset, !UP_Name[0],$User0 +  0)
+add_menu_item($Preset, !UP_Name[1],$User0 +  1)
+add_menu_item($Preset, !UP_Name[2],$User0 +  2)
+add_menu_item($Preset, !UP_Name[3],$User0 +  3)
+add_menu_item($Preset, !UP_Name[4],$User0 +  4)
+add_menu_item($Preset, !UP_Name[5],$User0 +  5)
+add_menu_item($Preset, !UP_Name[6],$User0 +  6)
+add_menu_item($Preset, !UP_Name[7],$User0 +  7)
+add_menu_item($Preset, !UP_Name[8],$User0 +  8)
+add_menu_item($Preset, !UP_Name[9],$User0 +  9)
+add_menu_item ($Preset," -- Rename --",$Rename)
+add_menu_item ($Preset," -- Export --",$Export)
+add_menu_item ($Preset," -- Import --",$Import)
+declare ui_knob $Vibrato (0,$MaxVib,100)
+set_text($Vibrato,"Vib (cts)")
+$Vibrato := %MainParms[$uVib]
+declare ui_label $ModCap (2,1)
+set_text($ModCap,"Vibrato  - Modulation Limits - Tremolo")
+declare ui_knob $Tremolo (0,$MaxTrem,100)
+set_text($Tremolo,"Tremolo")
+set_knob_unit($Tremolo,$KNOB_UNIT_DB)
+declare ui_knob $Shape (0,$MaxShape,1)
+set_text($Shape," Shape")
+set_knob_unit($Shape,$KNOB_UNIT_PERCENT)
+$Shape := %MainParms[$uShape]
+declare ui_label $WaveCap (1,1)
+set_text($WaveCap,"Waveform Shape")
+declare ui_label $VarCap (1,1)
+set_text($VarCap,"Random Variation")
+declare ui_value_edit $VibVar (0,$MaxVar,1)
+set_text($VibVar,"Vibrato")
+$VibVar := %MainParms[$uVibVar]
+declare ui_value_edit $TremVar (0,$MaxVar,1)
+set_text($TremVar,"Tremolo")
+$TremVar := %MainParms[$uTremVar]
+declare ui_value_edit $WavDrift (0,$MaxVar,1)
+set_text($WavDrift,"Shape Drift")
+$WavDrift := %MainParms[$uWavDrft]
+declare ui_value_edit $SpdDrift (0,$MaxSpdDrft,1)
+set_text($SpdDrift,"Speed Drift")
+$SpdDrift := %MainParms[$uSpdDrft]
+declare ui_label $About (2,1)
+set_text($About,"  SIPS-Vibrato  V2     Script by RDV")
+declare ui_label $EnvCap (1,1)
+set_text($EnvCap,"Envelope Settings")
+declare ui_value_edit $Onset (1,$MaxOnset,1)
+set_text($Onset,"Onset")
+$Onset := %MainParms[$uOnset]
+declare ui_value_edit $Rise (1,$MaxRise,1)
+set_text($Rise,"Rise")
+$Rise := %MainParms[$uRise]
+declare ui_value_edit $Decay (1,$MaxDecay,1)
+set_text($Decay,"Decay")
+$Decay := %MainParms[$uDecay]
+declare ui_value_edit $Sustain (0,100,1)
+set_text($Sustain,"Sustain")
+$Sustain := %MainParms[$uSustain]
+declare ui_label $IRCap (1,1)
+set_text($IRCap,"Instrument Range")
+declare @LowKey
+declare @TopKey
+declare ui_label $IR_Box (1,2)
+declare ui_menu $SVSMode
+declare ui_button $Warn__Btn
+declare $Warn__ShowBtn
+declare $Warn__x
+declare $Warn__y
+add_menu_item ($SVSMode,"  Knob + Env",$Amt_and_Env)
+add_menu_item ($SVSMode," Amt Knob Only",$Amt_Only)
+add_menu_item ($SVSMode," - SVS OFF -",$SVS_Off)
+$Warn__ShowBtn := $false
+set_text($Warn__Btn,"  - SVS OFF -")
+declare const $mSMenu := 0
+declare const $mXMenu := 1
+declare ui_menu $SMenu
+declare ui_menu $XMenu
+declare $_n
+add_menu_item($SMenu,"  - CC Menu -",0)
+add_menu_item($SMenu,"  ----------------------",0)
+add_menu_item($SMenu,"  MIDI CC - OFF -",0)
+add_menu_item($SMenu,"  Last CC Moved",-1)
+add_menu_item($SMenu,"  ----------------------",0)
+if ($mSMenu = $mXMenu)
+add_menu_item($SMenu,!CC_Name[0],$Aftertouch)
+add_menu_item($SMenu,!CC_Name[$TopCC+1],$PitchWheel)
+end if
+$_n := 1
+while ($_n <= $TopCC)
+add_menu_item($SMenu,"CC " & $_n & " " & !CC_Name[$_n],$_n)
+inc($_n)
+end while
+move_control($SMenu,0,0)
+add_menu_item($XMenu,"  - CC Menu -",0)
+add_menu_item($XMenu,"  ----------------------",0)
+add_menu_item($XMenu,"  MIDI CC - OFF -",0)
+add_menu_item($XMenu,"  Last CC Moved",-1)
+add_menu_item($XMenu,"  ----------------------",0)
+if ($mXMenu = $mXMenu)
+add_menu_item($XMenu,!CC_Name[0],$Aftertouch)
+add_menu_item($XMenu,!CC_Name[$TopCC+1],$PitchWheel)
+end if
+$_n := 1
+while ($_n <= $TopCC)
+add_menu_item($XMenu,"CC " & $_n & " " & !CC_Name[$_n],$_n)
+inc($_n)
+end while
+move_control($XMenu,0,0)
+declare const $PASize := 10
+declare const $mAmt   := 0
+declare const $mBal   := 1
+declare const $mSpeed := 2
+declare const $mMode  := 3
+declare const $mLast  := 3
+declare ui_button $MBtn__Amt
+declare ui_button $MBtn__Bal
+declare ui_button $MBtn__Mode
+declare ui_button $MBtn__Speed
+declare $MBtn__Actv
+declare %MBtn__Knob[$mLast+1] := (1,1,1,0)
+declare %MBtn__Menu[$mLast+1] := ($mXMenu,$mXMenu,$mXMenu,$mSMenu)
+declare !MBtn__Cap[$mLast+1]
+declare %MBtn__CC[$PASize]
+declare %MBtn__CCV[$PASize]
+declare %MBtn__State[$PASize]
+declare %MBtn__x[$mLast+1]
+declare %MBtn__y[$mLast+1]
+declare ui_knob $MKnob__Amt   (0,$MaxAmt,1)
+declare ui_knob $MKnob__Bal   ($MinBal,$MaxBal,1)
+declare ui_knob $MKnob__Speed ($MinSpeed,$MaxSpeed,100)
+declare %MKnob__DKmin[$mLast+1] := (0,$MinBal,$MinSpeed,0)
+declare %MKnob__DKmax[$mLast+1] := ($MaxAmt,$MaxBal,$MaxSpeed,0)
+declare %MKnob__Kmin[$PASize]
+declare %MKnob__Kmax[$PASize]
+!MBtn__Cap[$mAmt] := "  Amt CC"
+!MBtn__Cap[$mBal] := "  Bal CC"
+!MBtn__Cap[$mSpeed] := "Speed CC"
+!MBtn__Cap[$mMode] := " Mode CC"
+set_text($MKnob__Amt,"Efx Amt")
+set_knob_unit($MKnob__Amt,$KNOB_UNIT_PERCENT)
+set_text($MKnob__Bal,"Balance")
+set_text($MKnob__Speed," Speed")
+set_knob_unit($MKnob__Speed,$KNOB_UNIT_HZ)
+declare $_bx
+if (%Version[$vPFC] < $V2UP)
+if (%Version[$vPFC] < $V150)
+declare $AmtCC
+declare $Depth
+declare $Speed
+declare $ISpeed
+declare $SpdRng
+declare $SpdCC
+declare $VibCC
+declare $Vib_Mode
+_read_persistent_var($AmtCC)
+_read_persistent_var($Depth)
+_read_persistent_var($Speed)
+_read_persistent_var($ISpeed)
+_read_persistent_var($SpdRng)
+_read_persistent_var($SpdCC)
+_read_persistent_var($Vib_Mode)
+_read_persistent_var($SVSMode)
+_read_persistent_var($VibCC)
+if ($SpdCC = -1)
+$SpdCC := $PitchWheel
+end if
+%MBtn__CC[$mAmt] := $AmtCC
+%MBtn__CC[$mBal] := $DefBal
+%MBtn__CC[$mSpeed] := $SpdCC
+%MBtn__CC[$mMode] := $VibCC
+$Tremolo := $Depth
+$MKnob__Bal := %MainParms[$uBal]
+$MKnob__Speed := $Speed
+$MKnob__Amt := $MaxAmt
+if (((%Version[$vPFC] < $V110) and ($Vib_Mode = 0)) or ...
+((%Version[$vPFC] = $V110) and ($SVSMode # $Amt_and_Env)))
+$SVSMode := $SVS_Off
+end if
+if ((%Version[$vPFC] < $V110) and ($Vib_Mode = 1))
+$SVSMode := $Amt_and_Env
+end if
+else
+declare $Speed__CC
+declare $Amt__CC
+declare $Depth__Knob
+declare $Speed__Knob
+declare $VibAmt
+declare $Speed__iKnob
+declare $Speed__Range
+declare $EnvMenu
+_read_persistent_var($Speed__CC)
+_read_persistent_var($Amt__CC)
+_read_persistent_var($Depth__Knob)
+_read_persistent_var($Speed__Knob)
+_read_persistent_var($VibAmt)
+_read_persistent_var($Speed__iKnob)
+_read_persistent_var($Speed__Range)
+_read_persistent_var($EnvMenu)
+%MBtn__CC[$mSpeed] := $Speed__CC
+%MBtn__CC[$mAmt] := $Amt__CC
+%MBtn__CC[$mBal] := -1
+%MBtn__CC[$mMode] := -1
+$Tremolo := $Depth__Knob
+$MKnob__Bal := $DefBal
+$MKnob__Speed := $Speed__Knob
+$MKnob__Amt := $VibAmt
+if ($EnvMenu = 0)
+$SVSMode := $Amt_Only
+else
+$SVSMode := $Amt_and_Env
+end if
+$ISpeed := $Speed__iKnob
+$SpdRng := $Speed__Range
+end if
+$_bx := $mAmt
+while ($_bx <= $mMode)
+if (%MBtn__CC[$_bx] = 0)
+%MBtn__CC[$_bx] := -1
+end if
+inc($_bx)
+end while
+else
+$_bx := 0
+while ($_bx <= $mLast)
+%MBtn__CC[$_bx] := -1
+%MKnob__Kmin[$_bx] := %MKnob__DKmin[$_bx]
+%MKnob__Kmax[$_bx] := %MKnob__DKmax[$_bx]
+inc($_bx)
+end while
+$MKnob__Amt := %MainParms[$uAmt]
+$MKnob__Bal := %MainParms[$uBal]
+$MKnob__Speed := %MainParms[$uSpeed]
+$SVSMode := %MainParms[$uSVSMode]
+end if
+if (%Version[$vPFC] < $V2UP)
+declare $DepthVar
+declare $PkDwell
+declare $Width
+declare $WidthVar
+_read_persistent_var($DepthVar)
+_read_persistent_var($PkDwell)
+_read_persistent_var($Width)
+_read_persistent_var($WidthVar)
+$Shape := $PkDwell
+$TremVar := $DepthVar
+$Vibrato := $Width
+$VibVar := $WidthVar
+%MKnob__Kmin[$mBal] := $MinBal
+%MKnob__Kmax[$mBal] := $MaxBal
+%MKnob__Kmin[$mSpeed] := $ISpeed
+%MKnob__Kmax[$mSpeed] := $ISpeed + $SpdRng*$ISpeed/100
+if (%MKnob__Kmax[$mSpeed] > $MaxSpeed)
+%MKnob__Kmax[$mSpeed] := $MaxSpeed
+end if
+%MKnob__Kmin[$mAmt] := 0
+%MKnob__Kmax[$mAmt] := $MaxAmt
+end if
+$_bx := 0
+while ($_bx <= $mLast)
+if (%MBtn__CC[$_bx] = 0)
+select ($_bx)
+case $mAmt
+set_text($MBtn__Amt,!MBtn__Cap[$_bx] & " -OFF-")
+case $mBal
+set_text($MBtn__Bal,!MBtn__Cap[$_bx] & " -OFF-")
+case $mMode
+set_text($MBtn__Mode,!MBtn__Cap[$_bx] & " -OFF-")
+case $mSpeed
+set_text($MBtn__Speed,!MBtn__Cap[$_bx] & " -OFF-")
+end select
+%MBtn__State[$_bx] := 0
+else
+if (%MBtn__CC[$_bx] = $PitchWheel)
+select ($_bx)
+case $mAmt
+set_text($MBtn__Amt,!MBtn__Cap[$_bx] & " = PW")
+case $mBal
+set_text($MBtn__Bal,!MBtn__Cap[$_bx] & " = PW")
+case $mMode
+set_text($MBtn__Mode,!MBtn__Cap[$_bx] & " = PW")
+case $mSpeed
+set_text($MBtn__Speed,!MBtn__Cap[$_bx] & " = PW")
+end select
+else
+if (%MBtn__CC[$_bx] = $Aftertouch)
+select ($_bx)
+case $mAmt
+set_text($MBtn__Amt,!MBtn__Cap[$_bx] & " = AT")
+case $mBal
+set_text($MBtn__Bal,!MBtn__Cap[$_bx] & " = AT")
+case $mMode
+set_text($MBtn__Mode,!MBtn__Cap[$_bx] & " = AT")
+case $mSpeed
+set_text($MBtn__Speed,!MBtn__Cap[$_bx] & " = AT")
+end select
+else
+select ($_bx)
+case $mAmt
+set_text($MBtn__Amt,!MBtn__Cap[$_bx] & "# = " & %MBtn__CC[$_bx])
+case $mBal
+set_text($MBtn__Bal,!MBtn__Cap[$_bx] & "# = " & %MBtn__CC[$_bx])
+case $mMode
+set_text($MBtn__Mode,!MBtn__Cap[$_bx] & "# = " & %MBtn__CC[$_bx])
+case $mSpeed
+set_text($MBtn__Speed,!MBtn__Cap[$_bx] & "# = " & %MBtn__CC[$_bx])
+end select
+end if
+end if
+%MBtn__State[$_bx] := 1
+end if
+select ($_bx)
+case $mAmt
+$MBtn__Amt := %MBtn__State[$_bx]
+case $mBal
+$MBtn__Bal := %MBtn__State[$_bx]
+case $mMode
+$MBtn__Mode := %MBtn__State[$_bx]
+case $mSpeed
+$MBtn__Speed := %MBtn__State[$_bx]
+end select
+inc($_bx)
+end while
+if ($MKnob__Bal > 0)
+set_knob_label($MKnob__Bal,(100 - $MKnob__Bal)/10 & "." & (100 - $MKnob__Bal) mod 10 & "/10")
+else
+if ($MKnob__Bal < 0)
+set_knob_label($MKnob__Bal,"10/" & (100 + $MKnob__Bal)/10 & "." & (100 + $MKnob__Bal) mod 10)
+else
+set_knob_label($MKnob__Bal," 10/10")
+end if
+end if
+declare %StdPanel_Map[36] := ( ...
+$uVib,   $uTrem,   $uShape,    $tVarCap,   $tEnvCap,    $tIRCap, ...
+$xxx,     $xxx,      $xxx,    $uVibVar,    $uOnset,    $tIRBox, ...
+$tModCap,     $xxx,  $tWavCap,   $uTremVar,     $uRise,       $xxx, ...
+$uAmt,    $uBal,   $uSpeed,   $uWavDrft,    $uDecay,   $uPreset, ...
+$xxx,     $xxx,      $xxx,   $uSpdDrft,  $uSustain,  $uSVSMode, ...
+$uAmtCC,  $uBalCC,   $uSpdCC,     $tAbout,       $xxx,   $uModeCC)
+declare $CP
+declare $EditActv
+declare %EditBfr[$NameChars]
+declare $EditCmd
+declare %RenSub_Map[9] :=  ( ...
+$tNameDsp,       $xxx,        $xxx, ...
+$uBackSp,    $uAlpha,    $uEntChr, ...
+$uErase,       $xxx,    $uLoCase)
+declare %RenPanel_Map[36] := ($xxx)
+declare @AlphaCap0
+declare @AlphaCap1A
+declare @AlphaCap1B
+declare @AlphaCap2
+declare @AlphaCap3
+declare ui_knob $Alpha (0,$TopSymbol,1)
+declare ui_button $BackSpace
+declare ui_button $EnterChar
+declare ui_button $LowerCase
+declare ui_button $EraseName
+declare @NameCap
+declare ui_label $NameDisplay (3,1)
+declare ui_button $CancelRename
+%RenPanel_Map[23] := $uPreset
+%RenPanel_Map[29] := $uCancel
+declare $_ap
+declare $_np
+declare $_ns
+$_ap := 2 + 6*3 - 7
+$_ns := 0
+$_np := $_ap
+while ($_np < 36)
+%RenPanel_Map[$_np] := %RenSub_Map[$_ns]
+inc($_ns)
+if ($_ns < num_elements(%RenSub_Map))
+$_np := $_ns/3*6 + $_ns mod 3 + $_ap
+else
+$_np := 36
+end if
+end while
+@AlphaCap0 := " Space"
+@AlphaCap1A := "  A - Z"
+@AlphaCap1B := "  a - z"
+@AlphaCap2 := "  0 - 9"
+@AlphaCap3 := "# < > + -"
+set_text($BackSpace,"<<  Backspace")
+set_text($EnterChar,"   Enter Char  >>")
+set_text($LowerCase,"   Lower Case")
+set_text($EraseName," Erase All Chars")
+@NameCap := " Enter Name (15 chars max): "
+set_text($CancelRename,"Cancel  Rename")
+make_persistent($Vibrato)
+make_persistent($MKnob__Amt)
+make_persistent($Tremolo)
+make_persistent($MKnob__Bal)
+make_persistent($Shape)
+make_persistent($MKnob__Speed)
+make_persistent($VibVar)
+make_persistent($TremVar)
+make_persistent($WavDrift)
+make_persistent($SpdDrift)
+make_persistent($Onset)
+make_persistent($Rise)
+make_persistent($Decay)
+make_persistent($Sustain)
+make_persistent($LowIR)
+make_persistent($TopIR)
+make_persistent($Preset)
+make_persistent($SVSMode)
+make_persistent(%Version)
+make_persistent(%UserParms)
+make_persistent(%MBtn__CC)
+make_persistent(%MBtn__CCV)
+make_persistent(%MBtn__State)
+make_persistent(%MKnob__Kmin)
+make_persistent(%MKnob__Kmax)
+_read_persistent_var(%UserParms)
+_read_persistent_var(%PresetParms)
+declare ui_label $BigLabel (6,6)
+declare !MsgText[8]
+move_control($BigLabel,1,1)
+move_control($Vibrato,0,0)
+move_control($Shape,0,0)
+move_control($MKnob__Bal,0,0)
+move_control($MKnob__Speed,0,0)
+move_control($Tremolo,0,0)
+move_control($Alpha,0,0)
+move_control($MKnob__Amt,0,0)
+declare $_Fail
+declare $_OldSID
+declare $_OldPFC
+declare $_ntabs
+$_Fail := $true
+$_OldSID := %Version[$vSID]
+$_OldPFC := %Version[$vPFC]
+if (($_OldSID = 0) and ($_OldPFC = 0))
+$_OldPFC := $V105
+if (%PresetParms[0] = 60)
+$_OldSID := $SLS_ID
+else
+if (%PresetParms[0] = 62)
+$_OldSID := $SVS_ID
+end if
+end if
+end if
+if (($_OldSID = $SID) and ($_OldPFC < $PFC))
+$_Fail := $false
+%Version[$vSID] := $SID
+%Version[$vPFC] := $PFC
+if ($_OldPFC = $V105)
+declare $_i2
+declare $_j2
+declare $_p105
+declare $_p110
+$_p105 := 120
+$_p110 := 0
+$_j2 := 1
+while ($_j2 <= $UserPresets)
+$_i2 := $uTrem
+while ($_i2 <= $uSustain)
+%UserParms[$_p110 + $_i2] := %PresetParms[$_p105 + $_i2]
+inc($_i2)
+end while
+%UserParms[$_p110 + $uSpdDrft] := %UserParms[$_p110 + $uSpdDrft] mod 1000
+%UserParms[$_p110 + $uWavDrft] := %UserParms[$_p110 + $uWavDrft] mod 1000
+%UserParms[$_p110 + $uAmt] := %MainParms[$uAmt]
+%UserParms[$_p110 + $uBal] := %MainParms[$uBal]
+$_i2 := $uSVSMode
+while ($_i2 <= $MaxParms - 1)
+%UserParms[$_p110 + $_i2] := $NoParm
+inc($_i2)
+end while
+$_p105 := $_p105 + 12
+$_p110 := $_p110 + $MaxParms
+inc($_j2)
+end while
+else
+if ($_OldPFC < $V2UP)
+declare %_CCMap[3] := (18,21,24)
+declare $_p0
+declare $_p1
+declare $_j
+$_p1 := ($UserPresets - 1)*25
+$_p0 := ($UserPresets - 1)*$MaxParms
+while ($_p0 > 0)
+$_j := 24
+while ($_j >= 0)
+%UserParms[$_p0 + $_j] := %UserParms[$_p1 + $_j]
+dec($_j)
+end while
+$_p0 := $_p0 - $MaxParms
+$_p1 := $_p1 - 25
+end while
+$_p0 := 0
+while ($_p0 <= ($UserPresets - 1)*$MaxParms)
+declare $_i5
+%UserParms[$_p0 + 7] := %UserParms[$_p0 + 8]
+$_i5 := 8
+while ($_i5 <= 11)
+%UserParms[$_p0 + $_i5] := %UserParms[$_p0 + $_i5 + 2]
+inc($_i5)
+end while
+if ($_OldPFC = $V110)
+declare %_Map[9] := (17,16,0,18,0,0,19,20,21)
+declare $_i3
+%UserParms[$_p0 + $uSVSMode] := %UserParms[$_p0 + 22]
+$_i3 := $pTopKey
+while ($_i3 >= $uSpdCC)
+%UserParms[$_p0 + $_i3] := %UserParms[$_p0 + %_Map[$_i3-18]]
+dec($_i3)
+end while
+if (%UserParms[$_p0 + $uSVSMode] # $Amt_and_Env)
+%UserParms[$_p0 + $uSVSMode] := $SVS_Off
+end if
+if (%UserParms[$_p0 + $uSpdCC] = -1)
+%UserParms[$_p0 + $uSpdCC] := $PitchWheel
+end if
+%UserParms[$_p0 + $uAmt] := %MainParms[$uAmt]
+else
+declare $_i4
+declare %_Map2[9] := (24,18,0,20,0,0,19,21,22)
+if (%UserParms[$_p0 + 14] = 1)
+%UserParms[$_p0 + $uSVSMode] := $Amt_Only
+else
+%UserParms[$_p0 + $uSVSMode] := $Amt_and_Env
+end if
+%UserParms[$_p0 + $uAmt] := %UserParms[$_p0 + 15]
+$_i4 := $pTopKey
+while ($_i4 >= $uSpdCC)
+%UserParms[$_p0 + $_i4] := %UserParms[$_p0 + %_Map2[$_i4-18]]
+dec($_i4)
+end while
+%UserParms[$_p0 + $uModeCC] := 0
+end if
+$_j := 0
+while ($_j <= 2)
+if (%UserParms[$_p0 + %_CCMap[$_j]] = 0)
+%UserParms[$_p0 + %_CCMap[$_j]] := -1
+end if
+inc($_j)
+end while
+%UserParms[$_p0 + $uBal] := %MainParms[$uBal]
+%UserParms[$_p0 + $uBalCC] := -1
+%UserParms[$_p0 + $pBalRng1] := $MinBal
+%UserParms[$_p0 + $pBalRng2] := $MaxBal
+%UserParms[$_p0 + $pAmtRng1] := 0
+%UserParms[$_p0 + $pAmtRng2] := $MaxAmt
+declare $_Kmin
+declare $_Kmax
+$_Kmin := %UserParms[$_p0 + $uSpeed]
+$_Kmax := $_Kmin + %UserParms[$_p0 + $pSpdRng1]*$_Kmin/100
+if ($_Kmin < $MinSpeed)
+$_Kmin := $MinSpeed
+end if
+if ($_Kmax > $MaxSpeed)
+$_Kmax := $MaxSpeed
+end if
+%UserParms[$_p0 + $pSpdRng1] := $_Kmin
+%UserParms[$_p0 + $pSpdRng2] := $_Kmax
+$_p0 := $_p0 + $MaxParms
+end while
+end if
+end if
+end if
+if ($_Fail = $true)
+$_ntabs := 15
+!MsgText[3] := " Automatic Import of Presets FAILED"
+!MsgText[4] := "    See Page xx of V2.0 User's Guide"
+$StartupSub := 0
+$XSub := 0
+else
+$_ntabs := 13
+!MsgText[2] := "Your V1 Panel and Presets Have Been Converted"
+!MsgText[3] := "  Finish this Update by pasting the KR-Source"
+!MsgText[4] := " for V2 'ON TOP OF' this Updater and Hit Apply"
+!MsgText[5] := "Then resave the updated script as a .nkp or .nki"
+$_i := 0
+while ($_i <= num_elements(%PMap) - 1)
+%PMap[$_i] := %StdPanel_Map[$_i]
+inc($_i)
+end while
+end if
+declare $_n2
+declare @_slug
+declare @_Tab
+@_Tab := "    "
+@_slug := ""
+$_n2 := 1
+while ($_n2 <= $_ntabs)
+@_slug := @_slug & @_Tab
+inc($_n2)
+end while
+$_n2 := 0
+while ($_n2 <= 7)
+add_text_line($BigLabel,@_slug & !MsgText[$_n2])
+inc($_n2)
+end while
+message("")
+end on
+

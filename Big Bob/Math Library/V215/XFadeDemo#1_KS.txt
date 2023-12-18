@@ -1,0 +1,213 @@
+{ ---------------------------------------------------------------------
+Title: Equal-Power Crossfade Demo#1 Script
+Uses: "KSPMath_V200.txt"
+Author: R.D.Villwock aka 'Big Bob'
+First Written: March 13, 2006
+Current Version: 1.02
+Last Modified: March 6, 2009
+----------------------------------------------------------------------
+  This Script illustrates how to use the KSP Math Library functions to
+  effect equal-power crossfades. This script should be used in conjunction
+  with the provided instrument file named XFadeDemo#1.nki. The instrument
+  uses only a few very short looped samples and therefore the entire
+  instrument with the samples and the script is provided in monolith
+  format with a file of less than 10K bytes.
+  
+  The instrument has a sustained trombone tone (with a pitch of F3) assigned
+  to 3 keys and a sustained clarinet tone (F3) assigned to one key. The
+  trombone on C3 is panned hard left and the trombone on C4 is panned hard
+  right. The trombone on E3 is panned center as is the clarinet on G3.
+
+  This demo script has two operating modes that trigger these notes in pairs.
+  Demo Mode #1, the 'Panning Demo' triggers C3 and C4 together while Demo
+  Mode #2, the 'Morphing Demo', triggers E3 and G3 together. The change_vol()
+  function is employed to crossfade between these note pairs to illustrate
+  how you can use the KSP Math Library functions to implement equal-power
+  crossfading, EPXF, of note pairs.
+  
+  Demo Mode #1 illustrates the use of EPXF to effect equal-volume panorama
+  placement while Demo Mode #2 illustrates the use of EPXF to effect 'morphing'
+  of two different timbres as might be used in velocity crossfading or
+  formant-corrected pitch bending. }
+ 
+import "KSPMathV215_KSM.txt"
+
+on init
+  { MIDI CCs and Notes }
+  declare const Bender := 128
+  declare const BoneNote := 64
+  declare const ClarNote := 67
+  declare const LeftNote := 60
+  declare const ModWheel := 1  
+  declare const RightNote := 72
+  { Pseudo-Call Action Routines. NOTE: Assign these to powers of two }
+  declare const StartDemo := 1      { 2^0 }
+  declare const UpdateVolume := 2   { 2^1 }
+  { Display Captions }
+  declare @XVcap 
+    XVCap := '  XFade Variable'
+  declare @X0cap
+    X0cap := '  Note[0]  Level'
+  declare @X1cap
+    X1cap := '  Note[1]  Level'
+  declare @XMVcap
+    XMVcap := '   Master Fader'
+  { Control Panel Components }  
+  declare ui_button PanDemo
+    set_text(PanDemo,' Panning Demo')
+    move_control(PanDemo,1,1)
+  declare ui_button VelDemo
+    set_text(VelDemo,'Vel XFade Demo')
+    move_control(VelDemo,1,2)
+  declare ui_label XV (1,2)
+    move_control(XV,2,1)
+    set_text(XV,XVcap)
+  declare ui_label X0 (1,2)
+    move_control(X0,3,1)
+    set_text(X0,X0cap)
+  declare ui_label X1 (1,2)
+    move_control(X1,4,1)
+    set_text(X1,X1cap)
+  declare ui_label XMV (1,2)
+    move_control(XMV,5,1)
+    set_text(XMV,XMVcap)  
+  declare ui_knob Range (0,100,1)
+    set_text(Range,'VolRange')
+    set_knob_unit(Range,KNOB_UNIT_PERCENT)
+    move_control(Range,6,1)  
+    Range := 75
+  { Simple Variables }    
+  declare Actions   { List of actions to be performed at pseudo-call handler }
+  declare CallActv  { Semaphore to allow only one pseudo call at a time }
+  declare Call_id   { Event id for pseudo-call note }
+  declare MWV       { ModWheel value }
+  declare PWV       { Pitch Wheel value }
+  declare XFV       { XFade control variable }
+  { Binary Arrays for note-pair parameters }    
+  declare 0db[2]    { Amount of mdb to restore change_vol back to 0db reference }
+  declare Xnote[2]  { MIDI note numbers to be crossfaded }
+  declare xid[2]    { IDs for Note 0 and Note 1 }
+  { Remember These Settings }
+  make_persistent(Range)
+  make_persistent(MWV)
+  make_persistent(PWV)
+  { Clear K2 Status Line }
+  message('')
+end on { init }
+
+on note
+  ignore_event(EVENT_ID) { No keyboard notes used }
+end on { note }
+
+on release
+  XEQ_Call  { If this is a pseudo-call, execute action routine(s) }
+end on { release }
+
+on controller
+  if ((CC_NUM = Bender) or (CC_NUM = ModWheel))
+    MWV := %CC[ModWheel]  { Update Mod Wheel Value }
+    PWV := %CC[Bender]    { Update Pitch Wheel Value }
+    Call(UpdateVolume)    { Execute a Volume Update  }
+  end if
+end on { controller }
+
+on ui_control (PanDemo) { Mono Signal Panning Demo }
+  note_off(ALL_EVENTS)  { Abort any prior demo notes in process }
+  if PanDemo = 1 
+    VelDemo := 0  { Cancel Velocity Demo if active }
+    Call(StartDemo+UpdateVolume)  { Start the Panning Demo }
+  else
+    PanDemo := 0  { So off-button legend is more visible }
+  end if
+end on { PanDemo Button }
+
+on ui_control (VelDemo) { Velocity Crossfade Demo }
+  note_off(ALL_EVENTS)  { Abort any prior demo notes in process }
+  if VelDemo = 1
+    PanDemo := 0  { Cancel Panning Demo if active }
+    Call(StartDemo+UpdateVolume) { Start the Velocity Demo }
+  else
+    VelDemo := 0  { So off-button legend is more visible }
+  end if
+end on { VelDemo Button }
+
+on ui_control (Range) { Change 'hot zone' range of Master Fader }
+  Call(UpdateVolume)  { Force an update of volume accordingly }
+end on { Fader Range Knob }
+
+{--------------------- Pseudo-Call and Handler Functions ------------------}
+
+function Call(cmd)  { Pseudo-Call process }
+  if CallActv = 0   { Only allow if currently inactive }
+    CallActv := 1   { Lock out any more calls until completed }
+    Actions := cmd  { Action List for XEQ_Call }
+    Call_id := play_note(0,1,0,1) { Play a very short MIDI Note 0 }
+  end if            {  to force-trigger an RCB }
+end function { Call }
+
+function XEQ_Call  { Execute Calls when Call_id occurs }
+  if EVENT_ID = Call_id  { Do nothing unless RCB invoked by Call_id event }
+    if (Actions .and. StartDemo # 0)
+      NewDemo    { Start a new demo per state of Demo Buttons }
+    end if
+    if (Actions .and. UpdateVolume # 0)
+      NewVolume  { Update Volume per control settings }
+    end if
+    CallActv := 0  { Ready for another pseudo Call }
+  end if  
+end function { XEQ_Call }
+
+{------------- Action Routines for the Pseudo-Call Handler ---------------}
+
+function NewDemo  { Starts a new demo }
+  if PanDemo = 1  { Play left and right panned notes as notes 0 and 1 }
+    XNote[0] := LeftNote
+    XNote[1] := RightNote
+  else            { Play Clarinet and Trombone notes as notes 0 and 1 }
+    XNote[0] := ClarNote
+    XNote[1] := BoneNote
+  end if 
+  xid[0] := play_note(XNote[0],1,0,0) { Start the pair of notes to be }
+  xid[1] := play_note(XNote[1],1,0,0) {  crossfaded per XFV control   }
+  0db[0] := 0     { Reset change_vol accumulators }
+  0db[1] := 0
+end function { NewDemo }
+
+function NewVolume  { Updates volume of note 0 and note 1 }
+  declare n       { For-Loop index }
+  declare Atn[2]  { Attenuation from 0 db reference for notes 0 and 1 }
+  declare Vol[2]  { Volume levels for Notes 0 and 1 }
+  declare MVol    { Master Volume level per MWV and Range }
+  
+  if PanDemo = 1  { Panning Demo is Active }
+    XFV := Ang90*(PWV + 8192)/16383  { Map Pitch Wheel to XFV = 0..1000 }
+  else { Velocity Demo }
+    XFV := Ang90*MWV/127             { Map Mod Wheel to XFV = 0..1000 }
+  end if  
+  ATFade(MWV,Range,MVol)     { Control master volume with Mod Wheel }
+  SinCos(XFV,Vol[1],Vol[0])  { Get XFade volume levels per XFV }
+  for n := 0 to 1
+    VR_to_mdb(Vol[n],Atn[n]) { Convert XFade volume levels to mdb }
+    Vol[n] := Atn[n] + MVol  { Add Master Volume to both notes }
+    change_vol(xid[n],0db[n]+Vol[n],1)  { Set new volume of note[n] }  
+    0db[n] := -Vol[n]        { Update db accums to get back to 0 db }  
+  end for
+  ShowData(Atn,MVol)         { Display control values }  
+end function { NewVolume }
+
+function ShowData(gain,mvol) { Display control values }
+  set_text(XV,XVcap)   { XFade variable 0..1000 }
+  add_text_line(XV,'          ' & XFV) 
+  ShowAtn(gain[0],X0,X0Cap)
+  ShowAtn(gain[1],X1,X1Cap)
+  ShowAtn(mvol,XMV,XMVCap)
+end function { ShowData }
+
+function ShowAtn(atn,win,cap)
+  set_text(win,cap)
+  if atn = Muted
+    add_text_line(win,'      Muted')
+  else
+    add_text_line(win,'    ' & atn & ' mdb')
+  end if
+end function { ShowAtn }

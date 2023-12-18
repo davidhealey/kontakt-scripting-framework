@@ -1,0 +1,2592 @@
+{ SIPS-Articulation, Version 205 7-17-08 }
+on init
+make_perfview
+declare %Version[6] 
+declare $XTmRng
+declare $XTime__Range
+declare $PkDwell
+declare $LowIR := 2
+declare $TopIR := 127
+$XTmRng := 1000
+$XTime__Range := 1000
+$PkDwell := 1000
+_read_persistent_var($XTmRng)
+_read_persistent_var($XTime__Range)
+_read_persistent_var($PkDwell)
+if ($XTmRng # 1000 or ($XTime__Range # 1000))
+%Version[0] := 1001
+%Version[1] := 102
+else
+if ($PkDwell # 1000)
+%Version[0] := 1002
+%Version[1] := 102
+else
+%Version[0] := 1000
+%Version[1] := 104
+end if
+end if
+_read_persistent_var(%Version)
+declare $ActvTasks
+declare $BlinkCount
+declare $DoStartup
+declare %InParm[4] 
+declare $MsgID
+declare $OmniID
+declare %OutParm[4] 
+declare $pTx
+declare %QTask[51] 
+declare %ReplyBfr[4] 
+declare $StartActv
+declare @StatMsg
+declare $TopTask := 50
+declare $WaitTime
+declare $WatchTask
+declare $WatchSub
+declare $XSub
+declare $XTsk
+declare $HostSID
+@StatMsg := ""
+$HostSID := 1000
+$DoStartup := 1
+if (in_range(0,0,$TopTask))
+$TopTask := 0
+end if
+$XSub := 1
+declare @Tab10
+@Tab10 := "          "
+declare @AllGroups
+@AllGroups := "All selected Groups have been assigned to Articulation "
+declare @ArtIsChain
+@ArtIsChain := "Articulation already assigned as a Chain"
+declare @NoNormalYet
+@NoNormalYet := "Normal groups not assigned yet"
+declare @ArtInfoCap1
+@ArtInfoCap1 := " Note  Articulation  Var#   TKT Offset"
+declare @ArtInfoCap2
+@ArtInfoCap2 := " Note   Art/Group   Var#   TKT Offset"
+declare @LowCap
+@LowCap := " Low Key: "
+declare @LowKey
+declare @TopCap
+@TopCap := " High Key: "
+declare @TopKey
+declare $i
+declare !CC_Name[123] 
+$i := 3
+while ($i<=119)
+!CC_Name[$i] := "Undefined"
+inc($i)
+end while
+!CC_Name[0] := "Bsnk Select"
+!CC_Name[1] := "Mod Wheel"
+!CC_Name[2] := "Breath Control"
+!CC_Name[4] := "Foot Controller"
+!CC_Name[5] := "Portamento Time"
+!CC_Name[6] := "Data Entry MSB"
+!CC_Name[7] := "Channel Volume"
+!CC_Name[8] := "Balance"
+!CC_Name[10] := "Pan"
+!CC_Name[11] := "Expression"
+!CC_Name[12] := "Efx Ctl 1"
+!CC_Name[13] := "Efx Ctl 2"
+!CC_Name[16] := "General Ctl #1"
+!CC_Name[17] := "General Ctl #2"
+!CC_Name[18] := "General Ctl #3"
+!CC_Name[19] := "General Ctl #4"
+!CC_Name[32] := "LSB for CC 0"
+!CC_Name[33] := "LSB for CC 1"
+!CC_Name[34] := "LSB for CC 2"
+!CC_Name[35] := "LSB for CC 3"
+!CC_Name[36] := "LSB for CC 4"
+!CC_Name[37] := "LSB for CC 5"
+!CC_Name[38] := "LSB for CC 6"
+!CC_Name[39] := "LSB for CC 7"
+!CC_Name[40] := "LSB for CC 8"
+!CC_Name[41] := "LSB for CC 9"
+!CC_Name[42] := "LSB for CC 10"
+!CC_Name[43] := "LSB for CC 11"
+!CC_Name[44] := "LSB for CC 12"
+!CC_Name[45] := "LSB for CC 13"
+!CC_Name[46] := "LSB for CC 14"
+!CC_Name[47] := "LSB for CC 15"
+!CC_Name[48] := "LSB for CC 16"
+!CC_Name[49] := "LSB for CC 17"
+!CC_Name[50] := "LSB for CC 18"
+!CC_Name[51] := "LSB for CC 19"
+!CC_Name[52] := "LSB for CC 20"
+!CC_Name[53] := "LSB for CC 21"
+!CC_Name[54] := "LSB for CC 22"
+!CC_Name[55] := "LSB for CC 23"
+!CC_Name[56] := "LSB for CC 24"
+!CC_Name[57] := "LSB for CC 25"
+!CC_Name[58] := "LSB for CC 26"
+!CC_Name[59] := "LSB for CC 27"
+!CC_Name[60] := "LSB for CC 28"
+!CC_Name[61] := "LSB for CC 29"
+!CC_Name[62] := "LSB for CC 30"
+!CC_Name[63] := "LSB for CC 31"
+!CC_Name[64] := "Sustain Pedal"
+!CC_Name[65] := "Portamento On/Off"
+!CC_Name[66] := "Sustenuto On/Off"
+!CC_Name[67] := "Soft Pedal On/Off"
+!CC_Name[68] := "Legato Footswitch"
+!CC_Name[69] := "Hold 2"
+!CC_Name[70] := "Sound Ctl 1"
+!CC_Name[71] := "Sound Ctl 2"
+!CC_Name[72] := "Sound Ctl 3"
+!CC_Name[73] := "Sound Ctl 4"
+!CC_Name[74] := "Sound Ctl 5"
+!CC_Name[75] := "Sound Ctl 6"
+!CC_Name[76] := "Sound Ctl 7"
+!CC_Name[77] := "Sound Ctl 8"
+!CC_Name[78] := "Sound Ctl 9"
+!CC_Name[79] := "Sound Ctl 10"
+!CC_Name[80] := "General Ctl #5"
+!CC_Name[81] := "General Ctl #6"
+!CC_Name[82] := "General Ctl #7"
+!CC_Name[83] := "General Ctl #8"
+!CC_Name[84] := "Portamento Ctl"
+!CC_Name[91] := "Efx 1 Depth"
+!CC_Name[92] := "Efx 2 Depth"
+!CC_Name[93] := "Efx 3 Depth"
+!CC_Name[94] := "Efx 4 Depth"
+!CC_Name[95] := "Efx 5 Depth"
+!CC_Name[96] := "Data Inc"
+!CC_Name[97] := "Data Dec"
+!CC_Name[98] := "NRPN LSB"
+!CC_Name[99] := "NRPN MSB"
+!CC_Name[100] := "RPN LSB"
+!CC_Name[101] := "RPN MSB"
+!CC_Name[120] := "    - Pitch Wheel -"
+!CC_Name[121] := "    - Aftertouch -"
+!CC_Name[122] := "     - Velocity -"
+declare !Tones[12] 
+!Tones[0] := " C"
+!Tones[1] := "C#"
+!Tones[2] := " D"
+!Tones[3] := "D#"
+!Tones[4] := " E"
+!Tones[5] := " F"
+!Tones[6] := "F#"
+!Tones[7] := " G"
+!Tones[8] := "G#"
+!Tones[9] := " A"
+!Tones[10] := "A#"
+!Tones[11] := " B"
+declare ui_menu $MCMenu
+declare $_n5
+move_control($MCMenu,0,0)
+add_menu_item($MCMenu,"- MIDI Controller Menu -",-1)
+add_menu_item($MCMenu,"  ----------------------",-1)
+add_menu_item($MCMenu,"   Deassign Controller",-1)
+add_menu_item($MCMenu,"Assign Last CC# Moved",-2)
+add_menu_item($MCMenu,"  ----------------------",-1)
+add_menu_item($MCMenu,!CC_Name[121],124)
+add_menu_item($MCMenu,!CC_Name[120],128)
+add_menu_item($MCMenu,!CC_Name[122],150)
+$_n5 := 0
+while ($_n5<=119)
+add_menu_item($MCMenu,"CC " & $_n5 & " " & !CC_Name[$_n5],$_n5)
+inc($_n5)
+end while
+add_menu_item($MCMenu," - MC Menu -",-3)
+declare ui_button $MBtn__VTrig
+declare ui_button $MBtn__Mode
+declare $MBtn__Actv
+declare %MBtn__SCMenu[2]  := (0)
+declare %MBtn__Knob[2]  := (0)
+declare !MBtn__Cap[2] 
+declare %MBtn__CC[10] 
+declare %MBtn__CCV[10] 
+declare %MBtn__State[10] 
+declare %MBtn__x[2] 
+declare %MBtn__y[2] 
+declare %MKnob__DKmin[2]  := (0)
+declare %MKnob__DKmax[2]  := (100)
+declare %MKnob__Kmin[10] 
+declare %MKnob__Kmax[10] 
+move_control($MBtn__VTrig,0,0)
+move_control($MBtn__Mode,0,0)
+!MBtn__Cap[0] := "Mode "
+!MBtn__Cap[1] := "Foot  "
+declare $_bx
+$_bx := 0
+while ($_bx<=1)
+%MBtn__CC[$_bx] := -1
+%MKnob__Kmin[$_bx] := %MKnob__DKmin[$_bx]
+%MKnob__Kmax[$_bx] := %MKnob__DKmax[$_bx]
+inc($_bx)
+end while
+if (in_range(%Version[1],103,104))
+_read_persistent_var(%MBtn__CC)
+_read_persistent_var(%MBtn__CCV)
+end if
+$_bx := 0
+while ($_bx<=1)
+if (%MBtn__CC[$_bx]=-1)
+select ($_bx)
+case 0
+set_text($MBtn__Mode,!MBtn__Cap[$_bx] & "MC=None")
+case 1
+set_text($MBtn__VTrig,!MBtn__Cap[$_bx] & "MC=None")
+end select
+%MBtn__State[$_bx] := 0
+else
+select (%MBtn__CC[$_bx])
+case 128
+select ($_bx)
+case 0
+set_text($MBtn__Mode,!MBtn__Cap[$_bx] & "MC = PW")
+case 1
+set_text($MBtn__VTrig,!MBtn__Cap[$_bx] & "MC = PW")
+end select
+case 124
+select ($_bx)
+case 0
+set_text($MBtn__Mode,!MBtn__Cap[$_bx] & "MC = AT")
+case 1
+set_text($MBtn__VTrig,!MBtn__Cap[$_bx] & "MC = AT")
+end select
+case 150
+select ($_bx)
+case 0
+set_text($MBtn__Mode,!MBtn__Cap[$_bx] & "MC = Vel")
+case 1
+set_text($MBtn__VTrig,!MBtn__Cap[$_bx] & "MC = Vel")
+end select
+case 0 to 119
+select ($_bx)
+case 0
+set_text($MBtn__Mode,!MBtn__Cap[$_bx] & "CC# = " & %MBtn__CC[$_bx])
+case 1
+set_text($MBtn__VTrig,!MBtn__Cap[$_bx] & "CC# = " & %MBtn__CC[$_bx])
+end select
+end select
+%MBtn__State[$_bx] := 1
+end if
+select ($_bx)
+case 0
+$MBtn__Mode := %MBtn__State[$_bx]
+case 1
+$MBtn__VTrig := %MBtn__State[$_bx]
+end select
+inc($_bx)
+end while
+declare $n
+declare !FootCapTxt[3] 
+declare @NoRange
+declare !SetIRCap[3] 
+declare !SetKR1Cap[2] 
+declare !SetKR2Cap[3] 
+declare ui_button $AudArt
+declare ui_button $AudGroup
+declare ui_button $AutoVar
+declare ui_button $ManVar
+declare ui_button $Monitor
+declare ui_button $SetIR
+declare ui_button $SetKR1
+declare ui_button $SetKR2
+declare ui_value_edit $ZoneSize(1, 12, 1) 
+declare ui_knob $ArtSel(0, 63, 1) 
+declare ui_knob $VarSel(0, 8, 1) 
+declare ui_menu $ArtMode
+declare ui_menu $Assign
+declare ui_menu $AttachVar
+declare ui_menu $MaxVars
+declare ui_menu $SASMode
+declare ui_menu $Setup
+declare ui_menu $TrigMode
+declare ui_menu $VarMode
+declare ui_menu $VarType
+declare ui_label $About(3, 1) 
+declare ui_label $About2(2, 1) 
+declare ui_label $ArtBox(2, 2) 
+declare ui_label $ArtCap1(2, 1) 
+declare ui_label $ArtCap2(2, 1) 
+declare ui_label $ArtCap3(2, 1) 
+declare ui_label $FootCap(1, 1) 
+declare ui_label $IR_Box(1, 2) 
+declare ui_label $KRBox1(1, 2) 
+declare ui_label $KRBox2(1, 2) 
+declare ui_label $KRCap1(1, 1) 
+declare ui_label $KRCap2(1, 1) 
+declare ui_label $VarCap1(2, 1) 
+declare ui_label $VarCap2(2, 1) 
+declare ui_label $VarCap3(2, 1) 
+!FootCapTxt[0] := "Foot Switch OFF"
+!FootCapTxt[1] := " Foot Switch ON"
+!FootCapTxt[2] := "  ****************"
+@NoRange := "       Not Set"
+!SetIRCap[0] := " Set Inst. Range"
+!SetIRCap[1] := " Hit Lowest Key"
+!SetIRCap[2] := " Hit Highest Key"
+!SetKR1Cap[0] := "Set Art/Var Keys"
+!SetKR1Cap[1] := "Hit Key for Art#1"
+!SetKR2Cap[0] := " Set Bank Keys"
+!SetKR2Cap[1] := " Hit Low Key"
+!SetKR2Cap[2] := " Hit High Key"
+move_control($AudArt,0,0)
+set_text($AudArt,"  Audition Art #")
+move_control($AudGroup,0,0)
+set_text($AudGroup,"  Audition Group")
+$AudGroup := 1
+move_control($AutoVar,0,0)
+set_text($AutoVar," Auto-Step Var#")
+move_control($ManVar,0,0)
+set_text($ManVar,"Stay On Set Var#")
+$ManVar := 1
+move_control($Monitor,0,0)
+set_text($Monitor,"      Monitor")
+move_control($SetIR,0,0)
+set_text($SetIR,!SetIRCap[0])
+$SetIR := 0
+move_control($SetKR1,0,0)
+set_text($SetKR1,!SetKR1Cap[0])
+$SetKR1 := 0
+move_control($SetKR2,0,0)
+set_text($SetKR2,!SetKR2Cap[0])
+$SetKR2 := 0
+move_control($ZoneSize,0,0)
+set_text($ZoneSize,"Semitones")
+$ZoneSize := 1
+move_control($ArtSel,0,0)
+set_text($ArtSel,"  Art #")
+move_control($VarSel,0,0)
+set_text($VarSel," Var #")
+move_control($ArtMode,0,0)
+add_menu_item($ArtMode," Key-Switches       (100)",100)
+add_menu_item($ArtMode," Program Chg        (101)",101)
+add_menu_item($ArtMode," Both KS & PC      (102)",102)
+$ArtMode := 100
+move_control($Assign,0,0)
+add_menu_item($Assign,"  Assign Groups",-1)
+add_menu_item($Assign,"***************",-1)
+add_menu_item($Assign,"----Fixed Art----",-1)
+add_menu_item($Assign," Normal Groups",1)
+add_menu_item($Assign," 'Inside' Groups",9)
+add_menu_item($Assign," Release Groups",17)
+add_menu_item($Assign," ",-1)
+add_menu_item($Assign,"---Chained Art---",-1)
+add_menu_item($Assign," Normal Groups",2)
+add_menu_item($Assign," 'Inside' Groups",10)
+add_menu_item($Assign," Release Groups",18)
+add_menu_item($Assign," ",-1)
+add_menu_item($Assign,"----Multi Art----",-1)
+add_menu_item($Assign," Normal Series",3)
+add_menu_item($Assign," 'Inside' Series",11)
+add_menu_item($Assign," Release Series",19)
+add_menu_item($Assign," ",-1)
+add_menu_item($Assign,"====Utility====",-1)
+add_menu_item($Assign,"Clear Articulation",32)
+add_menu_item($Assign,"Format & Verify",33)
+add_menu_item($Assign,"Check All Groups",34)
+move_control($AttachVar,0,0)
+add_menu_item($AttachVar," Keep Settings",-1)
+add_menu_item($AttachVar,"=================",-1)
+add_menu_item($AttachVar," Attach to Articulation",1)
+add_menu_item($AttachVar,"Sever from Articulation",2)
+add_menu_item($AttachVar,"  Detach All Settings",3)
+move_control($MaxVars,0,0)
+add_menu_item($MaxVars," 2 - Variations      (115)",2)
+add_menu_item($MaxVars," 4 - Variations      (116)",4)
+add_menu_item($MaxVars," 6 - Variations      (117)",6)
+add_menu_item($MaxVars," 8 - Variations      (118)",8)
+$MaxVars := 4
+move_control($SASMode,0,0)
+add_menu_item($SASMode," SAS  Active",1)
+add_menu_item($SASMode," - SAS  OFF -",2)
+$SASMode := 1
+move_control($Setup,0,0)
+add_menu_item($Setup,"  Play Mode",1)
+add_menu_item($Setup,"Setup/Audition",2)
+add_menu_item($Setup," Preferences",3)
+$Setup := 1
+move_control($TrigMode,0,0)
+add_menu_item($TrigMode," Never                (110)",110)
+add_menu_item($TrigMode," Match in 2           (111)",111)
+add_menu_item($TrigMode," Match in 3           (112)",112)
+add_menu_item($TrigMode," Always               (113)",113)
+$TrigMode := 110
+move_control($VarMode,0,0)
+add_menu_item($VarMode," Auto FC Rand     (120)",120)
+add_menu_item($VarMode," Auto Rd.Robin     (121)",121)
+add_menu_item($VarMode," KeySW-Select     (122)",122)
+move_control($VarType,0,0)
+add_menu_item($VarType,"   All Natural        (123)",123)
+add_menu_item($VarType," Natural + TKT     (124)",124)
+add_menu_item($VarType," TKT + Natural     (125)",125)
+move_control($About,0,0)
+set_text($About,"    SIPS 2   Articulation and Alternation Script     by RDV")
+move_control($About2,0,0)
+set_text($About2," SIPS 2  Articulation Script    by RDV")
+move_control($ArtBox,0,0)
+move_control($ArtCap1,0,0)
+set_text($ArtCap1," Last Played Note: Information Monitor")
+move_control($ArtCap2,0,0)
+set_text($ArtCap2,"  Monitor On/Off    -    Artic. Control")
+move_control($ArtCap3,0,0)
+set_text($ArtCap3,"   Last Played Note - Assignment Info")
+move_control($FootCap,0,0)
+move_control($IR_Box,0,0)
+move_control($KRBox1,0,0)
+move_control($KRBox2,0,0)
+move_control($KRCap1,0,0)
+set_text($KRCap1,"  Art/Var Keys")
+move_control($KRCap2,0,0)
+set_text($KRCap2,"    Bank Keys")
+move_control($VarCap1,0,0)
+set_text($VarCap1," Auto TKT Chain   -  Sample Zone Size")
+move_control($VarCap2,0,0)
+set_text($VarCap2,"  Variation Mode   -    Auto Triggering")
+move_control($VarCap3,0,0)
+set_text($VarCap3,"      -- Audition TKT Variations --")
+declare $asp__artx
+declare $asp__checked
+declare $asp__gx
+declare @asp__Msg
+declare $asp__Op
+declare $asp__sx
+declare $asp__type
+declare $asp__warn
+declare $Art__ArtX
+declare %Art__Attr[234]  := (0)
+declare $Art__DFD
+declare $Art__Dflag
+declare $Art__GX
+declare $Art__Norm
+declare $Art__Play := 11
+declare $Art__Rflag
+declare $Art__RT
+declare %Art__Var[78]  := (0)
+declare $Art__VParms
+declare %KSR__OK[2]  := (1)
+declare %KSR__Root[2]  := (21, 29)
+declare %KSR__Top[2]  := (28, 33)
+declare $KSR__BankKey := 1
+declare $KSR__ArtKey := 0
+declare $KSR__State
+declare $Var__AChn
+declare $Var__ATKT
+declare $Var__ATrig
+declare $Var__Fold
+declare $Var__KVar
+declare $Var__Note2
+declare $Var__Note3
+declare $Var__Seed
+declare $Var__TKT
+declare $Var__VTrig := 1
+declare $Var__XChn
+declare $Var__XTKT
+declare %Var__ChnMap[16] 
+declare %Var__TKTMap[9] 
+declare $LastCC := -1
+declare %NCCV[129] 
+declare $Redraw
+declare $SLSFlags
+declare $UserPrefs
+declare %PMap[36] 
+declare %ZMap[9]  := (0, 1, -1, 2, -2, 3, -3, 4, -4)
+declare %StdPanel_Map[36]  := (32, -1, 42, -1, 40, 37, 31, -1, 24, 19, 38, 36, -1, -1, 43, -1, -1, -1, 33, -1, 27, 26, 41, 18, 15, 22, 28, 1, 39, 25, 30, -1, 10, 35, -1, 0)
+declare %SetupPanel_Map[36]  := (34, -1, 42, -1, 16, 37, 31, -1, 24, 19, 38, 36, -1, -1, 44, -1, -1, -1, 11, 12, 14, 21, 17, 18, 20, 23, 13, -1, 39, 25, -1, 29, -1, -1, -1, 0)
+declare ui_table %Pref__Switch[16] (2, 2, -100) 
+declare %Pref__ISwitch[16] 
+declare ui_button $Pref__ABtn
+declare ui_button $Pref__CBtn
+declare ui_label $Pref__Hdr(2, 1) 
+declare ui_label $Pref__Box(2, 2) 
+declare @Pref__Help1
+declare @Pref__Help2
+declare !Pref__TipTxt[16] 
+declare %PrefSub_Map[15]  := (49, -1, -1, 47, -1, -1, -1, -1, 45, 48, -1, 46, -1, -1, -1)
+declare %PrefPanel_Map[36]  := (-1)
+declare $_n2
+move_control(%Pref__Switch,0,0)
+move_control($Pref__ABtn,0,0)
+move_control($Pref__CBtn,0,0)
+move_control($Pref__Hdr,0,0)
+move_control($Pref__Box,0,0)
+$_n2 := 0
+while ($_n2<=15)
+%Pref__Switch[$_n2] := -100
+%Pref__ISwitch[$_n2] := -100
+inc($_n2)
+end while
+%Pref__Switch[5] := 100
+set_text($Pref__ABtn,"Accept  Settings")
+set_text($Pref__CBtn," Cancel Changes")
+!Pref__TipTxt[0] := "Sw1 ^ Disable CC64 Sustain Function"
+!Pref__TipTxt[1] := "Sw2 ^ Disable SAS MIDI Menu Control"
+!Pref__TipTxt[2] := "Sw3 ^ Increment MIDI Program Change Number from Keyboard"
+!Pref__TipTxt[3] := "Sw4 ^ Limit playback of Release Samples to 3 secs"
+!Pref__TipTxt[4] := "Sw5 ^ Reset random generator when" & " Articulation or Var Mode is changed"
+!Pref__TipTxt[5] := "Sw6 ^ Display Bank-Index Key State" & " on K2's Status Line"
+!Pref__TipTxt[6] := "Sw7 ^ Hide Keyswitch Display on K2's" & " Keyboard (Pink Keys)"
+$_n2 := 7
+while ($_n2<=15)
+!Pref__TipTxt[$_n2] := "    This Switch Currently Not In Use"
+inc($_n2)
+end while
+move_control($Pref__Hdr,0,0)
+set_text($Pref__Hdr,"  SIPS 2    User Preference Switches")
+@Pref__Help1 := "  Drag Up or Down to Change Setting"
+@Pref__Help2 := "  Click any Switch to See It's Function"
+declare $_ap
+declare $_np
+declare $_ns
+$_ap := 8
+$_ns := 0
+$_np := $_ap
+while ($_np<36)
+%PrefPanel_Map[$_np] := %PrefSub_Map[$_ns]
+inc($_ns)
+if ($_ns<num_elements(%PrefSub_Map))
+$_np := $_ns/3*6+($_ns mod 3)+$_ap
+else
+$_np := 36
+end if
+end while
+declare $START_MODE := $ENGINE_PAR_START_CRITERIA_MODE
+declare $START_ON_CC := $ENGINE_PAR_START_CRITERIA_CONTROLLER
+declare $START_CC_MIN := $ENGINE_PAR_START_CRITERIA_CC_MIN
+declare $START_CC_MAX := $ENGINE_PAR_START_CRITERIA_CC_MAX
+declare $START_KEY_MIN := $ENGINE_PAR_START_CRITERIA_KEY_MIN
+declare $START_KEY_MAX := $ENGINE_PAR_START_CRITERIA_KEY_MAX
+declare $START_CRITERIA := $ENGINE_PAR_START_CRITERIA_NEXT_CRIT
+declare $ON_NONE := $START_CRITERIA_NONE
+declare $ON_CC := $START_CRITERIA_ON_CONTROLLER
+declare $ON_KEY := $START_CRITERIA_ON_KEY
+declare $AND_NEXT := $START_CRITERIA_AND_NEXT
+declare $OR_NEXT := $START_CRITERIA_OR_NEXT
+declare $AND_NOT := $START_CRITERIA_AND_NOT_NEXT
+make_persistent($LowIR)
+make_persistent($TopIR)
+make_persistent(%KSR__OK)
+make_persistent(%KSR__Root)
+make_persistent(%KSR__Top)
+make_persistent($Art__Play)
+make_persistent(%Art__Var)
+make_persistent($KSR__BankKey)
+make_persistent($KSR__ArtKey)
+make_persistent($Var__KVar)
+make_persistent($ArtMode)
+make_persistent($MaxVars)
+make_persistent($SASMode)
+make_persistent($TrigMode)
+make_persistent($VarMode)
+make_persistent($VarType)
+make_persistent($ZoneSize)
+make_persistent(%MBtn__CC)
+make_persistent(%MBtn__CCV)
+make_persistent(%MBtn__State)
+make_persistent(%Version)
+make_persistent(%Pref__Switch)
+make_persistent(%Pref__ISwitch)
+declare !MsgText[8] 
+declare ui_label $BigLabel(6, 6) 
+move_control($BigLabel,1,1)
+declare $_Fail
+declare $_OldSID
+declare $_OldPFC
+$_Fail := 1
+$_OldSID := %Version[0]
+$_OldPFC := %Version[1]
+if ($_OldSID=1000 and in_range($_OldPFC,103,104))
+$_Fail := 0
+%Version[0] := 1000
+%Version[1] := 104
+end if
+if ($_Fail=1)
+!MsgText[3] := " Automatic Import of Presets FAILED"
+!MsgText[4] := "   See Page xx of V2.0 User's Guide"
+$DoStartup := 0
+$XSub := 1
+else
+!MsgText[2] := "If you see this instead of the Control Panel"
+!MsgText[3] := "            Move a MIDI Controller"
+!MsgText[4] := " (See Section 1.1 of SIPS 2 User's Guide)"
+end if
+declare $_n7
+declare @_slug
+declare @_Tab
+@_Tab := "    "
+@_slug := ""
+$_n7 := 1
+while ($_n7<=15)
+@_slug := @_slug & @_Tab
+inc($_n7)
+end while
+$_n7 := 0
+while ($_n7<=7)
+add_text_line($BigLabel,@_slug & !MsgText[$_n7])
+inc($_n7)
+end while
+$Art__ArtX := 11
+$Var__Seed := $ENGINE_UPTIME
+message("")
+declare %_artcc[3]  := (126, 127, 126)
+declare $_artx
+declare @_artstr
+declare $_ax5
+declare $_OK
+declare @_info
+declare $_i5
+declare $_j
+declare $_temp
+declare @_txt
+declare @_state
+declare $_bx5
+declare $_ax4
+declare $_pn
+declare $_ax3
+declare $_vx
+declare $_i4
+declare $_Valid
+declare $_range
+declare $_bx4
+declare $_ax2
+declare $_i3
+declare $_imax
+declare $_n6
+declare $_phase
+declare $_x
+declare $_y
+declare $_bx3
+declare $_val
+declare $_warn
+declare $_i2
+declare $_n4
+declare $_n3
+declare $_I
+declare $_bx2
+declare $_ax
+declare $_artchg
+declare $_tx
+declare $_n
+declare $_Client
+declare $_MsgCode
+declare $_Reply
+declare $_Sender
+end on
+
+on note
+if ($EVENT_NOTE=0)
+$_Client := %EVENT_PAR[3] .and. 2047
+if ($_Client=2047)
+ignore_event($EVENT_ID)
+exit
+end if
+if ($_Client=2046 or ($_Client=$HostSID))
+$_Sender := sh_right(%EVENT_PAR[3],16) .and. 2047
+$_MsgCode := sh_right(%EVENT_PAR[3],27) .and. 31
+end if
+if ($_Client=2046)
+exit
+end if
+if ($_Client=$HostSID)
+ignore_event($EVENT_ID)
+if ($_MsgCode=31)
+set_event_par($EVENT_ID,3,%EVENT_PAR[3] .or. 2048)
+else
+set_event_par($EVENT_ID,3,%EVENT_PAR[3] .or. sh_left($_Reply,11))
+end if
+end if
+exit
+end if
+if ($SASMode=2 or ($Setup=3))
+exit
+end if
+if ($KSR__State>0 and in_range($EVENT_NOTE,2,127))
+ignore_event($EVENT_ID)
+select ($KSR__State)
+case 1
+%KSR__OK[0] := 1
+%KSR__Root[0] := $EVENT_NOTE
+%KSR__Top[0] := $EVENT_NOTE+7
+$SetKR1 := 0
+set_text($SetKR1,!SetKR1Cap[0])
+$KSR__State := 0
+case 2
+%KSR__Root[1] := $EVENT_NOTE
+%KSR__Top[1] := $EVENT_NOTE
+%KSR__OK[1] := 1
+set_text($SetKR2,!SetKR2Cap[2])
+$KSR__State := 3
+case 3
+if ($EVENT_NOTE<%KSR__Root[1])
+%KSR__Top[1] := %KSR__Root[1]
+%KSR__Root[1] := $EVENT_NOTE
+else
+%KSR__Top[1] := $EVENT_NOTE
+end if
+$SetKR2 := 0
+if (%KSR__Top[1]>(%KSR__Root[1]+9))
+%KSR__Top[1] := %KSR__Root[1]+9
+end if
+set_text($SetKR2,!SetKR2Cap[0])
+$KSR__State := 0
+case 4
+$LowIR := $EVENT_NOTE
+set_text($SetIR,!SetIRCap[2])
+$KSR__State := 5
+case 5
+if ($EVENT_NOTE<$LowIR)
+$TopIR := $LowIR
+$LowIR := $EVENT_NOTE
+else
+$TopIR := $EVENT_NOTE
+end if
+$SetIR := 0
+set_text($SetIR,!SetIRCap[0])
+$KSR__State := 0
+end select
+$OmniID := play_note(0,1,0,100)
+set_event_par($OmniID,3,134217728+sh_left($HostSID,16)+2046)
+set_event_par($OmniID,0,$LowIR)
+set_event_par($OmniID,1,$TopIR)
+$_Valid := 1
+if (%KSR__OK[1]=1)
+if (%KSR__OK[0]=0)
+%KSR__Root[0] := %KSR__Root[1]-8
+if (%KSR__Root[0]<2)
+$_Valid := 0
+else
+%KSR__Top[0] := %KSR__Root[0]+7
+%KSR__OK[0] := 1
+end if
+end if
+else
+if (%KSR__OK[0]=0)
+$_Valid := 0
+else
+%KSR__Root[1] := %KSR__Top[0]+1
+if (%KSR__Root[1]>127)
+$_Valid := 0
+else
+%KSR__Top[1] := %KSR__Root[1]
+%KSR__OK[1] := 1
+end if
+end if
+end if
+if ($_Valid=1)
+$_range := %KSR__Top[1]-%KSR__Root[1]
+if (in_range(%KSR__Root[0],%KSR__Root[1]-7,%KSR__Top[1]) or in_range(%KSR__Root[0],$LowIR-7,$TopIR) or in_range(%KSR__Root[1],$LowIR-$_range,$TopIR))
+$_Valid := 0
+end if
+end if
+if ($_Valid=0)
+%KSR__OK[0] := 0
+%KSR__OK[1] := 0
+if ($KSR__State=3)
+$KSR__State := 0
+end if
+$SetKR1 := 0
+$SetKR2 := 0
+set_text($SetKR1,!SetKR1Cap[0])
+set_text($SetKR2,!SetKR2Cap[0])
+end if
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 3
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+note_off($ALL_EVENTS)
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 10
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+exit
+end if
+if (in_range($EVENT_NOTE,$LowIR,$TopIR))
+if ($Setup=2 and ($AudGroup=1))
+$SLSFlags := 4
+disallow_group($ALL_GROUPS)
+allow_group($Art__GX)
+if ($AutoVar=1)
+if ($EVENT_NOTE=$Var__Note2)
+$VarSel := ($VarSel+1) mod 9
+else
+$VarSel := 0
+end if
+end if
+$Var__XTKT := $VarSel
+else
+if ($Art__Norm>0)
+if ($VarMode=122)
+if ($Art__Norm=31)
+$Var__XChn := 31
+$Var__XTKT := $Var__KVar
+else
+select ($VarType)
+case 123
+$Var__XChn := $Var__KVar+1
+$Var__XTKT := 0
+case 124
+if ($Var__KVar<5)
+$Var__XChn := $Var__KVar+1
+$Var__XTKT := 0
+else
+$Var__XTKT := $Var__KVar-4
+$Var__XChn := 1
+end if
+case 125
+if ($Var__KVar<5)
+$Var__XTKT := $Var__KVar
+$Var__XChn := 1
+else
+$Var__XChn := $Var__KVar-3
+$Var__XTKT := 0
+end if
+end select
+end if
+else
+$Var__ATrig := 0
+if ($Var__VTrig=1)
+if ($TrigMode=113 or ($EVENT_NOTE=$Var__Note2 and ($TrigMode # 110)) or ($EVENT_NOTE=$Var__Note3 and ($TrigMode=112)))
+$Var__ATrig := 1
+end if
+end if
+if ($Var__ATrig=1)
+if ($Art__Norm=31)
+$Var__ATKT := ($Var__ATKT+1) mod ($MaxVars+1)
+if ($VarMode=120)
+if ($Var__ATKT=0)
+$_i5 := 0
+while ($_i5<$MaxVars)
+if ($_i5=0)
+$Var__Seed := 8088405*$Var__Seed+1
+$_j := (sh_right($Var__Seed,8) .and. 16777215) mod ($MaxVars-1-0+1)+0
+else
+$Var__Seed := 8088405*$Var__Seed+1
+$_j := (sh_right($Var__Seed,8) .and. 16777215) mod ($MaxVars-$_i5+1)+$_i5
+end if
+$_temp := %Var__TKTMap[$_i5]
+%Var__TKTMap[$_i5] := %Var__TKTMap[$_j]
+%Var__TKTMap[$_j] := $_temp
+inc($_i5)
+end while
+end if
+$Var__XTKT := %Var__TKTMap[$Var__ATKT]
+else
+$Var__XTKT := $Var__ATKT
+end if
+else
+select ($VarType)
+case 123
+$Var__AChn := ($Var__AChn+1) mod $Art__Norm
+if ($VarMode=120)
+if ($Var__AChn=0)
+$_i5 := 0
+while ($_i5<($Art__Norm-1))
+if ($_i5=0)
+$Var__Seed := 8088405*$Var__Seed+1
+$_j := (sh_right($Var__Seed,8) .and. 16777215) mod ($Art__Norm-1-1-0+1)+0
+else
+$Var__Seed := 8088405*$Var__Seed+1
+$_j := (sh_right($Var__Seed,8) .and. 16777215) mod ($Art__Norm-1-$_i5+1)+$_i5
+end if
+$_temp := %Var__ChnMap[$_i5]
+%Var__ChnMap[$_i5] := %Var__ChnMap[$_j]
+%Var__ChnMap[$_j] := $_temp
+inc($_i5)
+end while
+end if
+$Var__XChn := %Var__ChnMap[$Var__AChn]+1
+else
+$Var__XChn := $Var__AChn+1
+end if
+$Var__XTKT := 0
+case 124
+$Var__AChn := ($Var__AChn+1) mod $Art__Norm
+if ($VarMode=120)
+if ($Var__AChn=0)
+$_i5 := 0
+while ($_i5<($Art__Norm-1))
+if ($_i5=0)
+$Var__Seed := 8088405*$Var__Seed+1
+$_j := (sh_right($Var__Seed,8) .and. 16777215) mod ($Art__Norm-1-1-0+1)+0
+else
+$Var__Seed := 8088405*$Var__Seed+1
+$_j := (sh_right($Var__Seed,8) .and. 16777215) mod ($Art__Norm-1-$_i5+1)+$_i5
+end if
+$_temp := %Var__ChnMap[$_i5]
+%Var__ChnMap[$_i5] := %Var__ChnMap[$_j]
+%Var__ChnMap[$_j] := $_temp
+inc($_i5)
+end while
+end if
+$Var__XChn := %Var__ChnMap[$Var__AChn]+1
+else
+$Var__XChn := $Var__AChn+1
+end if
+if ($Var__AChn=0)
+$Var__ATKT := ($Var__ATKT+1) mod ($MaxVars+1)
+if ($VarMode=120)
+if ($Var__ATKT=0)
+$_i5 := 0
+while ($_i5<$MaxVars)
+if ($_i5=0)
+$Var__Seed := 8088405*$Var__Seed+1
+$_j := (sh_right($Var__Seed,8) .and. 16777215) mod ($MaxVars-1-0+1)+0
+else
+$Var__Seed := 8088405*$Var__Seed+1
+$_j := (sh_right($Var__Seed,8) .and. 16777215) mod ($MaxVars-$_i5+1)+$_i5
+end if
+$_temp := %Var__TKTMap[$_i5]
+%Var__TKTMap[$_i5] := %Var__TKTMap[$_j]
+%Var__TKTMap[$_j] := $_temp
+inc($_i5)
+end while
+end if
+$Var__XTKT := %Var__TKTMap[$Var__ATKT]
+else
+$Var__XTKT := $Var__ATKT
+end if
+end if
+case 125
+$Var__ATKT := ($Var__ATKT+1) mod ($MaxVars+1)
+if ($VarMode=120)
+if ($Var__ATKT=0)
+$_i5 := 0
+while ($_i5<$MaxVars)
+if ($_i5=0)
+$Var__Seed := 8088405*$Var__Seed+1
+$_j := (sh_right($Var__Seed,8) .and. 16777215) mod ($MaxVars-1-0+1)+0
+else
+$Var__Seed := 8088405*$Var__Seed+1
+$_j := (sh_right($Var__Seed,8) .and. 16777215) mod ($MaxVars-$_i5+1)+$_i5
+end if
+$_temp := %Var__TKTMap[$_i5]
+%Var__TKTMap[$_i5] := %Var__TKTMap[$_j]
+%Var__TKTMap[$_j] := $_temp
+inc($_i5)
+end while
+end if
+$Var__XTKT := %Var__TKTMap[$Var__ATKT]
+else
+$Var__XTKT := $Var__ATKT
+end if
+if ($Var__ATKT=0)
+$Var__AChn := ($Var__AChn+1) mod $Art__Norm
+if ($VarMode=120)
+if ($Var__AChn=0)
+$_i5 := 0
+while ($_i5<($Art__Norm-1))
+if ($_i5=0)
+$Var__Seed := 8088405*$Var__Seed+1
+$_j := (sh_right($Var__Seed,8) .and. 16777215) mod ($Art__Norm-1-1-0+1)+0
+else
+$Var__Seed := 8088405*$Var__Seed+1
+$_j := (sh_right($Var__Seed,8) .and. 16777215) mod ($Art__Norm-1-$_i5+1)+$_i5
+end if
+$_temp := %Var__ChnMap[$_i5]
+%Var__ChnMap[$_i5] := %Var__ChnMap[$_j]
+%Var__ChnMap[$_j] := $_temp
+inc($_i5)
+end while
+end if
+$Var__XChn := %Var__ChnMap[$Var__AChn]+1
+else
+$Var__XChn := $Var__AChn+1
+end if
+end if
+end select
+end if
+else
+$Var__XTKT := 0
+if ($Art__Norm # 31)
+$Var__XChn := 1
+end if
+end if
+end if
+$Art__Dflag := 1
+$Art__Rflag := 1
+if ($Var__XChn>$Art__DFD)
+$Art__Dflag := 0
+end if
+if ($Var__XChn>$Art__RT)
+$Art__Rflag := 0
+end if
+end if
+set_controller(127,$Var__XChn)
+$SLSFlags := 0
+if ($Art__Norm # 0)
+$SLSFlags := $Art__Rflag*2+$Art__Dflag
+end if
+end if
+$Var__TKT := %ZMap[$Var__XTKT]*$ZoneSize
+if (not in_range($EVENT_NOTE+$Var__TKT,$LowIR,$TopIR))
+$Var__TKT := -$Var__TKT
+$Var__Fold := 1
+if (not in_range($EVENT_NOTE+$Var__TKT,$LowIR,$TopIR))
+if ($Var__TKT<0)
+$Var__TKT := $LowIR-$EVENT_NOTE
+else
+$Var__TKT := $TopIR-$EVENT_NOTE
+end if
+$Var__Fold := 2
+end if
+end if
+set_event_par($EVENT_ID,3,sh_left($Var__TKT,15)+sh_left($SLSFlags,12)+1000)
+if ($Setup=1 and ($Monitor=1) or ($Setup=2))
+if ($Setup=2)
+set_text($ArtBox,@ArtInfoCap2)
+else
+set_text($ArtBox,@ArtInfoCap1)
+end if
+@_txt := !Tones[$EVENT_NOTE mod 12] & ($EVENT_NOTE/12-2)
+@_txt := " " & @_txt & "         "
+if ($Setup=2 and ($AudGroup=1))
+if ($Art__GX<10)
+@_txt := @_txt & "  " & $Art__GX & "  "
+else
+if ($Art__GX<100)
+@_txt := @_txt & " " & $Art__GX & "  "
+else
+if ($Art__GX<1000)
+@_txt := @_txt & " " & $Art__GX & " "
+else
+@_txt := @_txt & $Art__GX & " "
+end if
+end if
+end if
+else
+$_bx4 := $Art__ArtX/10
+$_ax2 := $Art__ArtX mod 10
+if ($_bx4=1)
+@_txt := @_txt & " "
+end if
+@_txt := @_txt & $_bx4 & "-" & $_ax2
+if ($_ax2=1)
+@_txt := @_txt & " "
+end if
+end if
+@_txt := @_txt & "          " & $Var__XTKT
+@_txt := @_txt & "             " & $Var__TKT
+while ($Var__Fold>0)
+@_txt := @_txt & "*"
+dec($Var__Fold)
+end while
+add_text_line($ArtBox,@_txt)
+end if
+$Var__Note3 := $Var__Note2
+$Var__Note2 := $EVENT_NOTE
+else
+if (%KSR__OK[0]=1 and (%KSR__OK[1]=1) and ($Setup=1) and (in_range($EVENT_NOTE,%KSR__Root[1],%KSR__Top[1]) or in_range($EVENT_NOTE,%KSR__Root[0],%KSR__Top[0])))
+ignore_event($EVENT_ID)
+if (in_range($EVENT_NOTE,%KSR__Root[1],%KSR__Top[1]))
+$KSR__BankKey := $EVENT_NOTE-%KSR__Root[1]
+$Var__KVar := 0
+else
+if ($KSR__BankKey=0)
+$Var__KVar := $EVENT_NOTE-%KSR__Root[0]+1
+else
+$KSR__ArtKey := $EVENT_NOTE-%KSR__Root[0]
+end if
+end if
+if ($KSR__BankKey # 0 and ($ArtMode # 101))
+$Art__Play := $KSR__BankKey*10+$KSR__ArtKey+1
+end if
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 2
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+end if
+end if
+end on
+
+on release
+if (in_range($WatchTask,1,$ENGINE_UPTIME))
+$WatchTask := 0
+$_n := 0
+while ($_n<=$TopTask)
+%QTask[$_n] := 0
+$ActvTasks := 0
+inc($_n)
+end while
+end if
+if (in_range($WatchSub,1,$ENGINE_UPTIME))
+$XSub := 0
+$WatchSub := 0
+end if
+if ($EVENT_NOTE=0)
+ignore_event($EVENT_ID)
+if ($EVENT_ID=$MsgID)
+%ReplyBfr[3] := sh_right(%EVENT_PAR[3],11) .and. 31
+$MsgID := -1
+if (sh_right(%EVENT_PAR[3],27) .and. 31=31)
+exit
+end if
+if (%ReplyBfr[3] # 0)
+%ReplyBfr[0] := %EVENT_PAR[0]
+%ReplyBfr[1] := %EVENT_PAR[1]
+%ReplyBfr[2] := %EVENT_PAR[2]
+end if
+exit
+end if
+if (%EVENT_PAR[3] .and. 2047=2047 and ($XSub>0))
+$WatchSub := $ENGINE_UPTIME+100
+select ($XSub)
+case 4
+$_bx3 := 0
+while ($_bx3<=1)
+if (%MBtn__CC[$_bx3]=%InParm[0])
+%MBtn__CCV[$_bx3] := %InParm[1]
+if (%MBtn__Knob[$_bx3] # 0)
+$_val := %MKnob__Kmin[$_bx3]+((%MKnob__Kmax[$_bx3]-%MKnob__Kmin[$_bx3])*%MBtn__CCV[$_bx3]/127)
+$LowIR := $LowIR
+end if
+end if
+inc($_bx3)
+end while
+case 1
+%OutParm[0] := 0
+$MBtn__Actv := 1
+select (%InParm[0])
+case 0
+move_control($MBtn__Mode,0,0)
+case 1
+move_control($MBtn__VTrig,0,0)
+end select
+move_control($MCMenu,%MBtn__x[%InParm[0]],%MBtn__y[%InParm[0]])
+$MCMenu := -3
+while ($MBtn__Actv=1)
+$WatchSub := $WatchSub+1
+wait(1000)
+end while
+select (%InParm[0])
+case 0
+move_control($MBtn__Mode,%MBtn__x[%InParm[0]],%MBtn__y[%InParm[0]])
+case 1
+move_control($MBtn__VTrig,%MBtn__x[%InParm[0]],%MBtn__y[%InParm[0]])
+end select
+move_control($MCMenu,0,0)
+%MBtn__CC[%InParm[0]] := $MCMenu
+if (%MBtn__CC[%InParm[0]]>119 and (%MBtn__SCMenu[%InParm[0]]=0))
+%MBtn__CC[%InParm[0]] := -1
+@StatMsg := "Only CCs can be assigned to control this function"
+%OutParm[0] := 1
+end if
+if (%MBtn__CC[%InParm[0]]<0 or (%MBtn__CC[%InParm[0]]>119 and (%MBtn__SCMenu[%InParm[0]]=0)))
+%MBtn__CC[%InParm[0]] := -1
+if (%InParm[0]=1)
+$Var__VTrig := 1
+set_text($FootCap,!FootCapTxt[2])
+end if
+else
+%MBtn__CCV[%InParm[0]] := 0
+if (%InParm[0]=1)
+if (%MBtn__cc[1] # -1)
+$_tx := $Var__VTrig
+else
+$_tx := 2
+end if
+set_text($FootCap,!FootCapTxt[$_tx])
+end if
+end if
+if (%MBtn__CC[%InParm[0]]=-1)
+select (%InParm[0])
+case 0
+set_text($MBtn__Mode,!MBtn__Cap[%InParm[0]] & "MC=None")
+case 1
+set_text($MBtn__VTrig,!MBtn__Cap[%InParm[0]] & "MC=None")
+end select
+%MBtn__State[%InParm[0]] := 0
+else
+select (%MBtn__CC[%InParm[0]])
+case 128
+select (%InParm[0])
+case 0
+set_text($MBtn__Mode,!MBtn__Cap[%InParm[0]] & "MC = PW")
+case 1
+set_text($MBtn__VTrig,!MBtn__Cap[%InParm[0]] & "MC = PW")
+end select
+case 124
+select (%InParm[0])
+case 0
+set_text($MBtn__Mode,!MBtn__Cap[%InParm[0]] & "MC = AT")
+case 1
+set_text($MBtn__VTrig,!MBtn__Cap[%InParm[0]] & "MC = AT")
+end select
+case 150
+select (%InParm[0])
+case 0
+set_text($MBtn__Mode,!MBtn__Cap[%InParm[0]] & "MC = Vel")
+case 1
+set_text($MBtn__VTrig,!MBtn__Cap[%InParm[0]] & "MC = Vel")
+end select
+case 0 to 119
+select (%InParm[0])
+case 0
+set_text($MBtn__Mode,!MBtn__Cap[%InParm[0]] & "CC# = " & %MBtn__CC[%InParm[0]])
+case 1
+set_text($MBtn__VTrig,!MBtn__Cap[%InParm[0]] & "CC# = " & %MBtn__CC[%InParm[0]])
+end select
+end select
+%MBtn__State[%InParm[0]] := 1
+end if
+select (%InParm[0])
+case 0
+$MBtn__Mode := %MBtn__State[%InParm[0]]
+case 1
+$MBtn__VTrig := %MBtn__State[%InParm[0]]
+end select
+case 3
+$n := 0
+while ($n<=1)
+if (%KSR__OK[$n]=0)
+select ($n)
+case 0
+set_text($KRBox1,@NoRange)
+add_text_line($KRBox1,"")
+case 1
+set_text($KRBox2,@NoRange)
+add_text_line($KRBox2,"")
+end select
+else
+@LowKey := !Tones[%KSR__Root[$n] mod 12] & (%KSR__Root[$n]/12-2)
+@TopKey := !Tones[%KSR__Top[$n] mod 12] & (%KSR__Top[$n]/12-2)
+select ($n)
+case 0
+set_text($KRBox1," Low Key: " & @LowKey)
+add_text_line($KRBox1," High Key: " & @TopKey)
+case 1
+set_text($KRBox2," Low Key: " & @LowKey)
+add_text_line($KRBox2," High Key: " & @TopKey)
+end select
+end if
+inc($n)
+end while
+@LowKey := !Tones[$LowIR mod 12] & ($LowIR/12-2)
+@TopKey := !Tones[$TopIR mod 12] & ($TopIR/12-2)
+set_text($IR_Box," Low Key: " & @LowKey)
+add_text_line($IR_Box," High Key: " & @TopKey)
+case 2
+if ($Redraw=1)
+if ($Setup=2)
+$_i2 := 0
+while ($_i2<num_elements(%PMap))
+%PMap[$_i2] := %SetupPanel_Map[$_i2]
+inc($_i2)
+end while
+else
+if ($Setup=1)
+$_i2 := 0
+while ($_i2<num_elements(%PMap))
+%PMap[$_i2] := %StdPanel_Map[$_i2]
+inc($_i2)
+end while
+else
+$_i2 := 0
+while ($_i2<num_elements(%PMap))
+%PMap[$_i2] := %PrefPanel_Map[$_i2]
+inc($_i2)
+end while
+end if
+end if
+$MBtn__Actv := 0
+wait(3000)
+$_phase := 1
+$_x := 0
+$_y := 0
+$_imax := 49
+while ($_phase<3)
+$_i3 := 0
+while ($_i3<=$_imax)
+if ($_phase=1 or (%PMap[$_i3]>=0))
+if ($_phase=1)
+$_n6 := $_i3
+else
+$_n6 := %PMap[$_i3]
+$_x := $_i3 mod 6+1
+$_y := $_i3/6+1
+end if
+select ($_n6)
+case 0
+move_control($MBtn__Mode,$_x,$_y)
+if ($_x>0)
+%MBtn__x[0] := $_x
+%MBtn__y[0] := $_y
+end if
+case 1
+move_control($MBtn__VTrig,$_x,$_y)
+if ($_x>0)
+%MBtn__x[1] := $_x
+%MBtn__y[1] := $_y
+end if
+case 14
+move_control($ManVar,$_x,$_y)
+case 11
+move_control($AudArt,$_x,$_y)
+case 12
+move_control($AudGroup,$_x,$_y)
+case 13
+move_control($AutoVar,$_x,$_y)
+case 15
+move_control($Monitor,$_x,$_y)
+case 37
+move_control($SetIR,$_x,$_y)
+case 16
+move_control($SetKR1,$_x,$_y)
+case 17
+move_control($SetKR2,$_x,$_y)
+case 18
+move_control($Setup,$_x,$_y)
+case 19
+move_control($ZoneSize,$_x,$_y)
+case 20
+move_control($ArtSel,$_x,$_y)
+case 21
+move_control($VarSel,$_x,$_y)
+case 22
+move_control($ArtMode,$_x,$_y)
+case 23
+move_control($Assign,$_x,$_y)
+case 10
+move_control($AttachVar,$_x,$_y)
+case 24
+move_control($MaxVars,$_x,$_y)
+case 25
+move_control($SASMode,$_x,$_y)
+case 26
+move_control($TrigMode,$_x,$_y)
+case 27
+move_control($VarMode,$_x,$_y)
+case 28
+move_control($VarType,$_x,$_y)
+case 29
+move_control($About,$_x,$_y)
+case 30
+move_control($About2,$_x,$_y)
+case 31
+move_control($ArtBox,$_x,$_y)
+case 32
+move_control($ArtCap1,$_x,$_y)
+case 33
+move_control($ArtCap2,$_x,$_y)
+case 34
+move_control($ArtCap3,$_x,$_y)
+case 35
+move_control($FootCap,$_x,$_y)
+case 36
+move_control($IR_Box,$_x,$_y)
+case 38
+move_control($KRBox1,$_x,$_y)
+case 39
+move_control($KRBox2,$_x,$_y)
+case 40
+move_control($KRCap1,$_x,$_y)
+case 41
+move_control($KRCap2,$_x,$_y)
+case 42
+move_control($VarCap1,$_x,$_y)
+case 43
+move_control($VarCap2,$_x,$_y)
+case 44
+move_control($VarCap3,$_x,$_y)
+case 45
+move_control($Pref__ABtn,$_x,$_y)
+case 46
+move_control($Pref__CBtn,$_x,$_y)
+case 47
+move_control(%Pref__Switch,$_x,$_y)
+case 48
+move_control($Pref__Box,$_x,$_y)
+case 49
+move_control($Pref__Hdr,$_x,$_y)
+end select
+end if
+inc($_i3)
+end while
+inc($_phase)
+$_imax := 35
+end while
+$Redraw := 0
+end if
+$_artchg := 1
+set_text($ArtBox,"")
+if ($Setup=2)
+if ($UserPrefs .and. 32 # 0)
+message("")
+end if
+$_bx2 := $ArtSel/8+1
+$_ax := $ArtSel mod 8+1
+set_knob_label($ArtSel,"  " & $_bx2 & "-" & $_ax)
+$Art__ArtX := $_bx2*10+$_ax
+if ($AudGroup=1)
+$_artchg := 0
+set_controller(126,90)
+if (%KSR__OK[0]=1)
+if ($Art__GX=1)
+set_event_par(play_note(%KSR__Root[0],1,0,1),0,%KSR__Root[0])
+else
+if ($Art__GX=0)
+set_event_par(play_note(%KSR__Root[1],1,0,1),0,%KSR__Root[1])
+end if
+end if
+end if
+end if
+else
+if ($Setup=3)
+$_artchg := 0
+set_text($Pref__Box,@Pref__Help1)
+add_text_line($Pref__Box,@Pref__Help2)
+end if
+end if
+if (%MBtn__cc[1] # -1)
+$_tx := $Var__VTrig
+else
+$_tx := 2
+end if
+set_text($FootCap,!FootCapTxt[$_tx])
+if ($_artchg=1)
+if ($Setup=1)
+$Art__ArtX := $Art__Play
+if ($UserPrefs .and. 32 # 0)
+@_state := "artic = " & ($Art__ArtX/10) & "-" & ($Art__ArtX mod 10) & "   KSw = "
+if ($KSR__BankKey=0)
+@_state := @_state & $KSR__BankKey & "-" & $Var__KVar
+else
+@_state := @_state & $KSR__BankKey & "-" & ($KSR__ArtKey+1)
+end if
+message(@_state)
+end if
+end if
+set_controller(126,$Art__ArtX)
+$Var__XTKT := 0
+$Var__XChn := 0
+$_vx := $Art__ArtX-11
+if ($Art__ArtX>88)
+$Art__Norm := 0
+else
+$_ax3 := 3*$_vx
+$Art__Norm := %Art__Attr[$_ax3]
+end if
+if ($Art__Norm>0)
+if (%Art__Var[$_vx]<0)
+$VarMode := (%Art__Var[$_vx] .and. 7)+120
+$VarType := (sh_right(%Art__Var[$_vx],3) .and. 7)+123
+$TrigMode := (sh_right(%Art__Var[$_vx],6) .and. 7)+110
+$MaxVars := sh_right(%Art__Var[$_vx],8) .and. 14
+$ZoneSize := sh_right(%Art__Var[$_vx],12) .and. 15
+end if
+if ($VarMode # 122)
+if ($Art__Norm=31)
+$Var__XChn := 31
+else
+if ($VarMode=120)
+$_i4 := 0
+while ($_i4<$Art__Norm)
+%Var__ChnMap[$_i4] := $Art__Norm-1-$_i4
+inc($_i4)
+end while
+$Var__AChn := $Art__Norm-1
+else
+$Var__AChn := 0
+end if
+end if
+if ($VarMode=120)
+$_i4 := 0
+while ($_i4<=$MaxVars)
+%Var__TKTMap[$_i4] := $MaxVars-$_i4
+inc($_i4)
+end while
+$Var__ATKT := $MaxVars
+else
+$Var__ATKT := 0
+end if
+end if
+$Art__DFD := %Art__Attr[$_ax3+1]
+$Art__RT := %Art__Attr[$_ax3+2]
+$Art__Dflag := 1
+$Art__Rflag := 1
+if ($Var__XChn>$Art__DFD)
+$Art__Dflag := 0
+end if
+if ($Var__XChn>$Art__RT)
+$Art__Rflag := 0
+end if
+end if
+$Var__Note3 := 0
+$Var__Note2 := 0
+if ($UserPrefs .and. 16 # 0)
+$Var__Seed := 1107155288
+end if
+end if
+case 5
+$UserPrefs := 0
+$_n3 := 0
+while ($_n3<=15)
+$UserPrefs := $UserPrefs .or. sh_left(sh_right(%Pref__Switch[$_n3],7)+1,$_n3)
+inc($_n3)
+end while
+$OmniID := play_note(0,1,0,100)
+set_event_par($OmniID,3,268435456+sh_left($HostSID,16)+2046)
+set_event_par($OmniID,0,$UserPrefs)
+case 6
+$asp__gx := 0
+while ($asp__gx<=233)
+%Art__Attr[$asp__gx] := 0
+inc($asp__gx)
+end while
+$asp__gx := 0
+while ($asp__warn=0 and ($asp__gx<$NUM_GROUPS))
+$asp__sx := 0
+while ($asp__warn=0 and ($asp__sx<3))
+if (_get_engine_par($START_MODE,$asp__gx,$asp__sx,-1) # $ON_CC)
+$asp__warn := 1
+else
+if (_get_engine_par($START_ON_CC,$asp__gx,$asp__sx,-1) # %_artcc[$asp__sx])
+$asp__warn := 1
+end if
+end if
+inc($asp__sx)
+end while
+if ($asp__warn=0)
+if (_get_engine_par($START_CRITERIA,$asp__gx,0,-1) # $AND_NEXT or (_get_engine_par($START_CRITERIA,$asp__gx,1,-1) # $OR_NEXT) or (_get_engine_par($START_CRITERIA,$asp__gx,2,-1) # $AND_NOT) or ($asp__gx>1 and (_get_engine_par($START_MODE,$asp__gx,3,-1) # $ON_NONE)) or ($asp__gx<2 and (_get_engine_par($START_MODE,$asp__gx,3,-1) # $ON_KEY)))
+$asp__warn := 1
+else
+$asp__sx := 0
+while ($asp__warn=0 and ($asp__sx<3))
+if (_get_engine_par($START_CC_MIN,$asp__gx,$asp__sx,-1) # _get_engine_par($START_CC_MAX,$asp__gx,$asp__sx,-1))
+$asp__warn := 1
+end if
+inc($asp__sx)
+end while
+if ($asp__warn=0)
+if (_get_engine_par($START_CC_MIN,$asp__gx,2,-1) # 90)
+$asp__warn := 1
+else
+$asp__artx := _get_engine_par($START_CC_MIN,$asp__gx,0,-1)
+if ($asp__artx # 99 and ($asp__artx mod 10=9 or ($asp__artx mod 10=0) or ($asp__artx>88)))
+$asp__warn := 1
+else
+if ($asp__artx # 99)
+$asp__sx := _get_engine_par($START_CC_MIN,$asp__gx,1,-1)
+$asp__type := sh_right($asp__sx .and. 96,5)
+$asp__sx := $asp__sx .and. 31
+if (in_range($asp__sx,17,30) or ($asp__type>2))
+$asp__warn := 1
+else
+$asp__artx := ($asp__artx-11)*3+$asp__type
+if (%Art__Attr[$asp__artx]<$asp__sx)
+%Art__Attr[$asp__artx] := $asp__sx
+end if
+end if
+end if
+end if
+end if
+end if
+end if
+end if
+inc($asp__gx)
+end while
+$asp__gx := 0
+while ($asp__gx<=231)
+if (%Art__Attr[$asp__gx] # 0)
+$asp__sx := 1
+while ($asp__sx<=2)
+if (%Art__Attr[$asp__gx+$asp__sx] # 0)
+if (%Art__Attr[$asp__gx]=31 and (%Art__Attr[$asp__gx+$asp__sx] # 31) or (%Art__Attr[$asp__gx] # 31 and (%Art__Attr[$asp__gx+$asp__sx]=31)))
+$asp__warn := 2
+end if
+end if
+inc($asp__sx)
+end while
+end if
+$asp__gx := $asp__gx+3
+end while
+if ($asp__warn # 0)
+$asp__gx := 0
+while ($asp__gx<=233)
+%Art__Attr[$asp__gx] := 0
+inc($asp__gx)
+end while
+@asp__Msg := "ERROR: Instrument Groups Not Properly Configured"
+end if
+case 8
+if ($asp__warn=0)
+$asp__checked := 0
+$asp__gx := 0
+while ($asp__warn=0 and ($asp__gx<$NUM_GROUPS))
+if (%GROUPS_SELECTED[$asp__gx]=1)
+inc($asp__checked)
+if (_get_engine_par($START_CC_MIN,$asp__gx,0,-1) # 99)
+$asp__warn := 2
+end if
+end if
+inc($asp__gx)
+end while
+if ($asp__warn=0)
+$asp__type := sh_right($Assign .and. 24,3)
+else
+@asp__Msg := "All Selected Groups must be Unassigned"
+end if
+else
+$asp__warn := 2
+end if
+case 9
+if ($asp__warn # 2)
+$_ax5 := ($Art__ArtX-11)*3
+if (%Art__Attr[$_ax5]=0)
+if ($asp__type # 0)
+$asp__warn := 2
+@asp__Msg := @NoNormalYet
+end if
+else
+if ($asp__Op # 2 and (%Art__Attr[$_ax5] # 31) or ($asp__Op=2 and (%Art__Attr[$_ax5]=31)))
+$asp__warn := 2
+if ($asp__Op=2)
+@asp__Msg := "Articulation already assigned as Fixed"
+else
+@asp__Msg := @ArtIsChain
+end if
+end if
+end if
+end if
+case 7
+$asp__gx := 0
+while ($asp__gx<$NUM_GROUPS)
+$_OK := 1
+if (($asp__Op<32 or ($asp__Op=33)) and (%GROUPS_SELECTED[$asp__gx]=0) or ($asp__Op=32 and (_get_engine_par($START_CC_MIN,$asp__gx,0,-1) # $Art__ArtX)))
+$_OK := 0
+end if
+if ($_OK=1)
+if ($asp__Op<32)
+@_info := "  Assigning Group: "
+else
+if ($asp__Op=32)
+@_info := " De-Assigning Group: "
+else
+@_info := "  Formatting Group: "
+end if
+end if
+set_text($ArtBox,@Tab10 & @_info & $asp__gx)
+while (_get_engine_par($START_MODE,$asp__gx,0,-1) # $ON_NONE)
+_set_engine_par($START_MODE,$ON_NONE,$asp__gx,0,-1)
+end while
+_set_engine_par($START_MODE,$ON_CC,$asp__gx,0,-1)
+_set_engine_par($START_MODE,$ON_CC,$asp__gx,1,-1)
+_set_engine_par($START_MODE,$ON_CC,$asp__gx,2,-1)
+_set_engine_par($START_CRITERIA,$AND_NEXT,$asp__gx,0,-1)
+_set_engine_par($START_CRITERIA,$OR_NEXT,$asp__gx,1,-1)
+_set_engine_par($START_CRITERIA,$AND_NOT,$asp__gx,2,-1)
+_set_engine_par($START_ON_CC,126,$asp__gx,0,-1)
+_set_engine_par($START_CC_MIN,$asp__artx,$asp__gx,0,-1)
+_set_engine_par($START_CC_MAX,$asp__artx,$asp__gx,0,-1)
+_set_engine_par($START_ON_CC,127,$asp__gx,1,-1)
+_set_engine_par($START_CC_MIN,$asp__sx,$asp__gx,1,-1)
+_set_engine_par($START_CC_MAX,$asp__sx,$asp__gx,1,-1)
+_set_engine_par($START_ON_CC,126,$asp__gx,2,-1)
+_set_engine_par($START_CC_MIN,90,$asp__gx,2,-1)
+_set_engine_par($START_CC_MAX,90,$asp__gx,2,-1)
+select ($asp__Op)
+case 32
+$asp__warn := 0
+case 3
+inc($asp__artx)
+if ($asp__artx mod 10=9)
+$asp__artx := $asp__artx+2
+end if
+case 2
+inc($asp__sx)
+end select
+end if
+inc($asp__gx)
+end while
+$asp__gx := 0
+while ($asp__gx<2 and ($asp__gx<$NUM_GROUPS))
+if (%KSR__OK[$asp__gx]=1 and ($UserPrefs .and. 64=0))
+_set_engine_par($START_MODE,$ON_KEY,$asp__gx,3,-1)
+_set_engine_par($START_KEY_MIN,%KSR__Root[$asp__gx],$asp__gx,3,-1)
+_set_engine_par($START_KEY_MAX,%KSR__Top[$asp__gx],$asp__gx,3,-1)
+else
+_set_engine_par($START_MODE,$ON_KEY,$asp__gx,3,-1)
+_set_engine_par($START_KEY_MIN,3,$asp__gx,3,-1)
+_set_engine_par($START_KEY_MAX,2,$asp__gx,3,-1)
+end if
+inc($asp__gx)
+end while
+case 10
+while ($PLAYED_VOICES_INST # 0)
+note_off($ALL_EVENTS)
+$WatchSub := $WatchSub+100
+wait(100000)
+end while
+$asp__gx := 0
+while ($asp__gx<2 and ($asp__gx<$NUM_GROUPS))
+if (%KSR__OK[$asp__gx]=1 and ($UserPrefs .and. 64=0))
+_set_engine_par($START_MODE,$ON_KEY,$asp__gx,3,-1)
+_set_engine_par($START_KEY_MIN,%KSR__Root[$asp__gx],$asp__gx,3,-1)
+_set_engine_par($START_KEY_MAX,%KSR__Top[$asp__gx],$asp__gx,3,-1)
+else
+_set_engine_par($START_MODE,$ON_KEY,$asp__gx,3,-1)
+_set_engine_par($START_KEY_MIN,3,$asp__gx,3,-1)
+_set_engine_par($START_KEY_MAX,2,$asp__gx,3,-1)
+end if
+inc($asp__gx)
+end while
+end select
+if ($StartActv=1)
+$XSub := -$XSub
+else
+$XSub := 0
+end if
+else
+if (%EVENT_PAR[3] .and. 2047 # 2045)
+exit
+end if
+end if
+else
+$LowIR := $LowIR
+end if
+if ($XTsk>0)
+$pTx := $XTsk
+if ($pTx=51)
+$pTx := 0
+end if
+$WatchTask := $ENGINE_UPTIME+500
+$WaitTime := 0
+%QTask[$pTx] := 1
+$XTsk := 0
+inc($ActvTasks)
+if ($pTx=0)
+while ($BlinkCount>=0)
+if ($BlinkCount .and. 1=0)
+message("")
+else
+message(@StatMsg)
+end if
+$WaitTime := $WaitTime+300000
+if ($WaitTime>=1000)
+$WatchTask := $WatchTask+($WaitTime/1000)
+$WaitTime := $WaitTime mod 1000
+end if
+wait(300000)
+dec($BlinkCount)
+end while
+@StatMsg := ""
+$pTx := 0
+end if
+dec($ActvTasks)
+%QTask[$pTx] := 0
+if ($ActvTasks=0)
+$WatchTask := 0
+end if
+end if
+end on
+
+on controller
+if ($DoStartup # 0)
+$DoStartup := 0
+$StartActv := 1
+move_control($BigLabel,0,0)
+$XSub := 3
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # -3)
+wait(100)
+end while
+$WatchSub := 0
+if (%MBtn__CC[1]=-1)
+$Var__VTrig := 1
+else
+$Var__VTrig := sh_right(%MBtn__CCV[1],6)
+end if
+$asp__warn := 0
+$XSub := 6
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # -6)
+wait(100)
+end while
+$WatchSub := 0
+$Art__GX := $REF_GROUP_IDX
+$OmniID := play_note(0,1,0,100)
+set_event_par($OmniID,3,134217728+sh_left($HostSID,16)+2046)
+set_event_par($OmniID,0,$LowIR)
+set_event_par($OmniID,1,$TopIR)
+$XSub := 5
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # -5)
+wait(100)
+end while
+$WatchSub := 0
+$Redraw := 1
+$XSub := 2
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # -2)
+wait(100)
+end while
+$WatchSub := 0
+if ($asp__warn # 0)
+@StatMsg := @asp__Msg
+$BlinkCount := 33
+while ($XTsk # 0)
+wait(100)
+end while
+if (%QTask[0] .and. 1=0)
+$XTsk := 51
+set_event_par(play_note(0,1,0,1),3,2045)
+end if
+else
+wait(100000)
+$XSub := 10
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # -10)
+wait(100)
+end while
+$WatchSub := 0
+end if
+$StartActv := 0
+$XSub := 0
+end if
+if ($CC_NUM=126 or ($CC_NUM=127))
+ignore_controller
+exit
+end if
+if ($CC_NUM=128)
+%NCCV[$CC_NUM] := abs(%CC[128])*127/8191
+else
+%NCCV[$CC_NUM] := %CC[$CC_NUM]
+if ($CC_NUM<=119)
+$LastCC := $CC_NUM
+end if
+end if
+if ($CC_NUM=%MBtn__CC[0])
+select (%CC[$CC_NUM])
+case 0 to 63
+$SASMode := 2
+case 64 to 127
+$SASMode := 1
+end select
+exit
+end if
+if ($SASMode=2)
+exit
+end if
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 4
+%InParm[0] := $CC_NUM
+%InParm[1] := %NCCV[$CC_NUM]
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+if ($CC_NUM=125)
+if ($Setup=1)
+$_pn := %CC[125]
+if ($UserPrefs .and. 4 # 0)
+inc($_pn)
+end if
+if ($ArtMode # 100 and in_range($_pn,11,99))
+$_ax4 := $_pn mod 10
+if (in_range($_ax4,1,8))
+$_bx5 := $_pn/10
+if (in_range($_bx5,1,9))
+$Art__Play := $_pn
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 2
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+end if
+end if
+else
+if ($UserPrefs .and. 2=0 and ($_pn>99))
+select ($_pn)
+case 100 to 102
+$ArtMode := $_pn
+case 110 to 113
+$TrigMode := $_pn
+case 120 to 122
+$VarMode := $_pn
+case 115 to 118
+$MaxVars := ($_pn-114)*2
+end select
+end if
+end if
+end if
+exit
+end if
+if ($CC_NUM=%MBtn__CC[1])
+$Var__VTrig := sh_right(%MBtn__CCV[1],6)
+if (%MBtn__cc[1] # -1)
+$_tx := $Var__VTrig
+else
+$_tx := 2
+end if
+set_text($FootCap,!FootCapTxt[$_tx])
+end if
+end on
+
+on ui_update
+$Art__GX := $REF_GROUP_IDX
+if (%KSR__OK[0]=1)
+if ($Art__GX=1)
+set_event_par(play_note(%KSR__Root[0],1,0,1),0,%KSR__Root[0])
+else
+if ($Art__GX=0)
+set_event_par(play_note(%KSR__Root[1],1,0,1),0,%KSR__Root[1])
+end if
+end if
+end if
+end on
+
+on ui_control($ArtSel)
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 2
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+end on
+
+on ui_control($Assign)
+$AudArt := 0
+$AudGroup := 1
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 2
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+if ($Assign # -1)
+$asp__warn := 0
+while ($PLAYED_VOICES_INST # 0)
+note_off($ALL_EVENTS)
+wait(100000)
+end while
+if ($asp__warn=0)
+$asp__Op := $Assign
+if ($asp__Op<32)
+$asp__Op := $asp__Op .and. 7
+end if
+select ($asp__Op)
+case 1
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 6
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 8
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+if ($asp__warn=0)
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 9
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+if ($asp__warn=0)
+$asp__artx := $Art__ArtX
+$asp__sx := 31+sh_left($asp__type,5)
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 7
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 6
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+set_text($ArtBox,@AllGroups & ($Art__ArtX/10) & "-" & ($Art__ArtX mod 10))
+end if
+end if
+case 2
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 6
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 8
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+if ($asp__warn # 2)
+if ($asp__checked>16)
+$asp__warn := 2
+@asp__Msg := "Chain Size Limited to " & 16 & " Groups"
+end if
+if ($asp__warn # 2)
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 9
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+if ($asp__warn # 2)
+$asp__artx := $Art__ArtX
+$asp__sx := 1+sh_left($asp__type,5)
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 7
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 6
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+set_text($ArtBox,@AllGroups & ($Art__ArtX/10) & "-" & ($Art__ArtX mod 10) & " as a Chained set")
+end if
+end if
+end if
+case 3
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 6
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 8
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+if ($asp__warn # 2)
+if ($ArtSel+$asp__checked>64)
+$asp__warn := 2
+@asp__Msg := "Exceeds Maximum allowed articulation of 8-8"
+end if
+if ($asp__warn # 2)
+$asp__artx := $Art__ArtX
+$asp__gx := 1
+while ($asp__gx<=$asp__checked)
+$_artx := ($asp__artx-11)*3
+if (%Art__Attr[$_artx] # 0 and (%Art__Attr[$_artx] # 31))
+$asp__warn := 2
+@asp__Msg := "At least one " & @ArtIsChain
+$asp__gx := $asp__checked
+else
+if ($asp__type # 0 and (%Art__Attr[$_artx]=0))
+$asp__warn := 2
+@asp__Msg := @NoNormalYet
+$asp__gx := $asp__checked
+else
+inc($asp__artx)
+if ($asp__artx mod 10=9)
+$asp__artx := $asp__artx+2
+end if
+end if
+end if
+inc($asp__gx)
+end while
+if ($asp__warn # 2)
+$asp__artx := $Art__ArtX
+$asp__sx := 31+sh_left($asp__type,5)
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 7
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 6
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+set_text($ArtBox,"Groups assigned to Consecutive Articulations" & " starting at: " & ($Art__ArtX/10) & "-" & ($Art__ArtX mod 10))
+end if
+end if
+end if
+case 32
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 6
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+if ($asp__warn=0)
+@_artstr := $Art__ArtX/10 & "-" & ($Art__ArtX mod 10)
+$asp__artx := 99
+$asp__sx := 0
+$asp__warn := 1
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 7
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+if ($asp__warn=1)
+set_text($ArtBox,"     Articulation " & @_artstr & " Already Cleared")
+else
+set_text($ArtBox,@Tab10 & "Articulation " & @_artstr & " Cleared")
+%Art__Var[$Art__ArtX-11] := 0
+end if
+$asp__warn := 0
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 6
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+end if
+case 33
+$asp__artx := 99
+$asp__sx := 0
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 7
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 6
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+$asp__gx := 0
+while ($asp__gx<$NUM_GROUPS)
+if (%GROUPS_SELECTED[$asp__gx]=0)
+$asp__gx := $NUM_GROUPS
+end if
+inc($asp__gx)
+end while
+if ($asp__gx<=$NUM_GROUPS)
+$asp__gx := 0
+while ($asp__gx<=77)
+%Art__Var[$asp__gx] := 0
+inc($asp__gx)
+end while
+end if
+if ($asp__warn=0)
+set_text($ArtBox,"  Formatting Completed and Verified")
+else
+@asp__Msg := "Verification Failed"
+end if
+case 34
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 6
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+if ($asp__warn=0)
+@asp__Msg := "Instrument Group Configuration OK"
+inc($asp__warn)
+end if
+end select
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 10
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+if (%KSR__OK[0]=1)
+if ($Art__GX=1)
+set_event_par(play_note(%KSR__Root[0],1,0,1),0,%KSR__Root[0])
+else
+if ($Art__GX=0)
+set_event_par(play_note(%KSR__Root[1],1,0,1),0,%KSR__Root[1])
+end if
+end if
+end if
+end if
+if ($asp__warn=2)
+@asp__Msg := "Assign Failure:  " & @asp__Msg
+end if
+if ($asp__warn # 0)
+set_text($ArtBox,@asp__Msg)
+@StatMsg := @asp__Msg
+$BlinkCount := 17
+while ($XTsk # 0)
+wait(100)
+end while
+if (%QTask[0] .and. 1=0)
+$XTsk := 51
+set_event_par(play_note(0,1,0,1),3,2045)
+end if
+end if
+end if
+$Assign := -1
+end on
+
+on ui_control($AttachVar)
+select ($AttachVar)
+case 1
+$Art__VParms := sh_left(sh_left($ZoneSize,3)+sh_right($MaxVars,1),3)+$TrigMode-110
+$Art__VParms := sh_left(sh_left($Art__VParms,3)+$VarType-123,3)+$VarMode-120 .or. -2147483648
+%Art__Var[$Art__ArtX-11] := $Art__VParms
+case 2
+%Art__Var[$Art__ArtX-11] := 0
+case 3
+$asp__gx := 0
+while ($asp__gx<=77)
+%Art__Var[$asp__gx] := 0
+inc($asp__gx)
+end while
+end select
+$AttachVar := -1
+end on
+
+on ui_control($AudArt)
+$AudGroup := 1-$AudArt
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 2
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+end on
+
+on ui_control($AudGroup)
+$AudArt := 1-$AudGroup
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 2
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+end on
+
+on ui_control($AutoVar)
+$ManVar := 1-$AutoVar
+end on
+
+on ui_control($ManVar)
+$AutoVar := 1-$ManVar
+end on
+
+on ui_control($MaxVars)
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 2
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+end on
+
+on ui_control($MBtn__Mode)
+$MBtn__Actv := 0
+wait(3000)
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 1
+%InParm[0] := 0
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$_warn := %OutParm[0]
+$WatchSub := 0
+if ($_warn=1)
+$BlinkCount := 17
+while ($XTsk # 0)
+wait(100)
+end while
+if (%QTask[0] .and. 1=0)
+$XTsk := 51
+set_event_par(play_note(0,1,0,1),3,2045)
+end if
+end if
+end on
+
+on ui_control($MBtn__VTrig)
+$MBtn__Actv := 0
+wait(3000)
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 1
+%InParm[0] := 1
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$_warn := %OutParm[0]
+$WatchSub := 0
+if ($_warn=1)
+$BlinkCount := 17
+while ($XTsk # 0)
+wait(100)
+end while
+if (%QTask[0] .and. 1=0)
+$XTsk := 51
+set_event_par(play_note(0,1,0,1),3,2045)
+end if
+end if
+end on
+
+on ui_control($MCMenu)
+if ($MCMenu=-2)
+$MCMenu := $LastCC
+end if
+$MBtn__Actv := 0
+end on
+
+on ui_control($Monitor)
+$Monitor := $Monitor
+if ($Monitor=0)
+set_text($ArtBox,"")
+end if
+end on
+
+on ui_control($Pref__ABtn)
+$Pref__ABtn := 0
+$Setup := 1
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 5
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 10
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+$Redraw := 1
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 2
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+@StatMsg := "Preferences Accepted"
+$BlinkCount := 7
+while ($XTsk # 0)
+wait(100)
+end while
+if (%QTask[0] .and. 1=0)
+$XTsk := 51
+set_event_par(play_note(0,1,0,1),3,2045)
+end if
+end on
+
+on ui_control($Pref__CBtn)
+$Pref__CBtn := 0
+$_n4 := 0
+while ($_n4<=15)
+%Pref__Switch[$_n4] := (sh_right($UserPrefs,$_n4) .and. 1)*200-100
+inc($_n4)
+end while
+end on
+
+on ui_control(%Pref__Switch)
+$_I := 0
+while ($_I<=15)
+if (%Pref__Switch[$_I] # %Pref__ISwitch[$_I])
+set_text($Pref__Box,!Pref__TipTxt[$_I])
+end if
+if (%Pref__Switch[$_I]>0)
+%Pref__Switch[$_I] := 100
+else
+%Pref__Switch[$_I] := -100
+end if
+%Pref__ISwitch[$_I] := %Pref__Switch[$_I]
+inc($_I)
+end while
+end on
+
+on ui_control($SetIR)
+if ($SetIR=1 and ($SASMode # 2))
+$SetKR1 := 0
+set_text($SetKR1,!SetKR1Cap[0])
+$SetKR2 := 0
+set_text($SetKR2,!SetKR2Cap[0])
+else
+$SetIR := 0
+end if
+set_text($SetIR,!SetIRCap[$SetIR])
+$KSR__State := 4*$SetIR
+end on
+
+on ui_control($SetKR1)
+if ($SetKR1=1 and ($SASMode # 2))
+$SetKR2 := 0
+set_text($SetKR2,!SetKR2Cap[0])
+$SetIR := 0
+set_text($SetIR,!SetIRCap[0])
+else
+$SetKR1 := 0
+end if
+set_text($SetKR1,!SetKR1Cap[$SetKR1])
+$KSR__State := $SetKR1
+end on
+
+on ui_control($SetKR2)
+if ($SetKR2=1 and ($SASMode # 2))
+$SetKR1 := 0
+set_text($SetKR1,!SetKR1Cap[0])
+$SetIR := 0
+set_text($SetIR,!SetIRCap[0])
+else
+$SetKR2 := 0
+end if
+set_text($SetKR2,!SetKR2Cap[$SetKR2])
+$KSR__State := 2*$SetKR2
+end on
+
+on ui_control($Setup)
+$Redraw := 1
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 2
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+end on
+
+on ui_control($TrigMode)
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 2
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+end on
+
+on ui_control($VarMode)
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 2
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+end on
+
+on ui_control($VarType)
+while ($XSub # 0 or ($WatchSub # 0))
+wait(100)
+end while
+$XSub := 2
+set_event_par(play_note(0,1,0,1),3,2047)
+while ($XSub # 0)
+wait(100)
+end while
+$WatchSub := 0
+end on
+

@@ -1,0 +1,25 @@
+{ Test Script for K2's change_pan() function }
+
+on init
+  declare ui_button PanTest
+    set_text(PanTest,'KSP Panning Test')
+  declare PanX  { Pan control variable, -1000 to +1000 }
+  declare id
+  message('')
+end on
+
+on ui_control (PanTest)
+  note_off(ALL_EVENTS)        { Terminate any leftover test notes }
+  if (PanTest = 1)
+    id := play_note(64,1,0,0) { Start center-panned Trombone sample }
+  end if
+end on { PanTest button }
+
+on controller
+  if (CC_NUM = 128)               { If PW has changed }
+    PanX := 1000*CC[128]/8191     { Map PW to -1005, 0, +1005 }    
+    change_pan(id,PanX,0)         { Set Pan position per PanX }
+    message('PanX = ' & PanX)
+  end if
+end on
+
